@@ -869,9 +869,9 @@ def findplot_rakx(ncheb, eigfun, title, **kwargs):
         fig = plt.figure()
         plt.plot(wnum, rayl, linewidth=2)
         if ramin < 1:
-            plt.plot(kxmin, ramin, 'o', label=r'$Ra_{min}=%.2e ; k_x=%.2e$' %(ramin, kxmin))
+            plt.plot(kxmin, ramin, 'o', label=r'$Ra_{min}=%.2e ; k=%.2e$' %(ramin, kxmin))
         else:
-            plt.plot(kxmin, ramin, 'o', label=r'$Ra_{min}=%.2f ; k_x=%.2f$' %(ramin, kxmin))
+            plt.plot(kxmin, ramin, 'o', label=r'$Ra_{min}=%.2f ; k=%.2f$' %(ramin, kxmin))
         plt.xlabel('Wavenumber', fontsize=FTSZ)
         plt.ylabel('Rayleigh number', fontsize=FTSZ)
         plt.xticks(fontsize=FTSZ)
@@ -1135,7 +1135,7 @@ if COMPUTE_PHASECHANGE:
         axe[1].loglog(phinum, kwn, 'o', markersize=MSIZE, c=col1,
                     label=r'Fastest growing mode')
         axe[1].legend(loc=4)
-        axe[1].set_ylabel(r'$k_x$', fontsize=FTSZ)
+        axe[1].set_ylabel(r'$k$', fontsize=FTSZ)
         axe[1].set_xlabel(r'$\Phi^+=\Phi^-$', fontsize=FTSZ)
         plt.savefig("Phi-Ra-kx_EqualPhi.pdf", format='PDF')
         plt.close(fig)
@@ -1244,7 +1244,7 @@ if COMPUTE_PHASECHANGE:
                     label=r'$\Phi^+=\infty$, varying $\Phi^-$')
         # axe[1].loglog(phinum, kwn2, 'o', markersize=MSIZE, label='Second fastest mode')
         axe[1].legend(loc=4)
-        axe[1].set_ylabel(r'$k_x$', fontsize=FTSZ)
+        axe[1].set_ylabel(r'$k$', fontsize=FTSZ)
         axe[1].set_xlabel(r'$\Phi^-$', fontsize=FTSZ)
         plt.savefig("Phi-Ra-kx_VaryingPhiBotFreeTop.pdf", format='PDF')
         plt.close(fig)
@@ -1324,7 +1324,7 @@ if COMPUTE_PHASECHANGE:
                     label='Varying $\Phi^-$, $\Phi^+=10^{-2}$')
         # axe[1].loglog(phinum, kwn2, 'o', markersize=MSIZE, label='Second fastest mode')
         axe[1].legend(loc=4)
-        axe[1].set_ylabel(r'$k_x$', fontsize=FTSZ)
+        axe[1].set_ylabel(r'$k$', fontsize=FTSZ)
         axe[1].set_xlabel(r'$\Phi^-,\quad \Phi^+$', fontsize=FTSZ)
         plt.savefig("Phi-Ra-kx_VaryingPhiBotTop.pdf", format='PDF')
         plt.close(fig)
