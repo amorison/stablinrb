@@ -16,6 +16,7 @@ import dmsuite.dmsuite as dm
 import matplotlib.pyplot as plt
 import seaborn as sns
 from scipy.optimize import brentq
+from scipy.special import sph_harm
 
 ######## Options #######
 # Spherical geometry
@@ -25,7 +26,7 @@ COMPUTE_FREESLIP = False
 # No slip at both boundaries
 COMPUTE_NOSLIP = False
 # Rigid bottom, free slip top
-COMPUTE_FREERIGID = True
+COMPUTE_FREERIGID = False
 # Phase change at boundaries
 COMPUTE_PHASECHANGE = False
 # whether to plot the stream function or use streamplot
@@ -197,7 +198,28 @@ def eigval_spherical(l_harm, ranum, ncheb, gamma,
     iegv = np.argmax(np.real(eigvals))
     if output_eigvec:
         eigvecs = eigvecs[:, index]
-        return eigvals[iegv], eigvecs[:, iegv], np.diag(rad)
+        eigvecs = eigvecs[:, iegv]
+        p_mode = eigvecs[pgall]
+        q_mode = eigvecs[qgall]
+        t_mode = eigvecs[tgall]
+        if ip0 == 1:
+            p_mode = np.insert(p_mode, [0], [0])
+        if ipn == ncheb - 2:
+            p_mode = np.append(p_mode, 0)
+        if iq0 == 1:
+            q_mode = np.insert(q_mode, [0], [0])
+        if iqn == ncheb - 2:
+            q_mode = np.append(q_mode, 0)
+        if it0 == 1:
+            t_mode = np.insert(t_mode, [0], [0])
+        if itn == ncheb - 2:
+            t_mode = np.append(t_mode, 0)
+
+        rad = np.diag(rad)
+        ur_mode = l_harm * (l_harm + 1) * p_mode / rad
+        up_mode = 1j * l_harm * (np.dot(dr1, p_mode) + p_mode / rad)
+
+        return eigvals[iegv], p_mode, t_mode, ur_mode, up_mode, rad
     else:
         return eigvals[iegv]
 
@@ -902,10 +924,60 @@ def crit_ra_l(l_harm, ncheb, gamma, phitop=None, phibot=None, eps=1.e-3):
 
     return (ra_min * sigma_max - ra_max * sigma_min) / (sigma_max - sigma_min)
 
+def normalize(arr):
+    """Normalize complex array with element of higher modulus"""
+    amax = arr[np.argmax(np.abs(arr))]
+    return arr / amax
+
+def plot_l_mode(l_harm, gamma, p_mode, t_mode, ur_mode, up_mode, rad, title):
+    """Plot on spherical annulus"""
+    p_norm = normalize(p_mode)
+    t_norm = normalize(t_mode)
+    ur_norm = normalize(ur_mode)
+    up_norm = normalize(up_mode)
+
+    # profiles
+    fig, axis = plt.subplots(1, 4, sharey = True)
+    plt.setp(axis, xlim=[-1.1, 1.1], ylim=[gamma, 1],
+             xticks=[-1, -0.5, 0., 0.5, 1])
+    axis[0].plot(p_norm, rad, 'o')
+    axis[0].set_xlabel(r'$P$', fontsize=FTSZ)
+    axis[1].plot(ur_norm, rad, 'o')
+    axis[1].set_xlabel(r'$u_r$', fontsize=FTSZ)
+    axis[2].plot(up_norm, rad, 'o')
+    axis[2].set_xlabel(r'$u_\phi$', fontsize=FTSZ)
+    axis[3].plot(t_norm, rad, 'o')
+    axis[3].set_xlabel(r'$\Theta$', fontsize=FTSZ)
+    plt.savefig('mode_rad_{}.pdf'.format(title), format='PDF')
+    plt.close(fig)
+
+    # 2D plot on annulus
+    # mesh construction
+    theta = np.pi/2
+    phi = np.linspace(0, 2*np.pi, 250)
+    rad, phi = np.meshgrid(rad, phi)
+
+    # spherical harmonic
+    harm = sph_harm(l_harm, l_harm, phi, theta)
+    t_mode = (t_mode * harm).real
+
+    # normalization
+    t_min, t_max = t_mode.min(), t_mode.max()
+    t_mode = 2 * (t_mode - t_min) / (t_max - t_min) - 1
+
+    fig, axis = plt.subplots(ncols=1, subplot_kw={'projection': 'polar'})
+    surf = axis.pcolormesh(phi, rad, t_mode,
+                           cmap='RdBu_r', shading='gouraud')
+    cbar = plt.colorbar(surf, shrink=0.8)
+    cbar.set_label(r'Temperature $\Theta$')
+    axis.set_axis_off()
+    plt.tight_layout()
+    plt.savefig('mode_{}.pdf'.format(title), format='PDF')
+    plt.close(fig)
 
 def findplot_ra_l(title, ncheb, gamma, lmin=1, lmax=8,
                   phibot=None, phitop=None,
-                  output_eigvec=False):
+                  plot_rac_l=True, plot_eigvec=True):
     """
     Find the minimum and plot Ra(l)
 
@@ -916,20 +988,39 @@ def findplot_ra_l(title, ncheb, gamma, lmin=1, lmax=8,
     lmax: max harmonic degree
     gamma: r_bot/r_top
     phitop and phibot: phase change numbers
-    output_eigvec: whether to return eigenvectors
+    plot_rac_l: whether to plot Ra_c vs l-mode
+    plot_eigvec: whether to plot eigenvectors
     """
     rac_l = []
     for l_harm in range(lmin, lmax+1):
         # look for Ra_c of each harmonic
         rac_l.append(crit_ra_l(l_harm, ncheb, gamma, phitop, phibot))
-    print(rac_l)
-    return None
+
+    l_c, ra_c = min(enumerate(rac_l), key=lambda tpl: tpl[1])
+    l_c += lmin
+
+    if plot_rac_l:
+        fig = plt.figure()
+        plt.plot(range(lmin, lmax+1), rac_l, linewidth=2)
+        plt.plot(l_c, ra_c, 'o', label=r'$Ra_{min}=%.2f ; l=%d$' %(ra_c, l_c))
+        plt.xlabel(r'Spherical harmonic $l$', fontsize=FTSZ)
+        plt.ylabel(r'Critical Rayleigh number $Ra_c$', fontsize=FTSZ)
+        plt.xticks(fontsize=FTSZ)
+        plt.yticks(fontsize=FTSZ)
+        plt.legend(loc='upper right', fontsize=FTSZ)
+        plt.savefig('Ra_l_{}.pdf'.format(title), format='PDF')
+        plt.close(fig)
+
+    if plot_eigvec:
+        _, p_mode, t_mode, ur_mode, up_mode, radius = eigval_spherical(
+            l_c, ra_c, ncheb, gamma, phitop, phibot, output_eigvec=True)
+        plot_l_mode(l_c, gamma, p_mode, t_mode,
+                    ur_mode, up_mode, radius, title)
 
 if SPHERICAL:
-    findplot_ra_l('sph', ncheb=30, gamma=0.9999,
-                  lmin=1, lmax=10,
-                  phibot=3.e2, phitop=3.e2,
-                  output_eigvec=True)
+    findplot_ra_l('sph', ncheb=30, gamma=0.5,
+                  lmin=1, lmax=8,
+                  phibot=3.e-2, phitop=3.e-2)
 
 if COMPUTE_FREESLIP:
     # find the minimum - Freeslip
