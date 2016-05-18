@@ -18,6 +18,8 @@ import seaborn as sns
 from scipy.optimize import brentq
 
 ######## Options #######
+# Spherical geometry
+SPHERICAL = True
 # Free slip at both boudaries
 COMPUTE_FREESLIP = False
 # No slip at both boundaries
@@ -25,7 +27,7 @@ COMPUTE_NOSLIP = False
 # Rigid bottom, free slip top
 COMPUTE_FREERIGID = True
 # Phase change at boundaries
-COMPUTE_PHASECHANGE = True
+COMPUTE_PHASECHANGE = False
 # whether to plot the stream function or use streamplot
 COMPUTE_STREAMF = False
 # Whether to plot the theoretical profiles for translation mode
@@ -70,6 +72,134 @@ def wtran(eps):
         else:
             wtr = brentq(func, wtrs, wtrl, args=(eps))
     return wtr, wtrs, wtrl
+
+def eigval_spherical(l_harm, ranum, ncheb, gamma,
+                     phitop=None, phibot=None,
+                     output_eigvec=False):
+    """
+    Eigenvalue for spherical geometry
+
+    l_harm: spherical harmonics degree
+    ranum: Rayleigh number
+    ncheb: number of Chebyshev collocation points
+    gamma: r_bot/r_top
+    phitop: phase change number at top, None if no phase change
+    phibot: phase change number at bot, None if no phase change
+    output_eigvec: whether to return eigenvector
+    """
+    # indices for each field
+    # (Dirichlet BC for temperature)
+
+    if not(0<gamma<1):
+        raise ValueError
+
+    if phitop is None or phibot is None:
+        raise ValueError
+
+    # index min and max
+    # poloidal
+    ip0 = 0
+    ipn = ncheb - 1
+    # laplacian of poloidal
+    iq0 = 0
+    iqn = ncheb - 1
+    # temperature
+    it0 = 1
+    itn = ncheb - 2
+
+    # global indices
+    ipg = lambda idx: idx - ip0
+    iqg = lambda idx: idx - iq0 + ipg(ipn) + 1
+    itg = lambda idx: idx - it0 + iqg(iqn) + 1
+
+    # slices
+    # entire vector
+    pall = slice(ip0, ipn + 1)
+    qall = slice(iq0, iqn + 1)
+    tall = slice(it0, itn + 1)
+    # interior points
+    pint = slice(1, ncheb - 1)
+    qint = slice(1, ncheb - 1)
+    tint = slice(1, ncheb - 1)
+    # entire vector with big matrix indexing
+    pgall = slice(ipg(ip0), ipg(ipn + 1))
+    qgall = slice(iqg(iq0), iqg(iqn + 1))
+    tgall = slice(itg(it0), itg(itn + 1))
+    # interior points with big matrix indexing
+    pgint = slice(ipg(1), ipg(ncheb - 1))
+    qgint = slice(iqg(1), iqg(ncheb - 1))
+    tgint = slice(itg(1), itg(ncheb - 1))
+
+    # get differentiation matrices
+    zcheb, ddm = dm.chebdif(ncheb, 2)
+
+    # physical space is gamma<r<1
+    # whereas Chebyshev polynomials are -1<z<1
+    shrink_geom = (1 - gamma) / 2
+    rad = zcheb * shrink_geom + (1 + gamma) / 2
+    rad1 = 1 / rad
+    rad2 = 1 / rad**2
+    rad3 = 1 / rad**3
+    rad = np.diag(rad)
+    rad1 = np.diag(rad1)
+    rad2 = np.diag(rad2)
+    rad3 = np.diag(rad3)
+    one = np.identity(ncheb)  # identity
+    dr1 = ddm[0,:,:] / shrink_geom  # first r-derivative
+    dr2 = ddm[1,:,:] / shrink_geom**2  # second r-derivative
+    lh2 = l_harm * (l_harm + 1)
+    lapl = dr2 + 2 * np.dot(rad1, dr1) - lh2 * rad2
+
+    lmat = np.zeros((itg(itn) + 1, itg(itn) + 1))
+    rmat = np.zeros((itg(itn) + 1, itg(itn) + 1))
+
+    # Poloidal potential equations
+    # free-slip at top (BC on P)
+    if ip0 == 0:
+        lmat[ipg(ip0), pgall] = dr2[ip0, pall] + \
+                (lh2 - 2) * rad2[ip0, pall]
+    # laplacian(P) - Q = 0
+    lmat[pgint, pgall] = lapl[pint, pall]
+    lmat[pgint, qgall] = -one[qint, qall]
+    # free-slip at bot (BC on P)
+    if ipn == ncheb - 1:
+        lmat[ipg(ipn), pgall] = dr2[ipn, pall] + \
+                (lh2 - 2) * rad2[ipn, pall]
+
+    # Q equations
+    # normal stress continuity at top
+    if iq0 == 0:
+        lmat[iqg(iq0), pgall] = lh2 * (phitop * rad1[iq0, pall] -
+                2 * rad2[iq0, pall] + 2 * np.dot(rad1, dr1)[iq0, pall])
+        lmat[iqg(iq0), qgall] = -one[iq0, qall] - np.dot(rad, dr1)[iq0, qall]
+    # laplacian Q - RaT/r = 0
+    lmat[qgint, qgall] = lapl[qint, qall]
+    lmat[qgint, tgall] = - ranum * rad1[qint, tall]
+    # normal stress continuity at bot
+    if iqn == ncheb - 1:
+        lmat[iqg(iqn), pgall] = lh2 * (-phibot * rad1[iqn, pall] -
+                2 * rad2[iqn, pall] + 2 * np.dot(rad1, dr1)[iqn, pall])
+        lmat[iqg(iqn), qgall] = -one[iqn, qall] - np.dot(rad, dr1)[iqn, qall]
+
+    # T equations
+    # laplacian(T) - u.grad(T_conductive) = sigma T
+    lmat[tgint, pgall] = lh2 * gamma / (1 - gamma) * rad3[tint, pall]
+    lmat[tgint, tgall] = lapl[tint, tall]
+    rmat[tgint, tgall] = one[tint, tall]
+
+    # Find the eigenvalues
+    if output_eigvec:
+        eigvals, eigvecs = linalg.eig(lmat, rmat, right=True)
+    else:
+        eigvals = linalg.eig(lmat, rmat, right=False)
+    index = np.argsort(ma.masked_invalid(eigvals))
+    eigvals = ma.masked_invalid(eigvals[index])
+    iegv = np.argmax(np.real(eigvals))
+    if output_eigvec:
+        eigvecs = eigvecs[:, index]
+        return eigvals[iegv], eigvecs[:, iegv], np.diag(rad)
+    else:
+        return eigvals[iegv]
 
 def eigval_general(wnk, ranum, ncheb,
                    bcsu=np.array([[1, 0, 0], [1, 0, 0]], float),
@@ -732,6 +862,74 @@ def findplot_rakx(ncheb, eigfun, title, **kwargs):
         pmax, umax, wmax, tmax = plot_mode(kxmin, ramin,
                                            ncheb, eigfun, title, **kwargs)
     return ramin, kxmin, pmax, umax, wmax, tmax
+
+def crit_ra_l(l_harm, ncheb, gamma, phitop=None, phibot=None, eps=1.e-3):
+    """Find critical Rayleigh of a given harmonic"""
+    ra_min = 200
+    ra_max = 1000
+    sigma_min = np.real(
+            eigval_spherical(l_harm, ra_min, ncheb, gamma,
+                             phitop, phibot, output_eigvec=False))
+    sigma_max = np.real(
+            eigval_spherical(l_harm, ra_max, ncheb, gamma,
+                             phitop, phibot, output_eigvec=False))
+
+    while sigma_min > 0. or sigma_max < 0.:
+        if sigma_min > 0.:
+            ra_max = ra_min
+            ra_min /= 2
+        if sigma_max < 0.:
+            ra_min = ra_max
+            ra_max *=2
+        sigma_min = np.real(
+                eigval_spherical(l_harm, ra_min, ncheb, gamma,
+                                 phitop, phibot, output_eigvec=False))
+        sigma_max = np.real(
+                eigval_spherical(l_harm, ra_max, ncheb, gamma,
+                                 phitop, phibot, output_eigvec=False))
+
+    while ra_max - ra_min > eps:
+        ra_mean = (ra_min + ra_max) / 2
+        sigma_mean = np.real(
+                eigval_spherical(l_harm, ra_mean, ncheb, gamma,
+                                 phitop, phibot, output_eigvec=False))
+        if sigma_mean < 0.:
+            sigma_min = sigma_mean
+            ra_min = ra_mean
+        else:
+            sigma_max = sigma_mean
+            ra_max = ra_mean
+
+    return (ra_min * sigma_max - ra_max * sigma_min) / (sigma_max - sigma_min)
+
+
+def findplot_ra_l(title, ncheb, gamma, lmin=1, lmax=8,
+                  phibot=None, phitop=None,
+                  output_eigvec=False):
+    """
+    Find the minimum and plot Ra(l)
+
+    Inputs
+    -----
+    title: string variable to use in figure name
+    ncheb: number of Chebyshev points
+    lmax: max harmonic degree
+    gamma: r_bot/r_top
+    phitop and phibot: phase change numbers
+    output_eigvec: whether to return eigenvectors
+    """
+    rac_l = []
+    for l_harm in range(lmin, lmax+1):
+        # look for Ra_c of each harmonic
+        rac_l.append(crit_ra_l(l_harm, ncheb, gamma, phitop, phibot))
+    print(rac_l)
+    return None
+
+if SPHERICAL:
+    findplot_ra_l('sph', ncheb=30, gamma=0.9999,
+                  lmin=1, lmax=10,
+                  phibot=3.e2, phitop=3.e2,
+                  output_eigvec=True)
 
 if COMPUTE_FREESLIP:
     # find the minimum - Freeslip
