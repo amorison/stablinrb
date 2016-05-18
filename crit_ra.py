@@ -23,13 +23,13 @@ COMPUTE_FREESLIP = False
 # No slip at both boundaries
 COMPUTE_NOSLIP = False
 # Rigid bottom, free slip top
-COMPUTE_FREERIGID = False
+COMPUTE_FREERIGID = True
 # Phase change at boundaries
 COMPUTE_PHASECHANGE = True
 # whether to plot the stream function or use streamplot
 COMPUTE_STREAMF = False
 # Whether to plot the theoretical profiles for translation mode
-PLOT_THEORY = True
+PLOT_THEORY = False
 NCHEB = 15
 FTSZ = 14
 MSIZE = 3
@@ -827,7 +827,7 @@ def plot_mode(wnk, ranum, ncheb, eigfun, title,
         # plt.axis('equal')
         # plt.setp(axe, xlim=[0, 2*np.pi/wnk], ylim=[-0.5, 0.5],
                  # xticks=np.linspace(0, np.floor(2*np.pi/wnk), 5))
-        surf=plt.pcolormesh(xgr, zgr, t2d, cmap='seismic', linewidth=0,)
+        surf=plt.pcolormesh(xgr, zgr, t2d, cmap='RdBu_r', linewidth=0,)
         plt.axis([xgr.min(), xgr.max(), zgr.min(), zgr.max()])
         # stream function
         u2d1, u2d2 = np.meshgrid(modx, upl)
@@ -912,19 +912,34 @@ def findplot_rakx(ncheb, eigfun, title, **kwargs):
 
 if COMPUTE_FREESLIP:
     # find the minimum - Freeslip
-    findplot_rakx(NCHEB, eigval_freeslip, 'FreeFree', output_rakx=True,
-                  bcsu=np.array([[0, 1, 0], [0, 1, 0]], float),
-                  output_eigvec=True)
+    ramin, kxmin, pmax, umax, wmax, tmax = findplot_rakx(NCHEB, eigval_general,
+                'FreeFree', plotfig=True, output_rakx=True,
+                bcsu=np.array([[0, 1, 0], [0, 1, 0]]),
+                phase_change_top=False, phase_change_bot=False,
+                output_eigvec=True)
+    print('max =', ramin, kxmin, pmax, umax, wmax, tmax)
 
 if COMPUTE_NOSLIP:
     # find the minimum - Noslip
-    findplot_rakx(NCHEB, eigval_noslip, 'Noslip')
+    ramin, kxmin, pmax, umax, wmax, tmax = findplot_rakx(NCHEB, eigval_general,
+                'RigidRigid', plotfig=True, output_rakx=True,
+                phase_change_top=False, phase_change_bot=False,
+                output_eigvec=True)
+    print('max =', ramin, kxmin, pmax, umax, wmax, tmax)
 
 if COMPUTE_FREERIGID:
-    findplot_rakx(20, eigval_general, 'FreeRigid',
-                  bcsu=np.array([[0, 1, 0], [1, 0, 0]], float),
-                  phase_change_top=False, phase_change_bot=False,
-                  output_eigvec=True)
+    ramin, kxmin, pmax, umax, wmax, tmax = findplot_rakx(NCHEB, eigval_general,
+                'RigidFree', plotfig=True, output_rakx=True,
+                bcsu=np.array([[1, 0, 0], [0, 1, 0]]),
+                phase_change_top=False, phase_change_bot=False,
+                output_eigvec=True)
+    print('max =', ramin, kxmin, pmax, umax, wmax, tmax)
+    ramin, kxmin, pmax, umax, wmax, tmax = findplot_rakx(NCHEB, eigval_general,
+                'FreeRigid', plotfig=True, output_rakx=True,
+                bcsu=np.array([[0, 1, 0], [1, 0, 0]]),
+                phase_change_top=False, phase_change_bot=False,
+                output_eigvec=True)
+    print('max =', ramin, kxmin, pmax, umax, wmax, tmax)
 
 if COMPUTE_PHASECHANGE:
     nphi = 100
@@ -1041,7 +1056,7 @@ if COMPUTE_PHASECHANGE:
         plt.savefig('Phi_ModeMax.pdf', format='PDF')
         plt.close(fig)
 
-    PHASETOPBOT = True
+    PHASETOPBOT = False
     if PHASETOPBOT:
         phib = 1.e-3
         phit = 1.e-3
