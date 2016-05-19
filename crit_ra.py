@@ -927,26 +927,41 @@ def crit_ra_l(l_harm, ncheb, gamma, phitop=None, phibot=None, eps=1.e-3):
 def normalize(arr):
     """Normalize complex array with element of higher modulus"""
     amax = arr[np.argmax(np.abs(arr))]
-    return arr / amax
+    return arr / amax, amax
 
-def plot_l_mode(l_harm, gamma, p_mode, t_mode, ur_mode, up_mode, rad, title):
+def plot_l_mode(l_harm, gamma, p_mode, t_mode, ur_mode, up_mode, rad_cheb, title):
     """Plot on spherical annulus"""
-    p_norm = normalize(p_mode)
-    t_norm = normalize(t_mode)
-    ur_norm = normalize(ur_mode)
-    up_norm = normalize(up_mode)
+    # interpolation
+    n_rad = 100
+    n_phi = 400
+    cheb_space = np.linspace(-1, 1, n_rad)
+    rad = np.linspace(gamma, 1, n_rad)
+    p_interp = dm.chebint(p_mode, cheb_space)
+    t_interp = dm.chebint(t_mode, cheb_space)
+    ur_interp = dm.chebint(ur_mode, cheb_space)
+    up_interp = dm.chebint(up_mode, cheb_space)
+
+    # normalization
+    p_norm, p_max = normalize(p_mode)
+    t_norm, t_max = normalize(t_mode)
+    ur_norm, ur_max = normalize(ur_mode)
+    up_norm, up_max = normalize(up_mode)
 
     # profiles
-    fig, axis = plt.subplots(1, 4, sharey = True)
+    fig, axis = plt.subplots(1, 4, sharey=True)
     plt.setp(axis, xlim=[-1.1, 1.1], ylim=[gamma, 1],
              xticks=[-1, -0.5, 0., 0.5, 1])
-    axis[0].plot(p_norm, rad, 'o')
+    axis[0].plot(p_interp / p_max, rad)
+    axis[0].plot(p_norm, rad_cheb, 'o')
     axis[0].set_xlabel(r'$P$', fontsize=FTSZ)
-    axis[1].plot(ur_norm, rad, 'o')
+    axis[1].plot(ur_interp / ur_max, rad)
+    axis[1].plot(ur_norm, rad_cheb, 'o')
     axis[1].set_xlabel(r'$u_r$', fontsize=FTSZ)
-    axis[2].plot(up_norm, rad, 'o')
+    axis[2].plot(up_interp / up_max, rad)
+    axis[2].plot(up_norm, rad_cheb, 'o')
     axis[2].set_xlabel(r'$u_\phi$', fontsize=FTSZ)
-    axis[3].plot(t_norm, rad, 'o')
+    axis[3].plot(t_interp / t_max, rad)
+    axis[3].plot(t_norm, rad_cheb, 'o')
     axis[3].set_xlabel(r'$\Theta$', fontsize=FTSZ)
     plt.savefig('mode_rad_{}.pdf'.format(title), format='PDF')
     plt.close(fig)
@@ -954,19 +969,19 @@ def plot_l_mode(l_harm, gamma, p_mode, t_mode, ur_mode, up_mode, rad, title):
     # 2D plot on annulus
     # mesh construction
     theta = np.pi/2
-    phi = np.linspace(0, 2*np.pi, 250)
+    phi = np.linspace(0, 2*np.pi, n_phi)
     rad, phi = np.meshgrid(rad, phi)
 
     # spherical harmonic
     harm = sph_harm(l_harm, l_harm, phi, theta)
-    t_mode = (t_mode * harm).real
+    t_field = (t_interp * harm).real
 
     # normalization
-    t_min, t_max = t_mode.min(), t_mode.max()
-    t_mode = 2 * (t_mode - t_min) / (t_max - t_min) - 1
+    t_min, t_max = t_field.min(), t_field.max()
+    t_field = 2 * (t_field - t_min) / (t_max - t_min) - 1
 
     fig, axis = plt.subplots(ncols=1, subplot_kw={'projection': 'polar'})
-    surf = axis.pcolormesh(phi, rad, t_mode,
+    surf = axis.pcolormesh(phi, rad, t_field,
                            cmap='RdBu_r', shading='gouraud')
     cbar = plt.colorbar(surf, shrink=0.8)
     cbar.set_label(r'Temperature $\Theta$')
