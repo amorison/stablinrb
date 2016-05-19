@@ -18,6 +18,12 @@ import seaborn as sns
 from scipy.optimize import brentq
 from scipy.special import sph_harm
 
+# for contour
+import mpl_toolkits.axisartist.floating_axes as floating_axes
+from matplotlib.projections import PolarAxes
+from mpl_toolkits.axisartist.grid_finder import FixedLocator, \
+    MaxNLocator, DictFormatter
+
 ######## Options #######
 # Spherical geometry
 SPHERICAL = True
@@ -924,6 +930,19 @@ def crit_ra_l(l_harm, ncheb, gamma, phitop=None, phibot=None, eps=1.e-3):
 
     return (ra_min * sigma_max - ra_max * sigma_min) / (sigma_max - sigma_min)
 
+def stream_azim(gamma, rad, phi, u_rad, u_phi):
+    """Compute stream function in a spherical annulus"""
+    n_phi, n_rad = u_rad.shape
+    psi = np.zeros(u_rad.shape)
+    # integrate on phi along the interior boundary
+    psi[1:n_phi, 0] = - integrate.cumtrapz(gamma * u_rad[:, 0], phi)
+    # integrate along radial direction
+    for i_phi, psi_bot in enumerate(psi[:, 0]):
+        psi[i_phi, 1:n_rad] = psi_bot + \
+            integrate.cumtrapz(rad * u_phi[i_phi, :], rad) / rad[1:n_rad]
+    psi = psi - np.mean(psi)
+    return psi
+
 def normalize(arr):
     """Normalize complex array with element of higher modulus"""
     amax = arr[np.argmax(np.abs(arr))]
@@ -970,21 +989,52 @@ def plot_l_mode(l_harm, gamma, p_mode, t_mode, ur_mode, up_mode, rad_cheb, title
     # mesh construction
     theta = np.pi/2
     phi = np.linspace(0, 2*np.pi, n_phi)
-    rad, phi = np.meshgrid(rad, phi)
+    rad_mesh, phi_mesh = np.meshgrid(rad, phi)
 
     # spherical harmonic
-    harm = sph_harm(l_harm, l_harm, phi, theta)
+    harm = sph_harm(l_harm, l_harm, phi_mesh, theta)
     t_field = (t_interp * harm).real
+    ur_field = (ur_interp * harm).real
+    up_field = (up_interp * harm).real
 
     # normalization
     t_min, t_max = t_field.min(), t_field.max()
     t_field = 2 * (t_field - t_min) / (t_max - t_min) - 1
 
-    fig, axis = plt.subplots(ncols=1, subplot_kw={'projection': 'polar'})
-    surf = axis.pcolormesh(phi, rad, t_field,
+    # stream function
+    psi_field = stream_azim(gamma, rad, phi, ur_field, up_field)
+
+    # create annulus frame
+    fig = plt.figure()
+    tr = PolarAxes.PolarTransform()
+
+    angle_ticks = [(0, r"$0$"),
+                   (.5*np.pi, r"$\frac{\pi}{2}$"),
+                   (1.*np.pi, r"$\pi$"),
+                   (1.5*np.pi, r"$\frac{3\pi}{2}$")]
+    grid_locator1 = FixedLocator([v for v, _ in angle_ticks])
+    tick_formatter1 = DictFormatter(dict(angle_ticks))
+
+    radius_ticks = [(gamma, r'$\gamma$'), (1, '')]
+    grid_locator2 = FixedLocator([v for v, _ in radius_ticks])
+    tick_formatter2 = DictFormatter(dict(radius_ticks))
+
+    grid_helper = floating_axes.GridHelperCurveLinear(
+        tr, extremes=(2.*np.pi, 0, 1, gamma),
+        grid_locator1=grid_locator1, tick_formatter1=tick_formatter1,
+        grid_locator2=grid_locator2, tick_formatter2=tick_formatter2)
+
+    ax1 = floating_axes.FloatingSubplot(fig, 111, grid_helper=grid_helper)
+    fig.add_subplot(ax1)
+    axis = ax1.get_aux_axes(tr)
+
+    # plot Temperature
+    surf = axis.pcolormesh(phi_mesh, rad_mesh, t_field,
                            cmap='RdBu_r', shading='gouraud')
     cbar = plt.colorbar(surf, shrink=0.8)
     cbar.set_label(r'Temperature $\Theta$')
+    # plot stream lines
+    axis.contour(phi_mesh, rad_mesh, psi_field)
     axis.set_axis_off()
     plt.tight_layout()
     plt.savefig('mode_{}.pdf'.format(title), format='PDF')
