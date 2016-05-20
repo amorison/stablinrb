@@ -930,19 +930,6 @@ def crit_ra_l(l_harm, ncheb, gamma, phitop=None, phibot=None, eps=1.e-3):
 
     return (ra_min * sigma_max - ra_max * sigma_min) / (sigma_max - sigma_min)
 
-def stream_azim(gamma, rad, phi, u_rad, u_phi):
-    """Compute stream function in a spherical annulus"""
-    n_phi, n_rad = u_rad.shape
-    psi = np.zeros(u_rad.shape)
-    # integrate on phi along the interior boundary
-    psi[1:n_phi, 0] = - integrate.cumtrapz(gamma * u_rad[:, 0], phi)
-    # integrate along radial direction
-    for i_phi, psi_bot in enumerate(psi[:, 0]):
-        psi[i_phi, 1:n_rad] = psi_bot + \
-            integrate.cumtrapz(rad * u_phi[i_phi, :], rad) / rad[1:n_rad]
-    psi = psi - np.mean(psi)
-    return psi
-
 def normalize(arr):
     """Normalize complex array with element of higher modulus"""
     amax = arr[np.argmax(np.abs(arr))]
@@ -950,12 +937,16 @@ def normalize(arr):
 
 def plot_l_mode(l_harm, gamma, p_mode, t_mode, ur_mode, up_mode, rad_cheb, title):
     """Plot on spherical annulus"""
+    # stream function
+    psi_mode = 1.j * l_harm * p_mode
+
     # interpolation
     n_rad = 100
     n_phi = 400
     cheb_space = np.linspace(-1, 1, n_rad)
     rad = np.linspace(gamma, 1, n_rad)
     p_interp = dm.chebint(p_mode, cheb_space)
+    psi_interp = dm.chebint(psi_mode, cheb_space)
     t_interp = dm.chebint(t_mode, cheb_space)
     ur_interp = dm.chebint(ur_mode, cheb_space)
     up_interp = dm.chebint(up_mode, cheb_space)
@@ -996,13 +987,11 @@ def plot_l_mode(l_harm, gamma, p_mode, t_mode, ur_mode, up_mode, rad_cheb, title
     t_field = (t_interp * harm).real
     ur_field = (ur_interp * harm).real
     up_field = (up_interp * harm).real
+    psi_field = (psi_interp * harm).real
 
     # normalization
     t_min, t_max = t_field.min(), t_field.max()
     t_field = 2 * (t_field - t_min) / (t_max - t_min) - 1
-
-    # stream function
-    psi_field = stream_azim(gamma, rad, phi, ur_field, up_field)
 
     # create annulus frame
     fig = plt.figure()
