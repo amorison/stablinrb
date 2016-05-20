@@ -24,25 +24,63 @@ from matplotlib.projections import PolarAxes
 from mpl_toolkits.axisartist.grid_finder import FixedLocator, \
     MaxNLocator, DictFormatter
 
-######## Options #######
+# -------------------------------------------------------------------
+
 # Spherical geometry
 SPHERICAL = True
-# Free slip at both boudaries
-COMPUTE_FREESLIP = False
-# No slip at both boundaries
-COMPUTE_NOSLIP = False
-# Rigid bottom, free slip top
-COMPUTE_FREERIGID = False
-# Phase change at boundaries
-COMPUTE_PHASECHANGE = False
-# whether to plot the stream function or use streamplot
-COMPUTE_STREAMF = False
+GAMMA = 0.5
+
+# Free slip (rigid otherwise)
+# (unused if PHI_* is not None)
+FREESLIP_TOP = True
+FREESLIP_BOT = True
+
+# Phase change number
+# (precedence on FREESLIP_*)
+# set to None if no phase change
+PHI_TOP = 3.e-2
+PHI_BOT = 3.e-2
+
 # Whether to plot the theoretical profiles for translation mode
 PLOT_THEORY = False
+
+# Number of Chebyshev points
 NCHEB = 15
+
+# Font and markers size
 FTSZ = 14
 MSIZE = 3
-######################
+
+# Explore phi space
+COMPUTE_PHASECHANGE = False
+
+# -------------------------------------------------------------------
+
+if FREESLIP_TOP or (PHI_TOP is not None):
+    BCSU = [[0, 1, 0]]
+else:
+    BCSU = [[1, 0, 0]]
+
+if FREESLIP_BOT or (PHI_BOT is not None):
+    BCSU.append([0, 1, 0])
+else:
+    BCSU.append([1, 0, 0])
+
+BCSU = np.array(BCSU)
+
+title = ['sph'] if SPHERICAL else ['cart']
+if PHI_TOP is not None:
+    title.append('Ptop')
+else:
+    title.append(
+        'free' if FREESLIP_TOP else 'rigid')
+if PHI_BOT is not None:
+    title.append('Pbot')
+else:
+    title.append(
+        'free' if FREESLIP_BOT else 'rigid')
+title = '_'.join(title)
+
 def ndprint(a, format_string='{0:.2f}'):
     """pretty print array for debugging"""
     for ili in range(a.shape[0]):
@@ -229,18 +267,18 @@ def eigval_spherical(l_harm, ranum, ncheb, gamma,
     else:
         return eigvals[iegv]
 
-def eigval_general(wnk, ranum, ncheb,
-                   bcsu=np.array([[1, 0, 0], [1, 0, 0]], float),
-                   bcsw=np.array([[1, 0, 0], [1, 0, 0]], float),
-                   bcst=np.array([[1, 0, 0], [1, 0, 0]], float),
-                   phase_change_top=False,
-                   phase_change_bot=False,
-                   phitop = 100,
-                   phibot = 100,
-                   penalty = 0.,
-                   output_eigvec=False,
-                   translation=False,
-                   mode=0):
+def eigval_cartesian(wnk, ranum, ncheb,
+                     bcsu=np.array([[1, 0, 0], [1, 0, 0]], float),
+                     bcsw=np.array([[1, 0, 0], [1, 0, 0]], float),
+                     bcst=np.array([[1, 0, 0], [1, 0, 0]], float),
+                     phase_change_top=False,
+                     phase_change_bot=False,
+                     phitop = 100,
+                     phibot = 100,
+                     penalty = 0.,
+                     output_eigvec=False,
+                     translation=False,
+                     mode=0):
     """
     Eigenvalue for given wavenumber and Rayleigh number with general BCs
 
@@ -503,12 +541,12 @@ def eigval_general(wnk, ranum, ncheb,
         return egv2[leig]
 
 
-def search_ra(wnk, ray, ncheb, eigfun, **kwargs):
+def search_ra(wnk, ray, ncheb, **kwargs):
     """find rayleigh number ray which gives neutral stability"""
     ray0 = ray/math.sqrt(1.2)
     ray1 = ray*math.sqrt(1.2)
-    la0 = np.real(eigfun(wnk, ray0, ncheb, **kwargs))
-    la1 = np.real(eigfun(wnk, ray1, ncheb, **kwargs))
+    la0 = np.real(eigval_cartesian(wnk, ray0, ncheb, **kwargs))
+    la1 = np.real(eigval_cartesian(wnk, ray1, ncheb, **kwargs))
 
     while la0 > 0. or la1 < 0.:
         if la0 > 0.:
@@ -517,12 +555,12 @@ def search_ra(wnk, ray, ncheb, eigfun, **kwargs):
         if la1 < 0.:
             ray0 = ray1
             ray1 = 2.*ray1
-        la0 = np.real(eigfun(wnk, ray0, ncheb, **kwargs))
-        la1 = np.real(eigfun(wnk, ray1, ncheb, **kwargs))
+        la0 = np.real(eigval_cartesian(wnk, ray0, ncheb, **kwargs))
+        la1 = np.real(eigval_cartesian(wnk, ray1, ncheb, **kwargs))
     # while np.abs(lam) > 1.e-7:
     while la1-la0 > 1.e-3:
         raym = (ray0+ray1)/2.
-        lam = np.real(eigfun(wnk, raym, ncheb, **kwargs))
+        lam = np.real(eigval_cartesian(wnk, raym, ncheb, **kwargs))
         if lam < 0.:
             la0 = lam
             ray0 = raym
@@ -530,15 +568,15 @@ def search_ra(wnk, ray, ncheb, eigfun, **kwargs):
             la1 = lam
             ray1 = raym
         # raym = (ray0+ray1)/2.
-        # lam = np.real(eigfun(wnk, raym, ncheb, **kwargs))
+        # lam = np.real(eigval_cartesian(wnk, raym, ncheb, **kwargs))
     return (ray0*la1-ray1*la0)/(la1-la0)
 
-def ra_ks(rag, wng, ncheb, eigfun, **kwargs):
+def ra_ks(rag, wng, ncheb, **kwargs):
     """finds the minimum in the Ra-wn curve"""
     # find 3 values of Ra for 3 different wave numbers
     eps = [0.1, 0.01]
     wns = np.linspace(wng*(1-eps[0]), wng*(1+2*eps[0]), 3)
-    ray = [search_ra(kkx, rag, ncheb, eigfun, **kwargs) for kkx in wns]
+    ray = [search_ra(kkx, rag, ncheb, **kwargs) for kkx in wns]
 
     # fit a degree 2 polynomial
     pol = np.polyfit(wns, ray, 2)
@@ -549,49 +587,19 @@ def ra_ks(rag, wng, ncheb, eigfun, **kwargs):
     for i, err in enumerate([0.03, 1.e-3]):
         while np.abs(kmin-wns[1]) > err*kmin and not exitloop:
             wns = np.linspace(kmin*(1-eps[i]), kmin*(1+eps[i]), 3)
-            ray = [search_ra(kkx, rag, ncheb, eigfun, **kwargs) for kkx in wns]
+            ray = [search_ra(kkx, rag, ncheb, **kwargs) for kkx in wns]
             pol = np.polyfit(wns, ray, 2)
             kmin = -0.5*pol[1]/pol[0]
             # if kmin <= 1.e-3:
                 # exitloop = True
                 # kmin = 1.e-3
-                # ray[1] = search_ra(kmin, rag, ncheb, eigfun, **kwargs)
+                # ray[1] = search_ra(kmin, rag, ncheb, **kwargs)
                 # not able to properly converge anymore
             rag = ray[1]
 
     return rag, kmin
 
-def stream_function(uvec, wvec, xcoo, zcoo, geometry='cartesian'):
-    """
-    Computes the stream function from vector field
-
-    INPUT
-    uvec : horizontal velocity, 2D array
-    wvec : vertical velocity, 2D array
-    xcoo : xcoordinate, 1D array
-    zcoo : zcoordinate, 1D array
-    **kwargs :
-    geometry: 'cartesian' (default), 'spherical'
-
-    OUTPUT
-    psi : stream function
-    """
-        
-    nnr, nph = uvec.shape
-    psi = np.zeros(uvec.shape)
-    # integrate first on phi or x
-    psi[0, 0] = 0.
-    psi[0, 1:nph] = - integrate.cumtrapz(wvec[0, :], xcoo)
-    # multiply by rcmb in the spherical case
-    if geometry == 'spherical':
-        psi[0, 1:nph] = psi[0, 1:nph]*zcoo[0]
-    # integrate on r or z
-    for iph in range(0, nph):
-        psi[1:nnr, iph] = psi[0, iph] + integrate.cumtrapz(uvec[:, iph], zcoo/2)
-    psi = psi - np.mean(psi)
-    return psi
-
-def plot_mode(wnk, ranum, ncheb, eigfun, title,
+def plot_mode(wnk, ranum, ncheb, title,
                    npoints=100, plotfig=True, **kwargs):
     """
     Plots the fastest growing mode for wavenumber wnk and ranum
@@ -600,14 +608,13 @@ def plot_mode(wnk, ranum, ncheb, eigfun, title,
     wnk : wavenumber
     ranum : Rayleigh number
     ncheb : number of Chebyshev points
-    eigfun : eigenvalue function
     title : string to use in the pdf file name
     npoints : number of interpolation points for the plot
                   otherwise just used to compute mode caracteristics
     plotfig : whether to actually plot and save the figure
-    **kwargs : passed on to eigfun
+    **kwargs : passed on to eigval_cartesian
     """
-    # egv, eigvec, zzr = eigfun(wnk, ranum, ncheb, bcsu=bcsu,
+    # egv, eigvec, zzr = eigval_cartesian(wnk, ranum, ncheb, bcsu=bcsu,
     #                           bcsw=bcsw, bcst=bcst, output_eigvec=output_eigvec)
     if 'output_eigvec' not in kwargs:
         kwargs['output_eigvec'] = True
@@ -641,11 +648,7 @@ def plot_mode(wnk, ranum, ncheb, eigfun, title,
         kwargs = {}
         kwargs['output_eigvec'] = True
 
-    # if eigfun == eigval_general:
-        # egv, eigvec, zzr = eigfun(wnk, ranum, ncheb, bcsu=bcsu,
-                                # bcsw=bcsw, bcst=bcst, **kwargs)
-    # else:
-    egv, eigvec, zzr = eigfun(wnk, ranum, ncheb, **kwargs)
+    egv, eigvec, zzr = eigval_cartesian(wnk, ranum, ncheb, **kwargs)
     print('Eigenvalue = ', egv)
 
     # setup indices for each field depending on BCs
@@ -783,9 +786,9 @@ def plot_mode(wnk, ranum, ncheb, eigfun, title,
         axe[3].plot(pmod/np.abs(pmax), zzr/2, "o", label=r'$P$')
         axe[3].set_xlabel(r'$P/(%.2e)$' %(pmax), fontsize=FTSZ)
         if PLOT_THEORY:
-            filename = "Mode_profiles"+title+"_theory.pdf"
+            filename = '_'.join((title, 'mode_prof', 'theory.pdf'))
         else:
-            filename = "Mode_profiles"+title+".pdf"
+            filename = '_'.join((title, 'mode_prof.pdf'))
         plt.savefig(filename, format='PDF')
         plt.close(fig)
 
@@ -815,30 +818,26 @@ def plot_mode(wnk, ranum, ncheb, eigfun, title,
         u2d = np.real(u2d1*u2d2)
         w2d1, w2d2 = np.meshgrid(modx, wpl)
         w2d = np.real(w2d1*w2d2)
-        if COMPUTE_STREAMF:
-            psi = stream_function(u2d, w2d, xvar, zpl/2)
-            plt.contour(xgr, zgr, psi)
-        else:
-            speed = np.sqrt(u2d**2+w2d**2)
-            lw = 2*speed/speed.max()
-            plt.streamplot(xgr, zgr, u2d, w2d, linewidth=lw, density=0.7)
+        speed = np.sqrt(u2d**2+w2d**2)
+        lw = 2*speed/speed.max()
+        plt.streamplot(xgr, zgr, u2d, w2d, linewidth=lw, density=0.7)
         plt.xlabel(r'$x$', fontsize=FTSZ)
         plt.ylabel(r'$y$', fontsize=FTSZ)
         cbar = plt.colorbar(surf)
         # save image
-        plt.savefig("mode"+title+".pdf", format='PDF', bbox_inches='tight')
+        filename = '_'.join((title, 'mode.pdf'))
+        plt.savefig(filename, format='PDF', bbox_inches='tight')
     return pmax, umax, wmax, tmax
 
-def findplot_rakx(ncheb, eigfun, title, **kwargs):
+def findplot_rakx(ncheb, title, **kwargs):
     """
     Finds the minimum and plots Ra(kx)
 
     Inputs
     ----------
     ncheb  = number of Chebyshev points in the calculation
-    eigfun = name of the eigenvalue finding function
     title  = string variable to use in figure name
-    **kwargs: most are just to be passed on to eigfun
+    **kwargs: most are just to be passed on to eigval_cartesian
     output_eigvec (True|False) controls whether to plot the eigenvector
     of the first ustable mode. Default is False
     """
@@ -861,15 +860,15 @@ def findplot_rakx(ncheb, eigfun, title, **kwargs):
         output_rakx = True
         kwargs2['output_eigvec'] = False
 
-    ramin, kxmin = ra_ks(600, 2, ncheb, eigfun, **kwargs2)
+    ramin, kxmin = ra_ks(600, 2, ncheb, **kwargs2)
     # print(title+': Ra=', ramin, 'kx=', kxmin)
 
     if output_rakx:
         # plot Ra as function of wavenumber
         wnum = np.linspace(kxmin/2, kxmin*1.5, 50)
-        rayl = [search_ra(wnum[0], ramin, ncheb, eigfun, **kwargs2)]
+        rayl = [search_ra(wnum[0], ramin, ncheb, **kwargs2)]
         for i, kk in enumerate(wnum[1:]):
-            ra2 = search_ra(kk, rayl[i], ncheb, eigfun, **kwargs2)
+            ra2 = search_ra(kk, rayl[i], ncheb, **kwargs2)
             rayl = np.append(rayl, ra2)
 
         fig = plt.figure()
@@ -883,12 +882,13 @@ def findplot_rakx(ncheb, eigfun, title, **kwargs):
         plt.xticks(fontsize=FTSZ)
         plt.yticks(fontsize=FTSZ)
         plt.legend(loc='upper right', fontsize=FTSZ)
-        plt.savefig('Ra_kx_'+title+'.pdf', format='PDF')
+        filename = '_'.join((title, 'Ra_kx.pdf'))
+        plt.savefig(filename, format='PDF')
         plt.close(fig)
 
     if plot_eigvec:
         pmax, umax, wmax, tmax = plot_mode(kxmin, ramin,
-                                           ncheb, eigfun, title, **kwargs)
+                                           ncheb, title, **kwargs)
     return ramin, kxmin, pmax, umax, wmax, tmax
 
 def crit_ra_l(l_harm, ncheb, gamma, phitop=None, phibot=None, eps=1.e-3):
@@ -973,7 +973,8 @@ def plot_l_mode(l_harm, gamma, p_mode, t_mode, ur_mode, up_mode, rad_cheb, title
     axis[3].plot(t_interp / t_max, rad)
     axis[3].plot(t_norm, rad_cheb, 'o')
     axis[3].set_xlabel(r'$\Theta$', fontsize=FTSZ)
-    plt.savefig('mode_rad_{}.pdf'.format(title), format='PDF')
+    filename = '_'.join((title, 'mode_prof.pdf'))
+    plt.savefig(filename, format='PDF')
     plt.close(fig)
 
     # 2D plot on annulus
@@ -1026,7 +1027,8 @@ def plot_l_mode(l_harm, gamma, p_mode, t_mode, ur_mode, up_mode, rad_cheb, title
     axis.contour(phi_mesh, rad_mesh, psi_field)
     axis.set_axis_off()
     plt.tight_layout()
-    plt.savefig('mode_{}.pdf'.format(title), format='PDF')
+    filename = '_'.join((title, 'mode.pdf'))
+    plt.savefig(filename, format='PDF')
     plt.close(fig)
 
 def findplot_ra_l(title, ncheb, gamma, lmin=1, lmax=8,
@@ -1062,7 +1064,8 @@ def findplot_ra_l(title, ncheb, gamma, lmin=1, lmax=8,
         plt.xticks(fontsize=FTSZ)
         plt.yticks(fontsize=FTSZ)
         plt.legend(loc='upper right', fontsize=FTSZ)
-        plt.savefig('Ra_l_{}.pdf'.format(title), format='PDF')
+        filename = '_'.join((title, 'Ra_l.pdf'))
+        plt.savefig(filename, format='PDF')
         plt.close(fig)
 
     if plot_eigvec:
@@ -1072,39 +1075,14 @@ def findplot_ra_l(title, ncheb, gamma, lmin=1, lmax=8,
                     ur_mode, up_mode, radius, title)
 
 if SPHERICAL:
-    findplot_ra_l('sph', ncheb=30, gamma=0.5,
-                  lmin=1, lmax=8,
-                  phibot=3.e-2, phitop=3.e-2)
-
-if COMPUTE_FREESLIP:
-    # find the minimum - Freeslip
-    ramin, kxmin, pmax, umax, wmax, tmax = findplot_rakx(NCHEB, eigval_general,
-                'FreeFree', plotfig=True, output_rakx=True,
-                bcsu=np.array([[0, 1, 0], [0, 1, 0]]),
-                phase_change_top=False, phase_change_bot=False,
-                output_eigvec=True)
-    print('max =', ramin, kxmin, pmax, umax, wmax, tmax)
-
-if COMPUTE_NOSLIP:
-    # find the minimum - Noslip
-    ramin, kxmin, pmax, umax, wmax, tmax = findplot_rakx(NCHEB, eigval_general,
-                'RigidRigid', plotfig=True, output_rakx=True,
-                phase_change_top=False, phase_change_bot=False,
-                output_eigvec=True)
-    print('max =', ramin, kxmin, pmax, umax, wmax, tmax)
-
-if COMPUTE_FREERIGID:
-    ramin, kxmin, pmax, umax, wmax, tmax = findplot_rakx(NCHEB, eigval_general,
-                'RigidFree', plotfig=True, output_rakx=True,
-                bcsu=np.array([[1, 0, 0], [0, 1, 0]]),
-                phase_change_top=False, phase_change_bot=False,
-                output_eigvec=True)
-    print('max =', ramin, kxmin, pmax, umax, wmax, tmax)
-    ramin, kxmin, pmax, umax, wmax, tmax = findplot_rakx(NCHEB, eigval_general,
-                'FreeRigid', plotfig=True, output_rakx=True,
-                bcsu=np.array([[0, 1, 0], [1, 0, 0]]),
-                phase_change_top=False, phase_change_bot=False,
-                output_eigvec=True)
+    findplot_ra_l(title, ncheb=NCHEB, gamma=GAMMA, lmin=1, lmax=8,
+                  phibot=PHI_BOT, phitop=PHI_TOP)
+else:
+    ramin, kxmin, pmax, umax, wmax, tmax = findplot_rakx(
+        NCHEB, title, plotfig=True, output_rakx=True, bcsu=BCSU,
+        phase_change_top=(PHI_TOP is not None), phitop=PHI_TOP,
+        phase_change_bot=(PHI_BOT is not None), phibot=PHI_BOT,
+        output_eigvec=True)
     print('max =', ramin, kxmin, pmax, umax, wmax, tmax)
 
 if COMPUTE_PHASECHANGE:
@@ -1119,10 +1097,10 @@ if COMPUTE_PHASECHANGE:
     # Computes properties as function of phi, equal for both boundaries
     if EQUAL_PHI:
         # First unstable mode
-        # rrm, kkx = ra_ks(500, 2, NCHEB, eigval_general,
+        # rrm, kkx = ra_ks(500, 2, NCHEB,
                         # phase_change_top=True, phase_change_bot=True,
                         # phitop=phinum[0], phibot=phinum[0])
-        rrm, kkx, pmx, umx, wmx, tmx = findplot_rakx(NCHEB, eigval_general,
+        rrm, kkx, pmx, umx, wmx, tmx = findplot_rakx(NCHEB,
                         'PhaseChangeTop',
                         plotfig=False,
                         output_rakx=False,
@@ -1137,10 +1115,10 @@ if COMPUTE_PHASECHANGE:
         tmax = [tmx]
         print(phinum[0], ram, kwn)
         for i, phi in enumerate(phinum[1:]):
-            # rrm, kkx = ra_ks(ram[i], kwn[i], NCHEB, eigval_general,
+            # rrm, kkx = ra_ks(ram[i], kwn[i], NCHEB,
             #             phase_change_top=True, phase_change_bot=True,
             #             phitop=phi, phibot=phi)
-            rrm, kkx, pmx, umx, wmx, tmx = findplot_rakx(NCHEB, eigval_general,
+            rrm, kkx, pmx, umx, wmx, tmx = findplot_rakx(NCHEB,
                         'PhaseChangeTop',
                         plotfig=False,
                         output_rakx=False,
@@ -1226,7 +1204,7 @@ if COMPUTE_PHASECHANGE:
     if PHASETOPBOT:
         phib = 1.e-3
         phit = 1.e-3
-        ramin, kxmin, pmax, umax, wmax, tmax = findplot_rakx(NCHEB, eigval_general,
+        ramin, kxmin, pmax, umax, wmax, tmax = findplot_rakx(NCHEB,
                       'PhaseChangeTop' + np.str(phit).replace('.', '-') + 'Bot' + np.str(phib).replace('.', '-'),
                       plotfig=True,
                       output_rakx=True,
@@ -1238,7 +1216,7 @@ if COMPUTE_PHASECHANGE:
     PHASEBOTONLY = False
     if PHASEBOTONLY:
         # phib = 1.e-2
-        # ramin, kxmin, pmax, umax, wmax, tmax = findplot_rakx(NCHEB, eigval_general,
+        # ramin, kxmin, pmax, umax, wmax, tmax = findplot_rakx(NCHEB,
                       # 'FreeTopPhaseChangeBot' + np.str(phib).replace('.', '-'),
                       # plotfig=True,
                       # output_rakx=True,
@@ -1257,15 +1235,11 @@ if COMPUTE_PHASECHANGE:
         tmax = np.zeros(phinum.shape)
         # print(ram, kwn)
         for i, phi in enumerate(phinum):
-            ram[i], kwn[i], pmax[i], umx, wmax[i], tmax[i] = findplot_rakx(NCHEB,
-                                                                               eigval_general,
-                                                                               'PhaseChangeBot',
-                                                                               plotfig=False,
-                                                                               output_rakx=False,
-                                                                               phase_change_top=False,
-                                                                               phase_change_bot=True,
-                                                                               bcsu=np.array([[0, 1, 0], [0, 1, 0]], float),
-                                                                               phibot=phi, output_eigvec=True)
+            ram[i], kwn[i], pmax[i], umx, wmax[i], tmax[i] = findplot_rakx(
+                NCHEB, 'PhaseChangeBot', plotfig=False, output_rakx=False,
+                phase_change_top=False, phase_change_bot=True, phibot=phi,
+                bcsu=np.array([[0, 1, 0], [0, 1, 0]], float),
+                output_eigvec=True)
             umax[i] = np.imag(umx)
             print(i, phi, ram[i], kwn[i])
             # save in file
@@ -1322,7 +1296,7 @@ if COMPUTE_PHASECHANGE:
     # Compute solution properties as function of both phitop and phibot
     if DIFFERENT_PHI:
         # Botphase = False and varying phitop
-        rrm, kkx = ra_ks(500, 2, NCHEB, eigval_general,
+        rrm, kkx = ra_ks(500, 2, NCHEB,
                         phase_change_top=True, phase_change_bot=False,
                         bcsu=np.array([[1, 0, 0], [0, 1, 0]], float),
                         phitop=phinum[0])
@@ -1330,7 +1304,7 @@ if COMPUTE_PHASECHANGE:
         kwn = [kkx]
         print(ram, kwn)
         for i, phi in enumerate(phinum[1:]):
-            rrm, kkx = ra_ks(ram[i], kwn[i], NCHEB, eigval_general,
+            rrm, kkx = ra_ks(ram[i], kwn[i], NCHEB,
                         phase_change_top=True, phase_change_bot=False,
                         bcsu=np.array([[1, 0, 0], [0, 1, 0]], float),
                         phitop=phi)
@@ -1342,7 +1316,7 @@ if COMPUTE_PHASECHANGE:
         kwn2 = [kwn[-1]]
         print(ram2, kwn2)
         for i, phi in enumerate(phinum):
-            rrm, kkx = ra_ks(ram[i], kwn[i], NCHEB, eigval_general,
+            rrm, kkx = ra_ks(ram[i], kwn[i], NCHEB,
                         phase_change_top=True, phase_change_bot=True,
                         phitop=phinum[-1], phibot=phi)
             print(i, phi, rrm, kkx)
@@ -1393,14 +1367,14 @@ if STAB_TRANSLATION:
     wkn = np.power(10, np.linspace(-1, 4, 100))
     sigma = np.zeros(wkn.shape)
     NCHEB = 30
-    # rmin, kmin = ra_ks(ran, wkn, NCHEB, eigval_general,
+    # rmin, kmin = ra_ks(ran, wkn, NCHEB,
                    # phase_change_top=True,
                    # phase_change_bot=True,
                    # phitop = phit,
                    # phibot = phib,
                    # translation=True)
     # print('eps = ', (rmin-rtr)/rtr, 'kmin = ', kmin)
-    # rao = search_ra(wkn, ran, NCHEB, eigval_general,
+    # rao = search_ra(wkn, ran, NCHEB,
                    # phase_change_top=True,
                    # phase_change_bot=True,
                    # phitop = phit,
@@ -1412,12 +1386,12 @@ if STAB_TRANSLATION:
         rtr = 12*(phib+phit)
         ran = rtr*(1+eps)
         for i, kxn in enumerate(wkn):
-            sigma[i] = eigval_general(kxn, ran, NCHEB,
-                                      phase_change_top=True,
-                                      phase_change_bot=True,
-                                      phitop = phit,
-                                      phibot = phib,
-                                      translation=True)
+            sigma[i] = eigval_cartesian(kxn, ran, NCHEB,
+                                        phase_change_top=True,
+                                        phase_change_bot=True,
+                                        phitop = phit,
+                                        phibot = phib,
+                                        translation=True)
 
         axe.semilogx(wkn, np.real(sigma), label=r'$\varepsilon = %.2f$' %(eps))
         axe.set_xlabel(r'$k$', fontsize=FTSZ)
