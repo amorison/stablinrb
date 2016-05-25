@@ -14,10 +14,10 @@ from analyzer import PhysicalProblem, LinearAnalyzer
 from plotting import plot_fastest_mode, plot_ran_harm
 
 pblm = PhysicalProblem(
-    gamma=0.9,
-    phi_top=3.e2,
-    phi_bot=3.e2,
-    freeslip_top=True,
+    gamma=0.5,
+    phi_top=None,
+    phi_bot=None,
+    freeslip_top=False,
     freeslip_bot=True,
     ref_state_translation=False)
 

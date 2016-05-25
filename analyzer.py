@@ -271,6 +271,13 @@ def eigval_spherical(self, l_harm, ra_num):
     one = np.identity(ncheb)  # identity
     lh2 = l_harm * (l_harm + 1)  # horizontal laplacian
     lapl = dr2 + 2 * np.dot(orad1, dr1) - lh2 * orad2  # laplacian
+    phi_top = self.phys.phi_top
+    phi_bot = self.phys.phi_bot
+    freeslip_top = self.phys.freeslip_top
+    freeslip_bot = self.phys.freeslip_bot
+    heat_flux_top = self.phys.heat_flux_top
+    heat_flux_bot = self.phys.heat_flux_bot
+    translation = self.phys.ref_state_translation
 
     # index min and max
     # poloidal
@@ -310,34 +317,51 @@ def eigval_spherical(self, l_harm, ra_num):
     rmat = np.zeros((itg(itn) + 1, itg(itn) + 1))
 
     # Poloidal potential equations
-    # free-slip at top (BC on P)
-    if ip0 == 0:
+    if phi_top is not None:
+        # free-slip at top
         lmat[ipg(ip0), pgall] = dr2[ip0, pall] + \
-                (lh2 - 2) * orad2[ip0, pall]
+            (lh2 - 2) * orad2[ip0, pall]
+    else:
+        # no radial velocity, Dirichlet condition but
+        # need to keep boundary point to ensure free-slip
+        # or rigid boundary
+        lmat[ipg(ip0), pgall] = one[ip0, pall]
     # laplacian(P) - Q = 0
     lmat[pgint, pgall] = lapl[pint, pall]
     lmat[pgint, qgall] = -one[qint, qall]
-    # free-slip at bot (BC on P)
-    if ipn == ncheb - 1:
+    if phi_bot is not None:
+        # free-slip at bot
         lmat[ipg(ipn), pgall] = dr2[ipn, pall] + \
-                (lh2 - 2) * orad2[ipn, pall]
+            (lh2 - 2) * orad2[ipn, pall]
+    else:
+        lmat[ipg(ipn), pgall] = one[ipn, pall]
 
     # Q equations
     # normal stress continuity at top
-    if iq0 == 0:
+    if phi_top is not None:
         lmat[iqg(iq0), pgall] = lh2 * (self.phys.phi_top *
             orad1[iq0, pall] - 2 * orad2[iq0, pall] +
             2 * np.dot(orad1, dr1)[iq0, pall])
         lmat[iqg(iq0), qgall] = -one[iq0, qall] - np.dot(rad, dr1)[iq0, qall]
+    elif freeslip_top:
+        lmat[iqg(iq0), pgall] = dr2[iq0, pall]
+    else:
+        # rigid
+        lmat[iqg(iq0), pgall] = dr1[iq0, pall]
     # laplacian(Q) - RaT/r = 0
     lmat[qgint, qgall] = lapl[qint, qall]
     lmat[qgint, tgall] = - ra_num * orad1[qint, tall]
     # normal stress continuity at bot
-    if iqn == ncheb - 1:
+    if phi_bot is not None:
         lmat[iqg(iqn), pgall] = lh2 * (-self.phys.phi_bot *
             orad1[iqn, pall] - 2 * orad2[iqn, pall] +
             2 * np.dot(orad1, dr1)[iqn, pall])
         lmat[iqg(iqn), qgall] = -one[iqn, qall] - np.dot(rad, dr1)[iqn, qall]
+    elif freeslip_bot:
+        lmat[iqg(iqn), pgall] = dr2[iqn, pall]
+    else:
+        # rigid
+        lmat[iqg(iqn), pgall] = dr1[iqn, pall]
 
     # T equations
     # laplacian(T) - u.grad(T_conductive) = sigma T
