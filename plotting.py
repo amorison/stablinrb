@@ -1,4 +1,5 @@
 import dmsuite.dmsuite as dm
+from analyzer import normalize_modes
 import numpy as np
 from scipy.special import sph_harm
 import matplotlib.pyplot as plt
@@ -11,17 +12,6 @@ import seaborn as sns
 # Font and markers size
 FTSZ = 14
 MSIZE = 3
-
-
-def normalize(arr, norm=None):
-    """Normalize complex array with element of higher modulus
-
-    if norm is given, a first normalization with this norm is done
-    """
-    if norm is not None:
-        arr = arr / norm
-    amax = arr[np.argmax(np.abs(arr))]
-    return arr / amax, amax
 
 
 def plot_fastest_mode(name, analyzer, harm, ra_num, plot_theory=False):
@@ -57,10 +47,9 @@ def plot_fastest_mode(name, analyzer, harm, ra_num, plot_theory=False):
 
     # normalization with max of T and then
     # element of max modulus of each vector
-    t_norm, t_max = normalize(t_mode)
-    p_norm, p_max = normalize(p_mode, t_max)
-    u_norm, u_max = normalize(u_mode, t_max)
-    w_norm, w_max = normalize(w_mode, t_max)
+    norms, maxs = normalize_modes(modes)
+    p_norm, u_norm, w_norm, t_norm = norms
+    p_max, u_max, w_max, t_max = maxs
 
     # profiles
     fig, axis = plt.subplots(1, 4, sharey=True)

@@ -10,7 +10,7 @@ Also treats the phase change boundary conditions.
 import numpy as np
 import matplotlib.pyplot as plt
 import seaborn as sns
-from analyzer import PhysicalProblem, LinearAnalyzer
+from analyzer import PhysicalProblem, LinearAnalyzer, normalize_modes
 from plotting import plot_fastest_mode, plot_ran_harm
 
 pblm = PhysicalProblem(
@@ -32,8 +32,13 @@ plot_ran_harm(name, ana, harm_c)
 
 # Explore phi space
 COMPUTE_PHASECHANGE = False
+# Font and markers size
+FTSZ = 14
+MSIZE = 3
 
 if COMPUTE_PHASECHANGE:
+    # default is free-slip at both boundaries, cartesian geometry
+    ana = LinearAnalyzer(PhysicalProblem())
     nphi = 100
     phinum = np.flipud(np.power(10, np.linspace(-3, 5, nphi)))
     # Limit case for infinite phi
@@ -45,41 +50,31 @@ if COMPUTE_PHASECHANGE:
     # Computes properties as function of phi, equal for both boundaries
     if EQUAL_PHI:
         # First unstable mode
-        # rrm, kkx = ra_ks(500, 2, NCHEB,
-                        # phase_change_top=True, phase_change_bot=True,
-                        # phitop=phinum[0], phibot=phinum[0])
-        rrm, kkx, pmx, umx, wmx, tmx = findplot_rakx(NCHEB,
-                        'PhaseChangeTop',
-                        plotfig=False,
-                        output_rakx=False,
-                        phase_change_top=True, phase_change_bot=True,
-                        phibot=phinum[0], phitop=phinum[0],
-                        output_eigvec=True)
-        ram = [rrm]
-        kwn = [kkx]
-        pmax = [pmx]
-        umax = [umx]
-        wmax = [wmx]
-        tmax = [tmx]
+        ana.phys.phi_top = phinum[0]
+        ana.phys.phi_bot = phinum[0]
+        ra_c, kx_c = ana.critical_ra()
+        _, modes = ana.eigval(kx_c, ra_c)
+        _, mode_max = normalize_modes(modes)
+        ram = [ra_c]
+        kwn = [kx_c]
+        pmax = [mode_max[0]]
+        umax = [mode_max[1]]
+        wmax = [mode_max[2]]
+        tmax = [mode_max[3]]
         print(phinum[0], ram, kwn)
         for i, phi in enumerate(phinum[1:]):
-            # rrm, kkx = ra_ks(ram[i], kwn[i], NCHEB,
-            #             phase_change_top=True, phase_change_bot=True,
-            #             phitop=phi, phibot=phi)
-            rrm, kkx, pmx, umx, wmx, tmx = findplot_rakx(NCHEB,
-                        'PhaseChangeTop',
-                        plotfig=False,
-                        output_rakx=False,
-                        phase_change_top=True, phase_change_bot=True,
-                        phibot=phi, phitop=phi,
-                        output_eigvec=True)
-            print(i, phi, rrm, kkx)
-            ram = np.append(ram, rrm)
-            kwn = np.append(kwn, kkx)
-            pmax = np.append(pmax, pmx)
-            umax = np.append(umax, umx)
-            wmax = np.append(wmax, wmx)
-            tmax = np.append(tmax, tmx)
+            ana.phys.phi_top = phi
+            ana.phys.phi_bot = phi
+            ra_c, kx_c = ana.critical_ra()
+            _, modes = ana.eigval(kx_c, ra_c)
+            _, mode_max = normalize_modes(modes)
+            print(i, phi, ra_c, kx_c)
+            ram = np.append(ram, ra_c)
+            kwn = np.append(kwn, kx_c)
+            pmax = np.append(pmax, mode_max[0])
+            umax = np.append(umax, mode_max[1])
+            wmax = np.append(wmax, mode_max[2])
+            tmax = np.append(tmax, mode_max[3])
         # save
         with open('EqualTopBotPhi.dat', 'w') as fich:
             fmt = '{:13}'*7 + '\n'
@@ -148,33 +143,11 @@ if COMPUTE_PHASECHANGE:
         plt.savefig('Phi_ModeMax.pdf', format='PDF')
         plt.close(fig)
 
-    PHASETOPBOT = False
-    if PHASETOPBOT:
-        phib = 1.e-3
-        phit = 1.e-3
-        ramin, kxmin, pmax, umax, wmax, tmax = findplot_rakx(NCHEB,
-                      'PhaseChangeTop' + np.str(phit).replace('.', '-') + 'Bot' + np.str(phib).replace('.', '-'),
-                      plotfig=True,
-                      output_rakx=True,
-                      phase_change_top=True, phase_change_bot=True,
-                      phibot=phib, phitop=phit,
-                      output_eigvec=True)
-        print('max =', ramin, kxmin, pmax, umax, wmax, tmax)
-
     PHASEBOTONLY = False
     if PHASEBOTONLY:
-        # phib = 1.e-2
-        # ramin, kxmin, pmax, umax, wmax, tmax = findplot_rakx(NCHEB,
-                      # 'FreeTopPhaseChangeBot' + np.str(phib).replace('.', '-'),
-                      # plotfig=True,
-                      # output_rakx=True,
-                      # phase_change_top=False, phase_change_bot=True,
-                      # bcsu=np.array([[0, 1, 0], [0, 1, 0]], float),
-                      # phibot=phib,
-                      # output_eigvec=True)
-        # print('max =', ramin, kxmin, pmax, umax, wmax, tmax)
         nphi = 20
         phinum = np.flipud(np.power(10, np.linspace(-2, 4, nphi)))
+        ana.phys.phi_top = None
         ram = np.zeros(phinum.shape)
         kwn = np.zeros(phinum.shape)
         pmax = np.zeros(phinum.shape)
@@ -183,14 +156,18 @@ if COMPUTE_PHASECHANGE:
         tmax = np.zeros(phinum.shape)
         # print(ram, kwn)
         for i, phi in enumerate(phinum):
-            ram[i], kwn[i], pmax[i], umx, wmax[i], tmax[i] = findplot_rakx(
-                NCHEB, 'PhaseChangeBot', plotfig=False, output_rakx=False,
-                phase_change_top=False, phase_change_bot=True, phibot=phi,
-                bcsu=np.array([[0, 1, 0], [0, 1, 0]], float),
-                output_eigvec=True)
-            umax[i] = np.imag(umx)
-            print(i, phi, ram[i], kwn[i])
-            # save in file
+            ana.phy.phi_top = phi
+            ra_c, kx_c = ana.critical_ra()
+            _, modes = ana.eigval(kx_c, ra_c)
+            _, mode_max = normalize_modes(modes)
+            print(i, phi, ra_c, kx_c)
+            ram = np.append(ram, ra_c)
+            kwn = np.append(kwn, kx_c)
+            pmax = np.append(pmax, mode_max[0])
+            umax = np.append(umax, np.imag(mode_max[1]))
+            wmax = np.append(wmax, mode_max[2])
+            tmax = np.append(tmax, mode_max[3])
+        # save in file
         with open('FreeTopBotPhase.dat', 'w') as fich:
             fmt = '{:15}'*7 + '\n'
             fich.write(fmt.format(' phi', 'kx', 'Ra', 'Pmax', 'Umax', 'Tmax', 'Wmax'))
@@ -244,18 +221,15 @@ if COMPUTE_PHASECHANGE:
     # Compute solution properties as function of both phitop and phibot
     if DIFFERENT_PHI:
         # Botphase = False and varying phitop
-        rrm, kkx = ra_ks(500, 2, NCHEB,
-                        phase_change_top=True, phase_change_bot=False,
-                        bcsu=np.array([[1, 0, 0], [0, 1, 0]], float),
-                        phitop=phinum[0])
+        ana.phys.phi_top = phinum[0]
+        ana.phys.phi_bot = None
+        rrm, kkx = ana.critical_ra()
         ram = [rrm]
         kwn = [kkx]
         print(ram, kwn)
         for i, phi in enumerate(phinum[1:]):
-            rrm, kkx = ra_ks(ram[i], kwn[i], NCHEB,
-                        phase_change_top=True, phase_change_bot=False,
-                        bcsu=np.array([[1, 0, 0], [0, 1, 0]], float),
-                        phitop=phi)
+            ana.phys.phi_top = phi
+            rrm, kkx = ana.critical_ra(kwn[i], ram[i])
             print(i, phi, rrm, kkx)
             ram = np.append(ram, rrm)
             kwn = np.append(kwn, kkx)
@@ -263,10 +237,10 @@ if COMPUTE_PHASECHANGE:
         ram2 = [ram[-1]]
         kwn2 = [kwn[-1]]
         print(ram2, kwn2)
+        ana.phys.phi_top = phinum[-1]
         for i, phi in enumerate(phinum):
-            rrm, kkx = ra_ks(ram[i], kwn[i], NCHEB,
-                        phase_change_top=True, phase_change_bot=True,
-                        phitop=phinum[-1], phibot=phi)
+            ana.phys.phi_bot = phi
+            rrm, kkx = ana.critical_ra(kwn[i], ram[i])
             print(i, phi, rrm, kkx)
             ram2 = np.append(ram2, rrm)
             kwn2 = np.append(kwn2, kkx)
@@ -308,38 +282,21 @@ if COMPUTE_PHASECHANGE:
 STAB_TRANSLATION = False
 # Computes the linear stability of the steady translation mode
 if STAB_TRANSLATION:
+    phit = 0.01
     phib = 0.01
-    phit = phib
+    ana.phys.phi_top = phit
+    ana.phys.phi_bot = phib
     # epsilon = np.flipud(np.linspace(0, 1, 4))
     epsilon = np.array([5])
     wkn = np.power(10, np.linspace(-1, 4, 100))
     sigma = np.zeros(wkn.shape)
-    NCHEB = 30
-    # rmin, kmin = ra_ks(ran, wkn, NCHEB,
-                   # phase_change_top=True,
-                   # phase_change_bot=True,
-                   # phitop = phit,
-                   # phibot = phib,
-                   # translation=True)
-    # print('eps = ', (rmin-rtr)/rtr, 'kmin = ', kmin)
-    # rao = search_ra(wkn, ran, NCHEB,
-                   # phase_change_top=True,
-                   # phase_change_bot=True,
-                   # phitop = phit,
-                   # phibot = phib,
-                   # translation=True)
-    # print('eps = ', (rao-rtr)/rtr)
+    ana.phys.ref_state_translation = True
     axe = plt.subplot()
     for j, eps in enumerate(epsilon):
         rtr = 12*(phib+phit)
         ran = rtr*(1+eps)
         for i, kxn in enumerate(wkn):
-            sigma[i] = eigval_cartesian(kxn, ran, NCHEB,
-                                        phase_change_top=True,
-                                        phase_change_bot=True,
-                                        phitop = phit,
-                                        phibot = phib,
-                                        translation=True)
+            sigma[i], _ = ana.eigval(kxn, ran)
 
         axe.semilogx(wkn, np.real(sigma), label=r'$\varepsilon = %.2f$' %(eps))
         axe.set_xlabel(r'$k$', fontsize=FTSZ)
@@ -348,5 +305,6 @@ if STAB_TRANSLATION:
         # axe.set_ylim((-500, 1500))
         # axe.set_ylim(bottom=-500)
 
-    plt.savefig('sigmaRa'+np.str(eps)+'N'+np.str(NCHEB)+'Top'+np.str(phit).replace('.', '-') + 'Bot' + np.str(phib).replace('.', '-')+'.pdf')
-
+    plt.savefig('sigmaRa' + np.str(eps) +
+                'Top' + np.str(phit).replace('.', '-') +
+                'Bot' + np.str(phib).replace('.', '-') + '.pdf')
