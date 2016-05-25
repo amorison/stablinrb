@@ -2,3 +2,4 @@
 *.pdf
 *.swp
 dmsuite/
+__pycache__/
