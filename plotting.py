@@ -22,7 +22,7 @@ def plot_fastest_mode(name, analyzer, harm, ra_num, plot_theory=False):
     spherical = analyzer.phys.spherical
     gamma = analyzer.phys.gamma
 
-    sigma, modes = analyzer.eigval(harm, ra_num)
+    sigma, modes, _ = analyzer.eigval(harm, ra_num)
     # p is pressure in cartesian geometry and
     # poloidal potential in spherical geometry
     p_mode, u_mode, w_mode, t_mode = modes

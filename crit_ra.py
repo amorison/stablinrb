@@ -53,7 +53,7 @@ if COMPUTE_PHASECHANGE:
         ana.phys.phi_top = phinum[0]
         ana.phys.phi_bot = phinum[0]
         ra_c, kx_c = ana.critical_ra()
-        _, modes = ana.eigval(kx_c, ra_c)
+        modes = ana.eigval(kx_c, ra_c)[1]
         _, mode_max = normalize_modes(modes)
         ram = [ra_c]
         kwn = [kx_c]
@@ -66,7 +66,7 @@ if COMPUTE_PHASECHANGE:
             ana.phys.phi_top = phi
             ana.phys.phi_bot = phi
             ra_c, kx_c = ana.critical_ra()
-            _, modes = ana.eigval(kx_c, ra_c)
+            modes = ana.eigval(kx_c, ra_c)[1]
             _, mode_max = normalize_modes(modes)
             print(i, phi, ra_c, kx_c)
             ram = np.append(ram, ra_c)
@@ -158,7 +158,7 @@ if COMPUTE_PHASECHANGE:
         for i, phi in enumerate(phinum):
             ana.phy.phi_top = phi
             ra_c, kx_c = ana.critical_ra()
-            _, modes = ana.eigval(kx_c, ra_c)
+            modes = ana.eigval(kx_c, ra_c)[1]
             _, mode_max = normalize_modes(modes)
             print(i, phi, ra_c, kx_c)
             ram = np.append(ram, ra_c)
@@ -296,7 +296,7 @@ if STAB_TRANSLATION:
         rtr = 12*(phib+phit)
         ran = rtr*(1+eps)
         for i, kxn in enumerate(wkn):
-            sigma[i], _ = ana.eigval(kxn, ran)
+            sigma[i] = ana.eigval(kxn, ran)[0]
 
         axe.semilogx(wkn, np.real(sigma), label=r'$\varepsilon = %.2f$' %(eps))
         axe.set_xlabel(r'$k$', fontsize=FTSZ)

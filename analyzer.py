@@ -289,7 +289,7 @@ def eigval_cartesian(self, wnk, ra_num):
     w_mode = self._insert_boundaries(w_mode, iw0, iwn)
     t_mode = self._insert_boundaries(t_mode, it0, itn)
 
-    return eigvals[iegv], (p_mode, u_mode, w_mode, t_mode)
+    return eigvals[iegv], (p_mode, u_mode, w_mode, t_mode), (lmat, rmat)
 
 
 def eigval_spherical(self, l_harm, ra_num):
@@ -429,7 +429,7 @@ def eigval_spherical(self, l_harm, ra_num):
     ur_mode = l_harm * (l_harm + 1) * p_mode / self.rad
     up_mode = 1j * l_harm * (np.dot(dr1, p_mode) + p_mode / self.rad)
 
-    return eigvals[iegv], (p_mode, up_mode, ur_mode, t_mode)
+    return eigvals[iegv], (p_mode, up_mode, ur_mode, t_mode), (lmat, rmat)
 
 
 class LinearAnalyzer:
