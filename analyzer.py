@@ -41,7 +41,12 @@ class PhysicalProblem:
 
     def name(self):
         """Construct a name for the current case"""
-        name = ['sph'] if self.spherical else ['cart']
+        name = []
+        if self.spherical:
+            name.append('sph')
+            name.append(np.str(self.gamma).replace('.', '-'))
+        else:
+            name.append('cart')
         if self.phi_top is not None:
             name.append('phiT')
             name.append(np.str(self.phi_top).replace('.', '-'))
