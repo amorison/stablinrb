@@ -109,8 +109,7 @@ def plot_fastest_mode(name, analyzer, harm, ra_num, plot_theory=False):
         fig = plt.figure()
         tr = PolarAxes.PolarTransform()
 
-        angle_ticks = [(0, r"$0$"),
-                       (1.*np.pi, r"$\pi$")]
+        angle_ticks = []
         grid_locator1 = FixedLocator([v for v, _ in angle_ticks])
         tick_formatter1 = DictFormatter(dict(angle_ticks))
 
