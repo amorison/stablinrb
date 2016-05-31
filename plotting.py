@@ -64,19 +64,19 @@ def plot_fastest_mode(name, analyzer, harm, ra_num, plot_theory=False):
     else:
         axis[0].plot(p_interp / t_max / p_max, rad)
     axis[0].plot(p_norm, rad_cheb, 'o')
-    axis[0].set_xlabel(r'$P/(%.3f)$' %(p_max), fontsize=FTSZ)
+    axis[0].set_xlabel(r'$P/(%.3f)$' %(np.real(p_max)), fontsize=FTSZ)
     if plot_theory:
         axis[1].plot(-2 * rad, rad)
     else:
         axis[1].plot(u_interp / t_max / u_max, rad)
     axis[1].plot(u_norm, rad_cheb, 'o')
-    axis[1].set_xlabel(r'$U/(%.3fi)$' %(np.abs(u_max)), fontsize=FTSZ)
+    axis[1].set_xlabel(r'$U/(%.3fi)$' %(np.imag(u_max)), fontsize=FTSZ)
     if plot_theory:
         axis[2].plot(np.ones(rad.shape), rad)
     else:
         axis[2].plot(w_interp / t_max / w_max, rad)
     axis[2].plot(w_norm, rad_cheb, 'o')
-    axis[2].set_xlabel(r'$W/(%.3f)$' %(w_max), fontsize=FTSZ)
+    axis[2].set_xlabel(r'$W/(%.3f)$' %(np.real(w_max)), fontsize=FTSZ)
     if plot_theory:
         axis[3].plot(1-4*rad**2, rad)
     else:

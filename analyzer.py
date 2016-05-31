@@ -3,6 +3,7 @@ import numpy as np
 import numpy.ma as ma
 from scipy import linalg
 from scipy.optimize import brentq
+from numpy.linalg import solve
 
 class PhysicalProblem:
 
@@ -87,7 +88,7 @@ def normalize(arr, norm=None):
     return arr / amax, amax
 
 
-def normalize_modes(modes, norm_mode=3):
+def normalize_modes(modes, norm_mode=3, full_norm=True):
     """Normalize modes
 
     Since modes are eigenvectors, one can choose an arbitrary
@@ -104,13 +105,19 @@ def normalize_modes(modes, norm_mode=3):
     normed_vectors = []
     norm_values = []
     for ivec in range(0, norm_mode):
-        nvec, nval = normalize(modes[ivec], norm)
+        if full_norm:
+            nvec, nval = normalize(modes[ivec], norm)
+        else:
+            nvec, nval = modes[ivec] / norm, 1
         normed_vectors.append(nvec)
         norm_values.append(nval)
     normed_vectors.append(ref_vector)
     norm_values.append(norm)
     for ivec in range(norm_mode + 1, len(modes)):
-        nvec, nval = normalize(modes[ivec], norm)
+        if full_norm:
+            nvec, nval = normalize(modes[ivec], norm)
+        else:
+            nvec, nval = modes[ivec] / norm, 1
         normed_vectors.append(nvec)
         norm_values.append(nval)
     return normed_vectors, norm_values
@@ -162,48 +169,15 @@ def eigval_cartesian(self, wnk, ra_num):
     heat_flux_top = self.phys.heat_flux_top
     heat_flux_bot = self.phys.heat_flux_bot
     translation = self.phys.ref_state_translation
-    # index min and max
-    # remove boundary when Dirichlet condition
-    # pressure
-    ip0 = 0
-    ipn = ncheb - 1
-    # horizontal velocity
-    iu0 = 0 if (phi_top is not None) or freeslip_top else 1
-    iun = ncheb - 1 if (phi_bot is not None) or freeslip_bot else ncheb - 2
-    # vertical velocity
-    iw0 = 0 if (phi_top is not None) else 1
-    iwn = ncheb - 1 if (phi_bot is not None) else ncheb - 2
-    # temperature
-    it0 = 0 if (heat_flux_top is not None) else 1
-    itn = ncheb - 1 if (heat_flux_bot is not None) else ncheb - 2
 
-    # global indices
-    ipg = lambda idx: idx - ip0
-    iug = lambda idx: idx - iu0 + ipg(ipn) + 1
-    iwg = lambda idx: idx - iw0 + iug(iun) + 1
-    itg = lambda idx: idx - it0 + iwg(iwn) + 1
-
-    # slices
-    # entire vector
-    pall = slice(ip0, ipn + 1)
-    uall = slice(iu0, iun + 1)
-    wall = slice(iw0, iwn + 1)
-    tall = slice(it0, itn + 1)
-    # interior points
-    pint = slice(1, ncheb - 1)
-    uint = slice(1, ncheb - 1)
-    wint = slice(1, ncheb - 1)
-    tint = slice(1, ncheb - 1)
-    # entire vector with big matrix indexing
-    pgall = slice(ipg(ip0), ipg(ipn + 1))
-    ugall = slice(iug(iu0), iug(iun + 1))
-    wgall = slice(iwg(iw0), iwg(iwn + 1))
-    tgall = slice(itg(it0), itg(itn + 1))
-    # interior points with big matrix indexing
-    pgint = slice(ipg(1), ipg(ncheb - 1))
-    ugint = slice(iug(1), iug(ncheb - 1))
-    wgint = slice(iwg(1), iwg(ncheb - 1))
-    tgint = slice(itg(1), itg(ncheb - 1))
+    # global indices and slices
+    i0n, igf, slall, slint, slgall, slgint = self._slices()
+    ip0, ipn, iu0, iun, iw0, iwn, it0, itn = i0n
+    ipg, iug, iwg, itg = igf
+    pall, uall, wall, tall = slall
+    pint, uint, wint, tint = slint
+    pgall, ugall, wgall, tgall = slgall
+    pgint, ugint, wgint, tgint = slgint
 
     # For pressure. No BCs but side values needed or removed
     # depending on the BCs for W. number of lines need to be
@@ -436,17 +410,11 @@ def eigval_spherical(self, l_harm, ra_num):
 
     return eigvals[iegv], (p_mode, up_mode, ur_mode, t_mode), (lmat, rmat)
 
-
-class LinearAnalyzer:
-
-    """Perform linear analysis
-
-    The studied problem is the one of Rayleigh-Benard convection with
-    phase change at either or both boundaries.
-    """
+class Analyser:
+    """Define various elements common to both analysers"""
 
     def __init__(self, phys, ncheb=15):
-        """Create a linear analyzer
+        """Create a generic analyzer
         
         phys is the PhysicalProblem
         ncheb is the number of Chebyshev nodes
@@ -456,6 +424,7 @@ class LinearAnalyzer:
         self._zcheb, self._ddm = dm.chebdif(self._ncheb, 2)
         self.phys = phys
         self.phys.bind_to(self)
+
 
     def _insert_boundaries(self, mode, im0, imn):
         """Insert zero at boundaries of mode if needed
@@ -489,6 +458,71 @@ class LinearAnalyzer:
             self.dr1 = self._ddm[0,:,:] * 2  # first r-derivative
             self.dr2 = self._ddm[1,:,:] * 4  # second r-derivative
         self._phys = phys_obj
+
+    def _slices(self):
+        """slices defining the different parts of the global matrix"""
+        ncheb = self._ncheb
+        phi_top = self.phys.phi_top
+        phi_bot = self.phys.phi_bot
+        freeslip_top = self.phys.freeslip_top
+        freeslip_bot = self.phys.freeslip_bot
+        heat_flux_top = self.phys.heat_flux_top
+        heat_flux_bot = self.phys.heat_flux_bot
+        # index min and max
+        # remove boundary when Dirichlet condition
+        # pressure
+        ip0 = 0
+        ipn = ncheb - 1
+        # horizontal velocity
+        iu0 = 0 if (phi_top is not None) or freeslip_top else 1
+        iun = ncheb - 1 if (phi_bot is not None) or freeslip_bot else ncheb - 2
+        # vertical velocity
+        iw0 = 0 if (phi_top is not None) else 1
+        iwn = ncheb - 1 if (phi_bot is not None) else ncheb - 2
+        # temperature
+        it0 = 0 if (heat_flux_top is not None) else 1
+        itn = ncheb - 1 if (heat_flux_bot is not None) else ncheb - 2
+        i0n = (ip0, ipn, iu0, iun, iw0, iwn, it0, itn)
+        # global indices
+        ipg = lambda idx: idx - ip0
+        iug = lambda idx: idx - iu0 + ipg(ipn) + 1
+        iwg = lambda idx: idx - iw0 + iug(iun) + 1
+        itg = lambda idx: idx - it0 + iwg(iwn) + 1
+        igf = (ipg, iug, iwg, itg)
+        # slices
+        # entire vector
+        pall = slice(ip0, ipn + 1)
+        uall = slice(iu0, iun + 1)
+        wall = slice(iw0, iwn + 1)
+        tall = slice(it0, itn + 1)
+        slall = (pall, uall, wall, tall)
+        # interior points
+        pint = slice(1, ncheb - 1)
+        uint = slice(1, ncheb - 1)
+        wint = slice(1, ncheb - 1)
+        tint = slice(1, ncheb - 1)
+        slint = (pint, uint, wint, tint)
+        # entire vector with big matrix indexing
+        pgall = slice(ipg(ip0), ipg(ipn + 1))
+        ugall = slice(iug(iu0), iug(iun + 1))
+        wgall = slice(iwg(iw0), iwg(iwn + 1))
+        tgall = slice(itg(it0), itg(itn + 1))
+        slgall = (pgall, ugall, wgall, tgall)
+        # interior points with big matrix indexing
+        pgint = slice(ipg(1), ipg(ncheb - 1))
+        ugint = slice(iug(1), iug(ncheb - 1))
+        wgint = slice(iwg(1), iwg(ncheb - 1))
+        tgint = slice(itg(1), itg(ncheb - 1))
+        slgint = (pgint, ugint, wgint, tgint)
+        return i0n, igf, slall, slint, slgall, slgint
+
+class LinearAnalyzer(Analyser):
+
+    """Perform linear analysis
+
+    The studied problem is the one of Rayleigh-Benard convection with
+    phase change at either or both boundaries.
+    """
 
     def eigval(self, harm, ra_num):
         """Generic eigval function"""
@@ -584,3 +618,101 @@ class LinearAnalyzer:
             hmin = kmin
 
         return ra_guess, hmin
+
+
+class NonLinearAnalyzer(Analyser):
+
+    """Perform non-linear analysis
+
+    The studied problem is the one of Rayleigh-Benard convection with
+    phase change at either or both boundaries.
+    """
+
+    def eigval(self, harm, ra_num):
+        """Generic eigval function"""
+        if self.phys.spherical:
+            return eigval_spherical(self, harm, ra_num) # not yet treated beyond that point
+        else:
+            return eigval_cartesian(self, harm, ra_num)
+
+    def integz(self, prof):
+        """Integral on the z interval with Chebyshev weight"""
+        intz = np.sum(prof)
+        intz = intz - (prof[0] + prof[-1])/2
+        intz *=np.pi / self._ncheb
+        return intz
+
+    def nonlinana(self):
+        """Ra2 and X2"""
+        ncheb = self._ncheb
+        phi_top = self.phys.phi_top
+        phi_bot = self.phys.phi_bot
+        freeslip_top = self.phys.freeslip_top
+        freeslip_bot = self.phys.freeslip_bot
+        heat_flux_top = self.phys.heat_flux_top
+        heat_flux_bot = self.phys.heat_flux_bot
+        # global indices and slices
+        i0n, igf, slall, slint, slgall, slgint = self._slices()
+        ip0, ipn, iu0, iun, iw0, iwn, it0, itn = i0n
+        ipg, iug, iwg, itg = igf
+        pall, uall, wall, tall = slall
+        pint, uint, wint, tint = slint
+        pgall, ugall, wgall, tgall = slgall
+        pgint, ugint, wgint, tgint = slgint
+
+        # First compute the linear mode and matrix
+        ana = LinearAnalyzer(self.phys, self._ncheb)
+        # self.name = ana.phys.name()
+        ra_c, harm_c = ana.critical_ra()
+        _, mode_c, mats_c = self.eigval(harm_c, ra_c)
+        mode_c, _ = normalize_modes(mode_c, full_norm=False)
+        p_c, u_c, w_c, t_c = mode_c
+        lmat_c, _ = mats_c
+        dt_c = np.dot(self.dr1, t_c)
+        # theta part of the non-linear term N(Xc, Xc)
+        # part constant in x
+        nxcxc0 = np.zeros((itg(itn) + 1))
+        nxcxc0[tgint] = 2 * (w_c * dt_c + harm_c * np.imag(u_c) * t_c)[tint]
+        # part in 2 k x
+        nxcxc2 = np.zeros((itg(itn) + 1))
+        nxcxc2[tgint] = 2 * (w_c * dt_c - harm_c * np.imag(u_c) * t_c)[tint]
+        # Solve Lc * X2 = NXcXc to get X2
+        mode20 = solve(lmat_c, nxcxc0)
+
+        p20 = mode20[pgall]
+        u20 = mode20[ugall]
+        w20 = mode20[wgall]
+        t20 = mode20[tgall]
+
+        p20 = self._insert_boundaries(p20, ip0, ipn)
+        u20 = self._insert_boundaries(u20, iu0, iun)
+        w20 = self._insert_boundaries(w20, iw0, iwn)
+        t20 = self._insert_boundaries(t20, it0, itn)
+        dt20 = np.dot(self.dr1, t20)
+
+        mode22 = solve(lmat_c, nxcxc2)
+
+        p22 = mode22[pgall]
+        u22 = mode22[ugall]
+        w22 = mode22[wgall]
+        t22 = mode22[tgall]
+
+        p22 = self._insert_boundaries(p22, ip0, ipn)
+        u22 = self._insert_boundaries(u22, iu0, iun)
+        w22 = self._insert_boundaries(w22, iw0, iwn)
+        t22 = self._insert_boundaries(t22, it0, itn)
+        dt22 = np.dot(self.dr1, t22)
+
+        # denominator in Ra2
+        xcmxc =  self.integz(w_c * t_c)
+
+        # numerator in Ra2
+        xcnx2xc = 2 * harm_c * self.integz(t_c**2 * np.imag(u22))
+        xcnx2xc += 2 * self.integz(t_c * dt_c * (np.real(w22) + w20))
+        xcnxcx2 = -4 * harm_c * 1j * self.integz(t_c * u_c * np.real(t22))
+        xcnxcx2 += 2 * self.integz(t_c * w_c * (np.real(dt22) + dt20))
+
+        # Ra2
+        ra2 = (xcnx2xc + xcnxcx2)/xcmxc
+
+        return harm_c, (ra_c, ra2), mode_c, (p20, u20, w20, t20), (p22, u22, w22, t22)
