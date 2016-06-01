@@ -150,13 +150,8 @@ def wtran(eps):
             wtr = brentq(func, wtrs, wtrl, args=(eps))
     return wtr, wtrs, wtrl
 
-
-def eigval_cartesian(self, wnk, ra_num):
-    """Compute the max eigenvalue and associated eigenvector
-
-    wnk: wave number
-    ra_num: Rayleigh number
-    """
+def cartesian_matrices(self, wnk, ra_num):
+    "LHS and RHS matrices for the linear stability"
     ncheb = self._ncheb
     dz1, dz2 = self.dr1, self.dr2
     one = np.identity(ncheb)  # identity
@@ -248,6 +243,34 @@ def eigval_cartesian(self, wnk, ra_num):
         lmat[tgint, wgall] = one[tint, wall]
 
     rmat[tgint, tgall] = one[tint, tall]
+
+    return lmat, rmat
+
+def eigval_cartesian(self, wnk, ra_num):
+    """Compute the max eigenvalue and associated eigenvector
+
+    wnk: wave number
+    ra_num: Rayleigh number
+    """
+    ncheb = self._ncheb
+    dz1, dz2 = self.dr1, self.dr2
+    one = np.identity(ncheb)  # identity
+    dh1 = 1.j * wnk * one  # horizontal derivative
+    lapl = dz2 - wnk**2 * one  # laplacian
+    phi_top = self.phys.phi_top
+    phi_bot = self.phys.phi_bot
+    freeslip_top = self.phys.freeslip_top
+    freeslip_bot = self.phys.freeslip_bot
+    heat_flux_top = self.phys.heat_flux_top
+    heat_flux_bot = self.phys.heat_flux_bot
+    translation = self.phys.ref_state_translation
+
+    # global indices and slices
+    i0n, _, _, _, slgall, _ = self._slices()
+    ip0, ipn, iu0, iun, iw0, iwn, it0, itn = i0n
+    pgall, ugall, wgall, tgall = slgall
+
+    lmat, rmat = cartesian_matrices(self, wnk, ra_num)
 
     # Find the eigenvalues
     eigvals, eigvecs = linalg.eig(lmat, rmat, right=True)
@@ -628,6 +651,13 @@ class NonLinearAnalyzer(Analyser):
     phase change at either or both boundaries.
     """
 
+    def matrices(self, harm, ra_num):
+        """Generic eigval function"""
+        if self.phys.spherical:
+            return spherical_matrices(self, harm, ra_num) # not yet treated beyond that point
+        else:
+            return cartesian_matrices(self, harm, ra_num)
+
     def eigval(self, harm, ra_num):
         """Generic eigval function"""
         if self.phys.spherical:
@@ -662,20 +692,27 @@ class NonLinearAnalyzer(Analyser):
 
         # First compute the linear mode and matrix
         ana = LinearAnalyzer(self.phys, self._ncheb)
-        # self.name = ana.phys.name()
         ra_c, harm_c = ana.critical_ra()
         _, mode_c, mats_c = self.eigval(harm_c, ra_c)
         mode_c, _ = normalize_modes(mode_c, full_norm=False)
         p_c, u_c, w_c, t_c = mode_c
+        print('wc=', w_c, np.pi**2+harm_c**2)
         lmat_c, _ = mats_c
         dt_c = np.dot(self.dr1, t_c)
+        # also need the linear problem for wnk=2*harm_c and wnk=0
+        # _, _, mats2 = self.eigval(2 * harm_c, ra_c)
+        # _, _, mats0 = self.eigval(0, ra_c)
+        lmat2 = self.matrices(2 * harm_c, ra_c)[0]
+        lmat0 = self.matrices(2 * harm_c, ra_c)[0]
         # theta part of the non-linear term N(Xc, Xc)
         # part constant in x
         nxcxc0 = np.zeros((itg(itn) + 1))
         nxcxc0[tgint] = 2 * (w_c * dt_c + harm_c * np.imag(u_c) * t_c)[tint]
+        print(nxcxc0[tgint])
         # part in 2 k x
         nxcxc2 = np.zeros((itg(itn) + 1))
         nxcxc2[tgint] = 2 * (w_c * dt_c - harm_c * np.imag(u_c) * t_c)[tint]
+        print(nxcxc2[tgint])
         # Solve Lc * X2 = NXcXc to get X2
         mode20 = solve(lmat_c, nxcxc0)
 
@@ -690,8 +727,8 @@ class NonLinearAnalyzer(Analyser):
         t20 = self._insert_boundaries(t20, it0, itn)
         dt20 = np.dot(self.dr1, t20)
 
-        mode22 = solve(lmat_c, nxcxc2)
-
+        mode22 = solve(lmat2, nxcxc2)
+        # print(mode22)
         p22 = mode22[pgall]
         u22 = mode22[ugall]
         w22 = mode22[wgall]
@@ -711,7 +748,7 @@ class NonLinearAnalyzer(Analyser):
         xcnx2xc += 2 * self.integz(t_c * dt_c * (np.real(w22) + w20))
         xcnxcx2 = -4 * harm_c * 1j * self.integz(t_c * u_c * np.real(t22))
         xcnxcx2 += 2 * self.integz(t_c * w_c * (np.real(dt22) + dt20))
-
+        print('in ra2', xcnx2xc, xcnxcx2, xcmxc)
         # Ra2
         ra2 = (xcnx2xc + xcnxcx2)/xcmxc
 
