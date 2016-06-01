@@ -150,11 +150,31 @@ def wtran(eps):
             wtr = brentq(func, wtrs, wtrl, args=(eps))
     return wtr, wtrs, wtrl
 
+def cartesian_matrices_0(self, wnk, ra_num):
+    """LHS matrix for x-independent forcing
+
+    When the RHS is independent of x, the solution is also
+    and the velocity is uniform and only vertical, possibly null.
+    Only the pressure, temperature and uniform vertical velocity
+    are solved"""
+    ncheb = self._ncheb
+    dz1, dz2 = self.dr1, self.dr2
+    one = np.identity(ncheb)  # identity
+    dh1 = 1.j * wnk * one  # horizontal derivative
+    lapl = dz2 - wnk**2 * one  # laplacian
+    phi_top = self.phys.phi_top
+    phi_bot = self.phys.phi_bot
+    freeslip_top = self.phys.freeslip_top
+    freeslip_bot = self.phys.freeslip_bot
+
+    lmat = np.zeros()
+    return lmat
+
 def cartesian_matrices(self, wnk, ra_num):
     "LHS and RHS matrices for the linear stability"
     ncheb = self._ncheb
     dz1, dz2 = self.dr1, self.dr2
-    one = np.identity(ncheb)  # identity
+    one = np.identity(ncheb+1)  # identity
     dh1 = 1.j * wnk * one  # horizontal derivative
     lapl = dz2 - wnk**2 * one  # laplacian
     phi_top = self.phys.phi_top
@@ -254,7 +274,7 @@ def eigval_cartesian(self, wnk, ra_num):
     """
     ncheb = self._ncheb
     dz1, dz2 = self.dr1, self.dr2
-    one = np.identity(ncheb)  # identity
+    one = np.identity(ncheb+1)  # identity
     dh1 = 1.j * wnk * one  # horizontal derivative
     lapl = dz2 - wnk**2 * one  # laplacian
     phi_top = self.phys.phi_top
@@ -324,13 +344,13 @@ def eigval_spherical(self, l_harm, ra_num):
     # index min and max
     # poloidal
     ip0 = 0
-    ipn = ncheb - 1
+    ipn = ncheb
     # laplacian of poloidal
     iq0 = 0
-    iqn = ncheb - 1
+    iqn = ncheb
     # temperature
     it0 = 1
-    itn = ncheb - 2
+    itn = ncheb - 1
 
     # global indices
     ipg = lambda idx: idx - ip0
@@ -343,17 +363,17 @@ def eigval_spherical(self, l_harm, ra_num):
     qall = slice(iq0, iqn + 1)
     tall = slice(it0, itn + 1)
     # interior points
-    pint = slice(1, ncheb - 1)
-    qint = slice(1, ncheb - 1)
-    tint = slice(1, ncheb - 1)
+    pint = slice(1, ncheb)
+    qint = slice(1, ncheb)
+    tint = slice(1, ncheb)
     # entire vector with big matrix indexing
     pgall = slice(ipg(ip0), ipg(ipn + 1))
     qgall = slice(iqg(iq0), iqg(iqn + 1))
     tgall = slice(itg(it0), itg(itn + 1))
     # interior points with big matrix indexing
-    pgint = slice(ipg(1), ipg(ncheb - 1))
-    qgint = slice(iqg(1), iqg(ncheb - 1))
-    tgint = slice(itg(1), itg(ncheb - 1))
+    pgint = slice(ipg(1), ipg(ncheb))
+    qgint = slice(iqg(1), iqg(ncheb))
+    tgint = slice(itg(1), itg(ncheb))
 
     lmat = np.zeros((itg(itn) + 1, itg(itn) + 1))
     rmat = np.zeros((itg(itn) + 1, itg(itn) + 1))
@@ -444,7 +464,8 @@ class Analyser:
         """
         # get differentiation matrices
         self._ncheb = ncheb
-        self._zcheb, self._ddm = dm.chebdif(self._ncheb, 2)
+        # dm should be modified to go from 0 to ncheb
+        self._zcheb, self._ddm = dm.chebdif(self._ncheb+1, 2)
         self.phys = phys
         self.phys.bind_to(self)
 
@@ -456,7 +477,7 @@ class Analyser:
         """
         if im0 == 1:
             mode = np.insert(mode, [0], [0])
-        if imn == self._ncheb - 2:
+        if imn == self._ncheb - 1:
             mode = np.append(mode, 0)
         return mode
 
@@ -495,16 +516,16 @@ class Analyser:
         # remove boundary when Dirichlet condition
         # pressure
         ip0 = 0
-        ipn = ncheb - 1
+        ipn = ncheb
         # horizontal velocity
         iu0 = 0 if (phi_top is not None) or freeslip_top else 1
-        iun = ncheb - 1 if (phi_bot is not None) or freeslip_bot else ncheb - 2
+        iun = ncheb if (phi_bot is not None) or freeslip_bot else ncheb - 1
         # vertical velocity
         iw0 = 0 if (phi_top is not None) else 1
-        iwn = ncheb - 1 if (phi_bot is not None) else ncheb - 2
+        iwn = ncheb if (phi_bot is not None) else ncheb - 1
         # temperature
         it0 = 0 if (heat_flux_top is not None) else 1
-        itn = ncheb - 1 if (heat_flux_bot is not None) else ncheb - 2
+        itn = ncheb if (heat_flux_bot is not None) else ncheb - 1
         i0n = (ip0, ipn, iu0, iun, iw0, iwn, it0, itn)
         # global indices
         ipg = lambda idx: idx - ip0
@@ -520,10 +541,10 @@ class Analyser:
         tall = slice(it0, itn + 1)
         slall = (pall, uall, wall, tall)
         # interior points
-        pint = slice(1, ncheb - 1)
-        uint = slice(1, ncheb - 1)
-        wint = slice(1, ncheb - 1)
-        tint = slice(1, ncheb - 1)
+        pint = slice(1, ncheb)
+        uint = slice(1, ncheb)
+        wint = slice(1, ncheb)
+        tint = slice(1, ncheb)
         slint = (pint, uint, wint, tint)
         # entire vector with big matrix indexing
         pgall = slice(ipg(ip0), ipg(ipn + 1))
@@ -532,10 +553,10 @@ class Analyser:
         tgall = slice(itg(it0), itg(itn + 1))
         slgall = (pgall, ugall, wgall, tgall)
         # interior points with big matrix indexing
-        pgint = slice(ipg(1), ipg(ncheb - 1))
-        ugint = slice(iug(1), iug(ncheb - 1))
-        wgint = slice(iwg(1), iwg(ncheb - 1))
-        tgint = slice(itg(1), itg(ncheb - 1))
+        pgint = slice(ipg(1), ipg(ncheb))
+        ugint = slice(iug(1), iug(ncheb))
+        wgint = slice(iwg(1), iwg(ncheb))
+        tgint = slice(itg(1), itg(ncheb))
         slgint = (pgint, ugint, wgint, tgint)
         return i0n, igf, slall, slint, slgall, slgint
 
