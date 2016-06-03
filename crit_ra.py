@@ -22,7 +22,7 @@ pblm = PhysicalProblem(
     freeslip_bot=True,
     ref_state_translation=False)
 
-ana = NonLinearAnalyzer(pblm, ncheb=15)
+ana = NonLinearAnalyzer(pblm, ncheb=20)
 name = ana.phys.name()
 
 harm_c, ray, modec, mode20, mode22 = ana.nonlinana()

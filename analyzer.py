@@ -4,6 +4,9 @@ import numpy.ma as ma
 from scipy import linalg
 from scipy.optimize import brentq
 from numpy.linalg import solve
+import matplotlib.pyplot as plt
+import seaborn as sns
+from itertools import product
 
 class PhysicalProblem:
 
@@ -150,7 +153,7 @@ def wtran(eps):
             wtr = brentq(func, wtrs, wtrl, args=(eps))
     return wtr, wtrs, wtrl
 
-def cartesian_matrices_0(self, wnk, ra_num):
+def cartesian_matrices_0(self, ra_num):
     """LHS matrix for x-independent forcing
 
     When the RHS is independent of x, the solution is also
@@ -160,15 +163,45 @@ def cartesian_matrices_0(self, wnk, ra_num):
     ncheb = self._ncheb
     dz1, dz2 = self.dr1, self.dr2
     one = np.identity(ncheb)  # identity
-    dh1 = 1.j * wnk * one  # horizontal derivative
-    lapl = dz2 - wnk**2 * one  # laplacian
     phi_top = self.phys.phi_top
     phi_bot = self.phys.phi_bot
     freeslip_top = self.phys.freeslip_top
     freeslip_bot = self.phys.freeslip_bot
+    heat_flux_top = self.phys.heat_flux_top
+    heat_flux_bot = self.phys.heat_flux_bot
 
-    lmat = np.zeros()
-    return lmat
+    # pressure
+    ip0 = 0 if (phi_top is not None) else 1
+    ipn = ncheb if (phi_bot is not None) else ncheb - 1
+    # temperature
+    it0 = 0 if (heat_flux_top is not None) else 1
+    itn = ncheb if (heat_flux_bot is not None) else ncheb - 1
+    # global indices
+    ipg = lambda idx: idx - ip0
+    itg = lambda idx: idx - it0 + ipg(ipn) + 1
+    # slices
+    # entire vector
+    pall = slice(ip0, ipn + 1)
+    tall = slice(it0, itn + 1)
+    # interior points
+    pint = slice(1, ncheb)
+    tint = slice(1, ncheb)
+    # entire vector with big matrix indexing
+    pgall = slice(ipg(ip0), ipg(ipn + 1))
+    tgall = slice(itg(it0), itg(itn + 1))
+    # interior points with big matrix indexing
+    pgint = slice(ipg(1), ipg(ncheb))
+    tgint = slice(itg(1), itg(ncheb))
+
+    # initialize matrix
+    lmat = np.zeros((itg(itn) + 1, itg(itn) + 1))
+    # pressure equation (z momentum)
+    lmat[pgint, pgint] = dz1[pint, pint]
+    lmat[pgint, tgint] = one[pint, tint]
+    # temperature equation
+    lmat[tgint, tgall] = dz2[tint, tall]
+
+    return lmat, pgint, tgint, itn, itg
 
 def cartesian_matrices(self, wnk, ra_num):
     "LHS and RHS matrices for the linear stability"
@@ -687,10 +720,24 @@ class NonLinearAnalyzer(Analyser):
             return eigval_cartesian(self, harm, ra_num)
 
     def integz(self, prof):
-        """Integral on the z interval with Chebyshev weight"""
-        intz = np.sum(prof)
-        intz = intz - (prof[0] + prof[-1])/2
-        intz *=np.pi / self._ncheb
+        """Integral on the -1/2 <= z <= 1/2 interval"""
+        ncheb = self._ncheb
+        # weights
+        invcp = np.ones(ncheb+1)
+        invcp[0] = 1/2
+        invcp[-1] = 1/2
+        # matrix to get the pseudo-spectrum
+        tmat = np.zeros((ncheb+1, ncheb+1))
+        for n in range(ncheb+1):
+            for p in range(ncheb+1):
+                tmat[n, p] = (-1)**n * np.cos(n * p *np.pi / ncheb)
+        # tmat = np.array([(-1)**n * np.cos(n * p *np.pi / ncheb)\
+                        # for n,p in product(np.linspace(0, ncheb), np.linspace(0, ncheb)) ])
+        # pseudo-spectrum
+        spec = np.dot(tmat, prof * invcp)
+        spec *= 2 / ncheb *invcp
+        intz = - 1/2 * np.sum(spec[i]*2/(i**2-1) for i in range(len(spec)) if i % 2 == 0)
+        # factor 1/2 is to account for the interval -1/2 < z < 1/2 
         return intz
 
     def nonlinana(self):
@@ -702,6 +749,7 @@ class NonLinearAnalyzer(Analyser):
         freeslip_bot = self.phys.freeslip_bot
         heat_flux_top = self.phys.heat_flux_top
         heat_flux_bot = self.phys.heat_flux_bot
+        zcheb = self._zcheb
         # global indices and slices
         i0n, igf, slall, slint, slgall, slgint = self._slices()
         ip0, ipn, iu0, iun, iw0, iwn, it0, itn = i0n
@@ -715,39 +763,38 @@ class NonLinearAnalyzer(Analyser):
         ana = LinearAnalyzer(self.phys, self._ncheb)
         ra_c, harm_c = ana.critical_ra()
         _, mode_c, mats_c = self.eigval(harm_c, ra_c)
-        mode_c, _ = normalize_modes(mode_c, full_norm=False)
+        mode_c, _ = normalize_modes(mode_c, norm_mode=2, full_norm=False)
         p_c, u_c, w_c, t_c = mode_c
-        print('wc=', w_c, np.pi**2+harm_c**2)
+        p_c /= 2
+        u_c /= 2
+        w_c /= 2
+        t_c /= 2
         lmat_c, _ = mats_c
         dt_c = np.dot(self.dr1, t_c)
         # also need the linear problem for wnk=2*harm_c and wnk=0
-        # _, _, mats2 = self.eigval(2 * harm_c, ra_c)
-        # _, _, mats0 = self.eigval(0, ra_c)
         lmat2 = self.matrices(2 * harm_c, ra_c)[0]
-        lmat0 = self.matrices(2 * harm_c, ra_c)[0]
+        lmat0, pgint0, tgint0, itn0, itg0 = cartesian_matrices_0(self, ra_c)
+
         # theta part of the non-linear term N(Xc, Xc)
         # part constant in x
-        nxcxc0 = np.zeros((itg(itn) + 1))
-        nxcxc0[tgint] = 2 * (w_c * dt_c + harm_c * np.imag(u_c) * t_c)[tint]
-        print(nxcxc0[tgint])
-        # part in 2 k x
-        nxcxc2 = np.zeros((itg(itn) + 1))
-        nxcxc2[tgint] = 2 * (w_c * dt_c - harm_c * np.imag(u_c) * t_c)[tint]
-        print(nxcxc2[tgint])
-        # Solve Lc * X2 = NXcXc to get X2
-        mode20 = solve(lmat_c, nxcxc0)
+        nxcxc0 = np.zeros((itg0(itn0) + 1))
+        nxcxc0[tgint0] = 2 * (np.real(w_c * dt_c) + harm_c * np.imag(u_c) * np.real(t_c))[tint]
 
-        p20 = mode20[pgall]
-        u20 = mode20[ugall]
-        w20 = mode20[wgall]
-        t20 = mode20[tgall]
+        # Solve Lc * X2 = NXcXc to get X20
+        mode20 = solve(lmat0, nxcxc0)
+
+        p20 = mode20[pgint0]
+        w20 = 0 # could be translation in general
+        t20 = mode20[tgint0]
 
         p20 = self._insert_boundaries(p20, ip0, ipn)
-        u20 = self._insert_boundaries(u20, iu0, iun)
-        w20 = self._insert_boundaries(w20, iw0, iwn)
         t20 = self._insert_boundaries(t20, it0, itn)
         dt20 = np.dot(self.dr1, t20)
+        # part in 2 k x
+        nxcxc2 = np.zeros((itg(itn) + 1))
+        nxcxc2[tgint] = 2 * (np.real(w_c * dt_c) - harm_c * np.imag(u_c) * np.real(t_c))[tint]
 
+        # Solve Lc * X2 = NXcXc to get X22
         mode22 = solve(lmat2, nxcxc2)
         # print(mode22)
         p22 = mode22[pgall]
@@ -761,16 +808,52 @@ class NonLinearAnalyzer(Analyser):
         t22 = self._insert_boundaries(t22, it0, itn)
         dt22 = np.dot(self.dr1, t22)
 
+        # check the profiles
+        # n_rad = 40
+        # cheb_space = np.linspace(-1, 1, n_rad)
+        # rad = np.linspace(-1/2, 1/2, n_rad)
+        # u_interp = dm.chebint(u_c, cheb_space)
+        # w_interp = dm.chebint(w_c, cheb_space)
+        # t_interp = dm.chebint(t_c, cheb_space)
+        # n2xc = self._insert_boundaries(nxcxc0[tgint0], 1, ncheb - 1)
+
+        # n2xc_interp = dm.chebint(n2xc, cheb_space)
+        # fig, axis = plt.subplots(1, 5, sharey=True)
+        # axis[0].plot(t_interp, rad)
+        # axis[0].plot(t_c, zcheb/2, 'o')
+        # axis[0].plot(np.cos(np.pi*rad)/2/(np.pi**2+harm_c**2), rad)
+        # axis[1].plot(w_interp, rad)
+        # axis[1].plot(w_c, zcheb/2, 'o')
+        # axis[1].plot(np.cos(np.pi*rad)/2, rad)
+        # axis[2].plot(n2xc_interp, rad)
+        # axis[2].plot(n2xc, zcheb/2, 'o')
+        # axis[2].plot(-np.pi/2/(np.pi**2+harm_c**2)*np.sin(2*np.pi*rad), rad)
+        # axis[3].plot(np.imag(u_interp), rad)
+        # axis[3].plot(t20, zcheb/2, 'o')
+        # axis[3].plot(1/(np.pi**2+harm_c**2)/(8*np.pi)*np.sin(2*np.pi*rad), rad)
+
         # denominator in Ra2
-        xcmxc =  self.integz(w_c * t_c)
-
+        xcmxc =  self.integz(np.real(w_c * t_c))
+        # print('xcmxc = ', xcmxc, 1/(np.pi**2+harm_c**2)/8)
         # numerator in Ra2
-        xcnx2xc = 2 * harm_c * self.integz(t_c**2 * np.imag(u22))
-        xcnx2xc += 2 * self.integz(t_c * dt_c * (np.real(w22) + w20))
-        xcnxcx2 = -4 * harm_c * 1j * self.integz(t_c * u_c * np.real(t22))
-        xcnxcx2 += 2 * self.integz(t_c * w_c * (np.real(dt22) + dt20))
-        print('in ra2', xcnx2xc, xcnxcx2, xcmxc)
-        # Ra2
-        ra2 = (xcnx2xc + xcnxcx2)/xcmxc
+        xcnx2xc = 2 * harm_c * self.integz(np.real(t_c)**2 * np.imag(u22))
+        xcnx2xc += 2 * self.integz(np.real(t_c * dt_c) * (np.real(w22) + np.real(w20)))
+        # non-linear term xc, x2, along t, in exp(ikx)
+        # nxcx2tk = w_c * dt20
+        # axis[4].plot(nxcx2tk, zcheb/2, 'o')
+        # axis[4].plot(np.cos(np.pi*rad)/8/(np.pi**2+harm_c**2)*np.cos(2*np.pi*rad), rad)
+        # axis[4].plot(np.cos(np.pi*rad)/16/(np.pi**2+harm_c**2)*np.cos(2*np.pi*rad), rad, '.-')
+        
+        # plt.savefig('tw.pdf', format='PDF')
+        # num =  self.integz(t_c * nxcx2tk)
+        # print('num = ', num)
+        # print ('Ra2 = ', ra_c * num / xcmxc, (harm_c**2+np.pi**2)**2 / (8 * harm_c**2))
 
-        return harm_c, (ra_c, ra2), mode_c, (p20, u20, w20, t20), (p22, u22, w22, t22)
+        xcnxcx20 = self.integz(t_c * w_c * dt20)
+        xcnxcx22 = self.integz(t_c * w_c * np.real(dt22))
+        xcnxcx22 += 2 * harm_c * self.integz(t_c * np.imag(u_c) * np.real(dt22))
+        xcnxcx2 = xcnxcx20 + xcnxcx22
+
+        ra2 = ra_c * xcnxcx2/xcmxc
+
+        return harm_c, (ra_c, ra2), mode_c, (p20, w20, t20), (p22, u22, w22, t22)
