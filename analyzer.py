@@ -159,7 +159,7 @@ def cartesian_matrices_0(self, wnk, ra_num):
     are solved"""
     ncheb = self._ncheb
     dz1, dz2 = self.dr1, self.dr2
-    one = np.identity(ncheb)  # identity
+    one = np.identity(ncheb + 1)  # identity
     dh1 = 1.j * wnk * one  # horizontal derivative
     lapl = dz2 - wnk**2 * one  # laplacian
     phi_top = self.phys.phi_top
@@ -330,7 +330,7 @@ def eigval_spherical(self, l_harm, ra_num):
     orad1 = np.diag(orad1)
     orad2 = np.diag(orad2)
     orad3 = np.diag(orad3)
-    one = np.identity(ncheb)  # identity
+    one = np.identity(ncheb + 1)  # identity
     lh2 = l_harm * (l_harm + 1)  # horizontal laplacian
     lapl = dr2 + 2 * np.dot(orad1, dr1) - lh2 * orad2  # laplacian
     phi_top = self.phys.phi_top
