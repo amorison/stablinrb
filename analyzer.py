@@ -270,7 +270,7 @@ def cartesian_matrices(self, wnk, ra_num):
     if phi_bot is not None:
         # phase change at bot
         lmat[iwg(iwn), pgall] = -one[iwn, pall]
-        lmat[iwg(iwn), wgall] = -phi_bot * one[iwn, pall] + 2 * dz1[iwn, pall]
+        lmat[iwg(iwn), wgall] = -phi_bot * one[iwn, wall] + 2 * dz1[iwn, wall]
 
     # T equations
     # laplacian(T) - u.grad(T_conductive) = sigma T
