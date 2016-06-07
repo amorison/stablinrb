@@ -523,6 +523,17 @@ class Analyser:
         self._ncheb = ncheb
         # dm should be modified to go from 0 to ncheb
         self._zcheb, self._ddm = dm.chebdif(self._ncheb+1, 2)
+
+        # weights
+        self._invcp = np.ones(ncheb+1)
+        self._invcp[0] = 1/2
+        self._invcp[-1] = 1/2
+        # matrix to get the pseudo-spectrum
+        self._tmat = np.zeros((ncheb+1, ncheb+1))
+        for n in range(ncheb+1):
+            for p in range(ncheb+1):
+                self._tmat[n, p] = (-1)**n * np.cos(n * p *np.pi / ncheb)
+
         self.phys = phys
         self.phys.bind_to(self)
 
@@ -746,17 +757,9 @@ class NonLinearAnalyzer(Analyser):
     def integz(self, prof):
         """Integral on the -1/2 <= z <= 1/2 interval"""
         ncheb = self._ncheb
-        # weights
-        invcp = np.ones(ncheb+1)
-        invcp[0] = 1/2
-        invcp[-1] = 1/2
-        # matrix to get the pseudo-spectrum
-        tmat = np.zeros((ncheb+1, ncheb+1))
-        for n in range(ncheb+1):
-            for p in range(ncheb+1):
-                tmat[n, p] = (-1)**n * np.cos(n * p *np.pi / ncheb)
-        # tmat = np.array([(-1)**n * np.cos(n * p *np.pi / ncheb)\
-                        # for n,p in product(np.linspace(0, ncheb), np.linspace(0, ncheb)) ])
+        invcp = self._invcp
+        tmat = self._tmat
+
         # pseudo-spectrum
         spec = np.dot(tmat, prof * invcp)
         spec *= 2 / ncheb *invcp
