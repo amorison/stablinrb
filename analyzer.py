@@ -171,8 +171,17 @@ def cartesian_matrices_0(self, ra_num):
     heat_flux_bot = self.phys.heat_flux_bot
 
     # pressure
-    ip0 = 0 if (phi_top is not None) else 1
-    ipn = ncheb if (phi_bot is not None) else ncheb - 1
+    if phi_top is not None and phi_bot is not None:
+        # only that case a translating vertical velocity is possible
+        ip0 = 0
+        ipn = ncheb
+    else:
+        ip0 = 1
+        ipn = ncheb - 1
+    # if (phi_top is not None) else 1
+    # ipn = ncheb if (phi_bot is not None) else ncheb - 1
+    # ip0 = 1
+    # ipn = ncheb-1
     # temperature
     it0 = 0 if (heat_flux_top is not None) else 1
     itn = ncheb if (heat_flux_bot is not None) else ncheb - 1
@@ -192,16 +201,31 @@ def cartesian_matrices_0(self, ra_num):
     # interior points with big matrix indexing
     pgint = slice(ipg(1), ipg(ncheb))
     tgint = slice(itg(1), itg(ncheb))
+    # index for vertical velocity
+    if phi_top is not None and phi_bot is not None:
+        igw = itg(itn+1)
+    else:
+        igw = itg(itn)
 
     # initialize matrix
-    lmat = np.zeros((itg(itn) + 1, itg(itn) + 1))
+    lmat = np.zeros((igw + 1, igw + 1))
     # pressure equation (z momentum)
-    lmat[pgint, pgint] = dz1[pint, pint]
-    lmat[pgint, tgint] = one[pint, tint]
+    lmat[pgint, pgall] = - dz1[pint, pall]
+    lmat[pgint, tgint] = ra_num * one[pint, tint]
     # temperature equation
     lmat[tgint, tgall] = dz2[tint, tall]
+    # the case for a translating vertical velocity (mode 0)
+    if phi_top is not None and phi_bot is not None:
+        lmat[tgint, igw] = 1
+        lmat[0, 0] = -1
+        lmat[0, igw] = phi_top
+        lmat[ipn, 0] = 1
+        lmat[0, igw] = phi_bot
+        lmat[igw, igw] = phi_top + phi_bot
+        lmat[igw, 0] = 1
+        lmat[igw, ipn] = -1
 
-    return lmat, pgint, tgint, itn, itg
+    return lmat, pgint, tgint, igw
 
 def cartesian_matrices(self, wnk, ra_num):
     "LHS and RHS matrices for the linear stability"
@@ -773,19 +797,22 @@ class NonLinearAnalyzer(Analyser):
         dt_c = np.dot(self.dr1, t_c)
         # also need the linear problem for wnk=2*harm_c and wnk=0
         lmat2 = self.matrices(2 * harm_c, ra_c)[0]
-        lmat0, pgint0, tgint0, itn0, itg0 = cartesian_matrices_0(self, ra_c)
+        lmat0, pgint0, tgint0, igw0 = cartesian_matrices_0(self, ra_c)
 
         # theta part of the non-linear term N(Xc, Xc)
         # part constant in x
-        nxcxc0 = np.zeros((itg0(itn0) + 1))
+        nxcxc0 = np.zeros((igw0 + 1))
         nxcxc0[tgint0] = 2 * (np.real(w_c * dt_c) + harm_c * np.imag(u_c) * np.real(t_c))[tint]
 
         # Solve Lc * X2 = NXcXc to get X20
         mode20 = solve(lmat0, nxcxc0)
 
         p20 = mode20[pgint0]
-        w20 = 0 # could be translation in general
         t20 = mode20[tgint0]
+        if phi_top is not None and phi_bot is not None:
+            w20 = mode20[igw0]
+        else:
+            w20 = 0
 
         p20 = self._insert_boundaries(p20, ip0, ipn)
         t20 = self._insert_boundaries(t20, it0, itn)
@@ -834,7 +861,6 @@ class NonLinearAnalyzer(Analyser):
 
         # denominator in Ra2
         xcmxc =  self.integz(np.real(w_c * t_c))
-        # print('xcmxc = ', xcmxc, 1/(np.pi**2+harm_c**2)/8)
         # numerator in Ra2
         xcnx2xc = 2 * harm_c * self.integz(np.real(t_c)**2 * np.imag(u22))
         xcnx2xc += 2 * self.integz(np.real(t_c * dt_c) * (np.real(w22) + np.real(w20)))
@@ -845,9 +871,6 @@ class NonLinearAnalyzer(Analyser):
         # axis[4].plot(np.cos(np.pi*rad)/16/(np.pi**2+harm_c**2)*np.cos(2*np.pi*rad), rad, '.-')
         
         # plt.savefig('tw.pdf', format='PDF')
-        # num =  self.integz(t_c * nxcx2tk)
-        # print('num = ', num)
-        # print ('Ra2 = ', ra_c * num / xcmxc, (harm_c**2+np.pi**2)**2 / (8 * harm_c**2))
 
         xcnxcx20 = self.integz(t_c * w_c * dt20)
         xcnxcx22 = self.integz(t_c * w_c * np.real(dt22))
@@ -856,4 +879,15 @@ class NonLinearAnalyzer(Analyser):
 
         ra2 = ra_c * xcnxcx2/xcmxc
 
-        return harm_c, (ra_c, ra2), mode_c, (p20, w20, t20), (p22, u22, w22, t22)
+        # compute some global caracteristics
+        moyt = 0.5 * (1 + self.integz(t20)) # 0.5 for scaling to -1/2 ; 1/2
+        qtop = - dt20[0]
+        # * 0.5 * 2 : scaling and times 2 for double product of e^ikx e^-ikx
+        moyv = self.integz(np.imag(u_c)**2)
+        moyv += self.integz(np.abs(u22)**2) # * 0.5 * 2 : scaling and times 2
+        moyv += w20**2 # a constant
+        moyv += self.integz(np.imag(w_c)**2) # * 0.5 * 2 : scaling and times 2
+        moyv += self.integz(np.abs(w22)**2) # * 0.5 * 2 : scaling and times 2
+
+        return harm_c, (ra_c, ra2), mode_c, (p20, w20, t20),\
+          (p22, u22, w22, t22), (moyt, moyv, qtop)
