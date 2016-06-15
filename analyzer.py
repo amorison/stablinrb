@@ -12,7 +12,7 @@ class PhysicalProblem:
 
     """Description of the physical problem"""
 
-    def __init__(self, gamma=None,
+    def __init__(self, gamma=None, h_int=0,
                  phi_top=None, phi_bot=None,
                  freeslip_top=True, freeslip_bot=True,
                  heat_flux_top=None, heat_flux_bot=None,
@@ -28,6 +28,7 @@ class PhysicalProblem:
         """
         self._observers = []
         self.gamma = gamma
+        self.h_int = h_int
         self.phi_top = phi_top
         self.phi_bot = phi_bot
         self.freeslip_top = freeslip_top
@@ -78,6 +79,30 @@ class PhysicalProblem:
         # warn bounded analyzers that the problem geometry has changed
         for analyzer in self._observers:
             analyzer.phys = self
+
+    @property
+    def heat_flux_bot(self):
+        """Imposed heat flux at bottom"""
+        return self._hfbot
+
+    @heat_flux_bot.setter
+    def heat_flux_bot(self, value):
+        """Only one heat flux imposed at the same time"""
+        if value is not None:
+            self._hftop = None
+        self._hfbot = value
+
+    @property
+    def heat_flux_top(self):
+        """Imposed heat flux at top"""
+        return self._hftop
+
+    @heat_flux_top.setter
+    def heat_flux_top(self, value):
+        """Only one heat flux imposed at the same time"""
+        if value is not None:
+            self._hfbot = None
+        self._hftop = value
 
 
 def normalize(arr, norm=None):
@@ -230,6 +255,8 @@ def cartesian_matrices_0(self, ra_num):
 def cartesian_matrices(self, wnk, ra_num):
     "LHS and RHS matrices for the linear stability"
     ncheb = self._ncheb
+    zphys = self.rad
+    h_int = self.phys.h_int
     dz1, dz2 = self.dr1, self.dr2
     one = np.identity(ncheb+1)  # identity
     dh1 = 1.j * wnk * one  # horizontal derivative
@@ -298,16 +325,18 @@ def cartesian_matrices(self, wnk, ra_num):
 
     # T equations
     # laplacian(T) - u.grad(T_conductive) = sigma T
-    if heat_flux_top:
-        # Neumann boundary condition
+
+    # Neumann boundary condition if imposed flux
+    if heat_flux_top is not None:
         lmat[itg(it0), tgall] = dz1[it0, tall]
-    if heat_flux_bot:
-        # Neumann boundary condition
+    elif heat_flux_bot is not None:
         lmat[itg(itn), tgall] = dz1[itn, tall]
+
     lmat[tgint, tgall] = lapl[tint, tall]
 
     # need to take heat flux into account in T conductive
     if translation:
+        # only written for Dirichlet BCs on T and without internal heating
         lmat[tgint, wgall] = \
             np.diag(np.exp(wtrans * self.rad[wall]))[tint, wall]
         lmat[tgint, tgall] -= wtrans * dz1[tint, tall]
@@ -317,7 +346,14 @@ def cartesian_matrices(self, wnk, ra_num):
             # use a limited development
             lmat[tgint, wgall] *= (1-wtrans**2/24)
     else:
-        lmat[tgint, wgall] = one[tint, wall]
+        grad_tcond = - h_int * zphys
+        if heat_flux_bot is not None:
+            grad_tcond += heat_flux_bot - h_int / 2
+        elif heat_flux_top is not None:
+            grad_tcond += heat_flux_top + h_int / 2
+        else:
+            grad_tcond += 1
+        lmat[tgint, wgall] = np.diag(grad_tcond)[tint, wall]
 
     rmat[tgint, tgall] = one[tint, tall]
 
@@ -390,10 +426,12 @@ def eigval_spherical(self, l_harm, ra_num):
     one = np.identity(ncheb + 1)  # identity
     lh2 = l_harm * (l_harm + 1)  # horizontal laplacian
     lapl = dr2 + 2 * np.dot(orad1, dr1) - lh2 * orad2  # laplacian
+    gamma = self.phys.gamma
     phi_top = self.phys.phi_top
     phi_bot = self.phys.phi_bot
     freeslip_top = self.phys.freeslip_top
     freeslip_bot = self.phys.freeslip_bot
+    h_int = self.phys.h_int
     heat_flux_top = self.phys.heat_flux_top
     heat_flux_bot = self.phys.heat_flux_bot
     translation = self.phys.ref_state_translation
@@ -406,8 +444,8 @@ def eigval_spherical(self, l_harm, ra_num):
     iq0 = 0
     iqn = ncheb
     # temperature
-    it0 = 1
-    itn = ncheb - 1
+    it0 = 0 if (heat_flux_top is not None) else 1
+    itn = ncheb if (heat_flux_bot is not None) else ncheb - 1
 
     # global indices
     ipg = lambda idx: idx - ip0
@@ -484,9 +522,30 @@ def eigval_spherical(self, l_harm, ra_num):
 
     # T equations
     # laplacian(T) - u.grad(T_conductive) = sigma T
-    lmat[tgint, pgall] = lh2 * self.phys.gamma / (1 - self.phys.gamma) \
-        * orad3[tint, pall]
+
+    # Neumann boundary condition if imposed flux
+    if heat_flux_top is not None:
+        lmat[itg(it0), tgall] = dr1[it0, tall]
+    elif heat_flux_bot is not None:
+        lmat[itg(itn), tgall] = dr1[itn, tall]
+
     lmat[tgint, tgall] = lapl[tint, tall]
+
+    # advection of conductive profile
+    # using u_r = l(l+1)/r P
+    # first compute 1/r * nabla T
+    # then multiply by l(l+1)
+    grad_tcond = - h_int / 3
+    if heat_flux_bot is not None:
+        grad_tcond += (gamma**2 * heat_flux_bot +
+                       h_int * gamma**3 / 3) * np.diag(orad3)
+    elif heat_flux_top is not None:
+        grad_tcond += (heat_flux_top + h_int / 3) * np.diag(orad3)
+    else:
+        grad_tcond += (1 + (1 - gamma**2) * h_int / 6) * gamma / (1 - gamma) \
+            * np.diag(orad3)
+    lmat[tgint, pgall] = np.diag(lh2 * grad_tcond)[tint, pall]
+
     rmat[tgint, tgall] = one[tint, tall]
 
     # Find the eigenvalues
