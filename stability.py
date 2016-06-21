@@ -10,9 +10,10 @@ Also treats the phase change boundary conditions.
 import numpy as np
 import matplotlib.pyplot as plt
 import seaborn as sns
-from analyzer import PhysicalProblem, LinearAnalyzer,\
-      NonLinearAnalyzer, normalize_modes
+from analyzer import LinearAnalyzer, NonLinearAnalyzer
+from physics import PhysicalProblem
 from plotting import plot_fastest_mode, plot_ran_harm
+from misc import normalize_modes
 
 pblm = PhysicalProblem(
     gamma=None,
@@ -22,15 +23,19 @@ pblm = PhysicalProblem(
     freeslip_bot=True,
     ref_state_translation=False)
 
-ana = NonLinearAnalyzer(pblm, ncheb=20)
-name = ana.phys.name()
+NON_LINEAR = True
 
-harm_c, ray, modec, mode20, mode22, glob_val = ana.nonlinana()
-
-print('Ra_c, Ra2 = ', ray)
-print('globval', glob_val)
-# plot_fastest_mode(name, ana, harm_c, ra_c)
-# plot_ran_harm(name, ana, harm_c)
+if NON_LINEAR:
+    ana = NonLinearAnalyzer(pblm, ncheb=20)
+    harm_c, ray, modec, mode20, mode22, glob_val = ana.nonlinana()
+    print('Ra_c, Ra2 = ', ray)
+    print('globval', glob_val)
+else:
+    ana = LinearAnalyzer(pblm, ncheb=20)
+    name = ana.phys.name()
+    ra_c, harm_c = ana.critical_ra()
+    plot_fastest_mode(name, ana, harm_c, ra_c)
+    plot_ran_harm(name, ana, harm_c)
 
 
 # Explore phi space

@@ -1,5 +1,5 @@
 import dmsuite.dmsuite as dm
-from analyzer import normalize_modes
+from misc import normalize_modes
 import numpy as np
 from scipy.special import sph_harm
 import matplotlib.pyplot as plt
