@@ -32,10 +32,9 @@ if NON_LINEAR:
     print('globval', glob_val)
 else:
     ana = LinearAnalyzer(pblm, ncheb=20)
-    name = ana.phys.name()
     ra_c, harm_c = ana.critical_ra()
-    plot_fastest_mode(name, ana, harm_c, ra_c)
-    plot_ran_harm(name, ana, harm_c)
+    plot_fastest_mode(ana, harm_c, ra_c)
+    plot_ran_harm(ana, harm_c)
 
 
 # Explore phi space

@@ -14,13 +14,15 @@ FTSZ = 14
 MSIZE = 3
 
 
-def plot_fastest_mode(name, analyzer, harm, ra_num, plot_theory=False):
+def plot_fastest_mode(analyzer, harm, ra_num, name=None, plot_theory=False):
     """Plot fastest growing mode for a given harmonic and Ra
 
     plot_theory: theory in case of transition, cartesian geometry
     """
     spherical = analyzer.phys.spherical
     gamma = analyzer.phys.gamma
+    if name is None:
+        name = analyzer.phys.name()
 
     sigma, modes, _ = analyzer.eigval(harm, ra_num)
     # p is pressure in cartesian geometry and
@@ -168,8 +170,10 @@ def plot_fastest_mode(name, analyzer, harm, ra_num, plot_theory=False):
     plt.close(fig)
 
 
-def plot_ran_harm(name, analyzer, harm):
+def plot_ran_harm(analyzer, harm, name=None):
     """Plot neutral Ra vs harmonic around given harm"""
+    if name is None:
+        name = analyzer.phys.name()
     fig = plt.figure()
     if analyzer.phys.spherical:
         rac_l = []
