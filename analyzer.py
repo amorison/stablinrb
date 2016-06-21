@@ -8,7 +8,7 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 from itertools import product
 from physics import PhysicalProblem, wtran
-from misc import normalize_modes
+from misc import build_slices, normalize_modes
 
 
 def cartesian_matrices_0(self, ra_num):
@@ -36,29 +36,20 @@ def cartesian_matrices_0(self, ra_num):
     else:
         ip0 = 1
         ipn = ncheb - 1
-    # if (phi_top is not None) else 1
-    # ipn = ncheb if (phi_bot is not None) else ncheb - 1
-    # ip0 = 1
-    # ipn = ncheb-1
     # temperature
     it0 = 0 if (heat_flux_top is not None) else 1
     itn = ncheb if (heat_flux_bot is not None) else ncheb - 1
-    # global indices
-    ipg = lambda idx: idx - ip0
-    itg = lambda idx: idx - it0 + ipg(ipn) + 1
-    # slices
-    # entire vector
-    pall = slice(ip0, ipn + 1)
-    tall = slice(it0, itn + 1)
-    # interior points
-    pint = slice(1, ncheb)
-    tint = slice(1, ncheb)
-    # entire vector with big matrix indexing
-    pgall = slice(ipg(ip0), ipg(ipn + 1))
-    tgall = slice(itg(it0), itg(itn + 1))
-    # interior points with big matrix indexing
-    pgint = slice(ipg(1), ipg(ncheb))
-    tgint = slice(itg(1), itg(ncheb))
+
+    # global indices and slices
+    _, igf, slall, slint, slgall, slgint = build_slices([(ip0, ipn),
+                                                         (it0, itn)],
+                                                        ncheb)
+    ipg, itg = igf
+    pall, tall = slall
+    pint, tint = slint
+    pgall, tgall = slgall
+    pgint, tgint = slgint
+
     # index for vertical velocity
     if phi_top is not None and phi_bot is not None:
         igw = itg(itn+1)
@@ -104,7 +95,9 @@ def cartesian_matrices(self, wnk, ra_num):
 
     # global indices and slices
     i0n, igf, slall, slint, slgall, slgint = self._slices()
-    ip0, ipn, iu0, iun, iw0, iwn, it0, itn = i0n
+    i_0s, i_ns = zip(*i0n)
+    ip0, iu0, iw0, it0 = i_0s
+    ipn, iun, iwn, itn = i_ns
     ipg, iug, iwg, itg = igf
     pall, uall, wall, tall = slall
     pint, uint, wint, tint = slint
@@ -213,7 +206,9 @@ def eigval_cartesian(self, wnk, ra_num):
 
     # global indices and slices
     i0n, _, _, _, slgall, _ = self._slices()
-    ip0, ipn, iu0, iun, iw0, iwn, it0, itn = i0n
+    i_0s, i_ns = zip(*i0n)
+    ip0, iu0, iw0, it0 = i_0s
+    ipn, iun, iwn, itn = i_ns
     pgall, ugall, wgall, tgall = slgall
 
     lmat, rmat = cartesian_matrices(self, wnk, ra_num)
@@ -269,39 +264,16 @@ def eigval_spherical(self, l_harm, ra_num):
     heat_flux_bot = self.phys.heat_flux_bot
     translation = self.phys.ref_state_translation
 
-    # index min and max
-    # poloidal
-    ip0 = 0
-    ipn = ncheb
-    # laplacian of poloidal
-    iq0 = 0
-    iqn = ncheb
-    # temperature
-    it0 = 0 if (heat_flux_top is not None) else 1
-    itn = ncheb if (heat_flux_bot is not None) else ncheb - 1
-
-    # global indices
-    ipg = lambda idx: idx - ip0
-    iqg = lambda idx: idx - iq0 + ipg(ipn) + 1
-    itg = lambda idx: idx - it0 + iqg(iqn) + 1
-
-    # slices
-    # entire vector
-    pall = slice(ip0, ipn + 1)
-    qall = slice(iq0, iqn + 1)
-    tall = slice(it0, itn + 1)
-    # interior points
-    pint = slice(1, ncheb)
-    qint = slice(1, ncheb)
-    tint = slice(1, ncheb)
-    # entire vector with big matrix indexing
-    pgall = slice(ipg(ip0), ipg(ipn + 1))
-    qgall = slice(iqg(iq0), iqg(iqn + 1))
-    tgall = slice(itg(it0), itg(itn + 1))
-    # interior points with big matrix indexing
-    pgint = slice(ipg(1), ipg(ncheb))
-    qgint = slice(iqg(1), iqg(ncheb))
-    tgint = slice(itg(1), itg(ncheb))
+    # global indices and slices
+    i0n, igf, slall, slint, slgall, slgint = self._slices()
+    i_0s, i_ns = zip(*i0n)
+    ip0, iq0, it0 = i_0s
+    ipn, iqn, itn = i_ns
+    ipg, iqg, itg = igf
+    pall, qall, tall = slall
+    pint, qint, tint = slint
+    pgall, qgall, tgall = slgall
+    pgint, qgint, tgint = slgint
 
     lmat = np.zeros((itg(itn) + 1, itg(itn) + 1))
     rmat = np.zeros((itg(itn) + 1, itg(itn) + 1))
@@ -474,51 +446,28 @@ class Analyser:
         heat_flux_bot = self.phys.heat_flux_bot
         # index min and max
         # remove boundary when Dirichlet condition
-        # pressure
-        ip0 = 0
-        ipn = ncheb
-        # horizontal velocity
-        iu0 = 0 if (phi_top is not None) or freeslip_top else 1
-        iun = ncheb if (phi_bot is not None) or freeslip_bot else ncheb - 1
-        # vertical velocity
-        iw0 = 0 if (phi_top is not None) else 1
-        iwn = ncheb if (phi_bot is not None) else ncheb - 1
+        i0n = []
+        if self.phys.spherical:
+            # poloidal
+            i0n.append((0, ncheb))
+            # laplacian of poloidal
+            i0n.append((0, ncheb))
+        else:
+            # pressure
+            i0n.append((0, ncheb))
+            # horizontal velocity
+            i_0 = 0 if (phi_top is not None) or freeslip_top else 1
+            i_n = ncheb if (phi_bot is not None) or freeslip_bot else ncheb - 1
+            i0n.append((i_0, i_n))
+            # vertical velocity
+            i_0 = 0 if (phi_top is not None) else 1
+            i_n = ncheb if (phi_bot is not None) else ncheb - 1
+            i0n.append((i_0, i_n))
         # temperature
-        it0 = 0 if (heat_flux_top is not None) else 1
-        itn = ncheb if (heat_flux_bot is not None) else ncheb - 1
-        i0n = (ip0, ipn, iu0, iun, iw0, iwn, it0, itn)
-        # global indices
-        ipg = lambda idx: idx - ip0
-        iug = lambda idx: idx - iu0 + ipg(ipn) + 1
-        iwg = lambda idx: idx - iw0 + iug(iun) + 1
-        itg = lambda idx: idx - it0 + iwg(iwn) + 1
-        igf = (ipg, iug, iwg, itg)
-        # slices
-        # entire vector
-        pall = slice(ip0, ipn + 1)
-        uall = slice(iu0, iun + 1)
-        wall = slice(iw0, iwn + 1)
-        tall = slice(it0, itn + 1)
-        slall = (pall, uall, wall, tall)
-        # interior points
-        pint = slice(1, ncheb)
-        uint = slice(1, ncheb)
-        wint = slice(1, ncheb)
-        tint = slice(1, ncheb)
-        slint = (pint, uint, wint, tint)
-        # entire vector with big matrix indexing
-        pgall = slice(ipg(ip0), ipg(ipn + 1))
-        ugall = slice(iug(iu0), iug(iun + 1))
-        wgall = slice(iwg(iw0), iwg(iwn + 1))
-        tgall = slice(itg(it0), itg(itn + 1))
-        slgall = (pgall, ugall, wgall, tgall)
-        # interior points with big matrix indexing
-        pgint = slice(ipg(1), ipg(ncheb))
-        ugint = slice(iug(1), iug(ncheb))
-        wgint = slice(iwg(1), iwg(ncheb))
-        tgint = slice(itg(1), itg(ncheb))
-        slgint = (pgint, ugint, wgint, tgint)
-        return i0n, igf, slall, slint, slgall, slgint
+        i_0 = 0 if (heat_flux_top is not None) else 1
+        i_n = ncheb if (heat_flux_bot is not None) else ncheb - 1
+        i0n.append((i_0, i_n))
+        return build_slices(i0n, ncheb)
 
 class LinearAnalyzer(Analyser):
 
@@ -671,7 +620,9 @@ class NonLinearAnalyzer(Analyser):
         zcheb = self._zcheb
         # global indices and slices
         i0n, igf, slall, slint, slgall, slgint = self._slices()
-        ip0, ipn, iu0, iun, iw0, iwn, it0, itn = i0n
+        i_0s, i_ns = zip(*i0n)
+        ip0, iu0, iw0, it0 = i_0s
+        ipn, iun, iwn, itn = i_ns
         ipg, iug, iwg, itg = igf
         pall, uall, wall, tall = slall
         pint, uint, wint, tint = slint

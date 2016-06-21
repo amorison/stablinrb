@@ -45,3 +45,29 @@ def normalize_modes(modes, norm_mode=3, full_norm=True):
         normed_vectors.append(nvec)
         norm_values.append(nval)
     return normed_vectors, norm_values
+
+
+def build_slices(i0n, imax):
+    """Build slices from a list of min/max index
+
+    i0n: list of (imin, imax) indices tuples, one tuple per variable,
+         without the boundaries if they are not needed
+    imax: maximum index taking boundaries into account typically the
+          number of Chebyshev points)
+    """
+    igf = [lambda idx: idx - i0n[0][0]]
+    i_0s, i_ns = zip(*i0n)
+    for i_0, i_n in zip(i_0s[1:], i_ns):
+        ipn = igf[-1](i_n)
+        i_g = lambda idx, i_l=ipn-i_0+1: idx + i_l
+        igf.append(i_g)
+    slall = []  # entire vector
+    slint = []  # interior points
+    slgall = []  # entire vector with big matrix indexing
+    slgint = []  # interior points with big matrix indexing
+    for i_0, i_n, i_g in zip(i_0s, i_ns, igf):
+        slall.append(slice(i_0, i_n + 1))
+        slint.append(slice(1, imax))
+        slgall.append(slice(i_g(i_0), i_g(i_n + 1)))
+        slgint.append(slice(i_g(1), i_g(imax)))
+    return i0n, igf, slall, slint, slgall, slgint
