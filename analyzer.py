@@ -2,11 +2,9 @@ import dmsuite.dmsuite as dm
 import numpy as np
 import numpy.ma as ma
 from scipy import linalg
-from scipy.optimize import brentq
 from numpy.linalg import solve
 import matplotlib.pyplot as plt
 import seaborn as sns
-from itertools import product
 from physics import PhysicalProblem, wtran
 from misc import build_slices, normalize_modes
 
