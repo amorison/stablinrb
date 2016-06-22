@@ -11,19 +11,20 @@ import numpy as np
 import matplotlib.pyplot as plt
 import seaborn as sns
 from analyzer import LinearAnalyzer, NonLinearAnalyzer
-from physics import PhysicalProblem
+from physics import PhysicalProblem, compo_smo
 from plotting import plot_fastest_mode, plot_ran_harm
 from misc import normalize_modes
 
 pblm = PhysicalProblem(
     gamma=None,
-    phi_top=1e-2,
-    phi_bot=1e-2,
+    phi_top=1.e3,
+    phi_bot=1.e3,
     freeslip_top=True,
     freeslip_bot=True,
+    composition=compo_smo(1.5, 0.8),
     ref_state_translation=False)
 
-NON_LINEAR = True
+NON_LINEAR = False
 
 if NON_LINEAR:
     ana = NonLinearAnalyzer(pblm, ncheb=20)
@@ -32,7 +33,7 @@ if NON_LINEAR:
     print('globval', glob_val)
 else:
     ana = LinearAnalyzer(pblm, ncheb=20)
-    ra_c, harm_c = ana.critical_ra()
+    ra_c, harm_c = ana.critical_ra(ra_comp=-20)
     plot_fastest_mode(ana, harm_c, ra_c)
     plot_ran_harm(ana, harm_c)
 

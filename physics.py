@@ -9,6 +9,7 @@ class PhysicalProblem:
                  phi_top=None, phi_bot=None,
                  freeslip_top=True, freeslip_bot=True,
                  heat_flux_top=None, heat_flux_bot=None,
+                 composition=None,
                  ref_state_translation=False):
         """Create a physical problem instance
 
@@ -28,6 +29,7 @@ class PhysicalProblem:
         self.freeslip_bot = freeslip_bot
         self.heat_flux_top = heat_flux_top
         self.heat_flux_bot = heat_flux_bot
+        self.composition = composition
         self.ref_state_translation = ref_state_translation
 
     def bind_to(self, analyzer):
@@ -124,3 +126,15 @@ def wtran(eps):
         else:
             wtr = brentq(func, wtrs, wtrl, args=(eps))
     return wtr, wtrs, wtrl
+
+
+def compo_smo(thick_tot, partition_coef, c_0=None):
+    """Composition profile
+
+    Computed in the case of a rapidly crystalizing smo
+    """
+    # only written in cartesian
+    if c_0 is None:
+        c_0 = (1 - 1 / thick_tot**3)**(1 - partition_coef)
+    return lambda z: c_0 * (thick_tot**3 / (thick_tot**3 -
+        (z + 1 / 2)**3))**(1 - partition_coef)

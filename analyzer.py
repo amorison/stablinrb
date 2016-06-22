@@ -74,7 +74,7 @@ def cartesian_matrices_0(self, ra_num):
 
     return lmat, pgint, tgint, igw
 
-def cartesian_matrices(self, wnk, ra_num):
+def cartesian_matrices(self, wnk, ra_num, ra_comp=None):
     "LHS and RHS matrices for the linear stability"
     ncheb = self._ncheb
     zphys = self.rad
@@ -89,18 +89,30 @@ def cartesian_matrices(self, wnk, ra_num):
     freeslip_bot = self.phys.freeslip_bot
     heat_flux_top = self.phys.heat_flux_top
     heat_flux_bot = self.phys.heat_flux_bot
+    composition = self.phys.composition
     translation = self.phys.ref_state_translation
+    if composition is not None and ra_comp is None:
+        raise ValueError("ra_comp must be specified for compositional problem")
 
     # global indices and slices
     i0n, igf, slall, slint, slgall, slgint = self._slices()
     i_0s, i_ns = zip(*i0n)
-    ip0, iu0, iw0, it0 = i_0s
-    ipn, iun, iwn, itn = i_ns
-    ipg, iug, iwg, itg = igf
-    pall, uall, wall, tall = slall
-    pint, uint, wint, tint = slint
-    pgall, ugall, wgall, tgall = slgall
-    pgint, ugint, wgint, tgint = slgint
+    if composition is None:
+        ip0, iu0, iw0, it0 = i_0s
+        ipn, iun, iwn, itn = i_ns
+        ipg, iug, iwg, itg = igf
+        pall, uall, wall, tall = slall
+        pint, uint, wint, tint = slint
+        pgall, ugall, wgall, tgall = slgall
+        pgint, ugint, wgint, tgint = slgint
+    else:
+        ip0, iu0, iw0, it0, ic0 = i_0s
+        ipn, iun, iwn, itn, icn = i_ns
+        ipg, iug, iwg, itg, icg = igf
+        pall, uall, wall, tall, call = slall
+        pint, uint, wint, tint, cint = slint
+        pgall, ugall, wgall, tgall, cgall = slgall
+        pgint, ugint, wgint, tgint, cgint = slgint
 
     # For pressure. No BCs but side values needed or removed
     # depending on the BCs for W. number of lines need to be
@@ -110,8 +122,8 @@ def cartesian_matrices(self, wnk, ra_num):
         rtr = 12*(phitop+phibot)
         wtrans = wtran((ranum-rtr)/rtr)[0]
 
-    lmat = np.zeros((itg(itn) + 1, itg(itn) + 1)) + 0j
-    rmat = np.zeros((itg(itn) + 1, itg(itn) + 1))
+    lmat = np.zeros((igf[-1](itn) + 1, igf[-1](itn) + 1)) + 0j
+    rmat = np.zeros((igf[-1](itn) + 1, igf[-1](itn) + 1))
 
     # Pressure equations
     # mass conservation
@@ -142,6 +154,8 @@ def cartesian_matrices(self, wnk, ra_num):
     lmat[wgint, pgall] = -dz1[wint, pall]
     lmat[wgint, wgall] = lapl[wint, wall]
     lmat[wgint, tgall] = ra_num * one[wint, tall]
+    if composition is not None:
+        lmat[wgint, cgall] = ra_comp * one[wint, call]
     if phi_bot is not None:
         # phase change at bot
         lmat[iwg(iwn), pgall] = -one[iwn, pall]
@@ -181,9 +195,16 @@ def cartesian_matrices(self, wnk, ra_num):
 
     rmat[tgint, tgall] = one[tint, tall]
 
+    # C equations
+    # -u.grad(C_reference) = sigma C
+    if composition is not None:
+        lmat[cgint, wgall] = -np.diag(
+            np.dot(dz1, composition(zphys)))[cint, wall]
+        rmat[cgint, cgall] = one[tint, tall]
+
     return lmat, rmat
 
-def eigval_cartesian(self, wnk, ra_num):
+def eigval_cartesian(self, wnk, ra_num, ra_comp=None):
     """Compute the max eigenvalue and associated eigenvector
 
     wnk: wave number
@@ -205,11 +226,16 @@ def eigval_cartesian(self, wnk, ra_num):
     # global indices and slices
     i0n, _, _, _, slgall, _ = self._slices()
     i_0s, i_ns = zip(*i0n)
-    ip0, iu0, iw0, it0 = i_0s
-    ipn, iun, iwn, itn = i_ns
-    pgall, ugall, wgall, tgall = slgall
+    if self.phys.composition is None:
+        ip0, iu0, iw0, it0 = i_0s
+        ipn, iun, iwn, itn = i_ns
+        pgall, ugall, wgall, tgall = slgall
+    else:
+        ip0, iu0, iw0, it0, ic0 = i_0s
+        ipn, iun, iwn, itn, icn = i_ns
+        pgall, ugall, wgall, tgall, cgall = slgall
 
-    lmat, rmat = cartesian_matrices(self, wnk, ra_num)
+    lmat, rmat = cartesian_matrices(self, wnk, ra_num, ra_comp)
 
     # Find the eigenvalues
     eigvals, eigvecs = linalg.eig(lmat, rmat, right=True)
@@ -465,6 +491,8 @@ class Analyser:
         i_0 = 0 if (heat_flux_top is not None) else 1
         i_n = ncheb if (heat_flux_bot is not None) else ncheb - 1
         i0n.append((i_0, i_n))
+        if (not self.phys.spherical) and self.phys.composition is not None:
+            i0n.append((1, ncheb - 1))
         return build_slices(i0n, ncheb)
 
 class LinearAnalyzer(Analyser):
@@ -475,22 +503,22 @@ class LinearAnalyzer(Analyser):
     phase change at either or both boundaries.
     """
 
-    def eigval(self, harm, ra_num):
+    def eigval(self, harm, ra_num, ra_comp=None):
         """Generic eigval function"""
         if self.phys.spherical:
             return eigval_spherical(self, harm, ra_num)
         else:
-            return eigval_cartesian(self, harm, ra_num)
+            return eigval_cartesian(self, harm, ra_num, ra_comp)
 
-    def neutral_ra(self, harm, ra_guess=600, eps=1.e-8):
+    def neutral_ra(self, harm, ra_guess=600, ra_comp=None, eps=1.e-8):
         """Find Ra which gives neutral stability of a given harmonic
 
         harm is the wave number k or spherical harmonic degree
         """
         ra_min = ra_guess / 2
         ra_max = ra_guess * 2
-        sigma_min = np.real(self.eigval(harm, ra_min)[0])
-        sigma_max = np.real(self.eigval(harm, ra_max)[0])
+        sigma_min = np.real(self.eigval(harm, ra_min, ra_comp)[0])
+        sigma_max = np.real(self.eigval(harm, ra_max, ra_comp)[0])
 
         while sigma_min > 0. or sigma_max < 0.:
             if sigma_min > 0.:
@@ -499,12 +527,12 @@ class LinearAnalyzer(Analyser):
             if sigma_max < 0.:
                 ra_min = ra_max
                 ra_max *= 2
-            sigma_min = np.real(self.eigval(harm, ra_min)[0])
-            sigma_max = np.real(self.eigval(harm, ra_max)[0])
+            sigma_min = np.real(self.eigval(harm, ra_min, ra_comp)[0])
+            sigma_max = np.real(self.eigval(harm, ra_max, ra_comp)[0])
 
         while (ra_max - ra_min) / ra_max > eps:
             ra_mean = (ra_min + ra_max) / 2
-            sigma_mean = np.real(self.eigval(harm, ra_mean)[0])
+            sigma_mean = np.real(self.eigval(harm, ra_mean, ra_comp)[0])
             if sigma_mean < 0.:
                 sigma_min = sigma_mean
                 ra_min = ra_mean
@@ -514,7 +542,7 @@ class LinearAnalyzer(Analyser):
 
         return (ra_min*sigma_max - ra_max*sigma_min) / (sigma_max - sigma_min)
 
-    def critical_ra(self, harm=2, ra_guess=600):
+    def critical_ra(self, harm=2, ra_guess=600, ra_comp=None):
         """Find the harmonic with the lower neutral Ra
 
         harm is an optional initial guess
@@ -526,7 +554,7 @@ class LinearAnalyzer(Analyser):
             harms = range(max(1, harm - 10), harm + 10)
         else:
             harms = np.linspace(harm*(1-eps[0]), harm*(1+2*eps[0]), 3)
-        ray = [self.neutral_ra(h, ra_guess) for h in harms]
+        ray = [self.neutral_ra(h, ra_guess, ra_comp) for h in harms]
 
         if self.phys.spherical:
             min_found = False
@@ -537,7 +565,7 @@ class LinearAnalyzer(Analyser):
                 if imin == 0 and hmin != 1:
                     ra_guess_n = ray[1]
                     harms = range(max(1, hmin - 10), hmin)
-                    ray = [self.neutral_ra(h, ra_guess) for h in harms]
+                    ray = [self.neutral_ra(h, ra_guess, ra_comp) for h in harms]
                     # append local minimum and the next point to
                     # avoid oscillating around the true minimum
                     ray.append(ra_guess)
@@ -545,7 +573,7 @@ class LinearAnalyzer(Analyser):
                     harms = range(max(1, hmin - 10), hmin + 2)
                 elif imin == len(ray) - 1:
                     harms = range(hmin + 1, hmin + 20)
-                    ray = [self.neutral_ra(h, ra_guess) for h in harms]
+                    ray = [self.neutral_ra(h, ra_guess, ra_comp) for h in harms]
                 else:
                     min_found = True
         else:
@@ -557,13 +585,13 @@ class LinearAnalyzer(Analyser):
             for i, err in enumerate([0.03, 1.e-3]):
                 while np.abs(kmin-harms[1]) > err*kmin and not exitloop:
                     harms = np.linspace(kmin*(1-eps[i]), kmin*(1+eps[i]), 3)
-                    ray = [self.neutral_ra(h, ra_guess) for h in harms]
+                    ray = [self.neutral_ra(h, ra_guess, ra_comp) for h in harms]
                     pol = np.polyfit(harms, ray, 2)
                     kmin = -0.5*pol[1]/pol[0]
                     # if kmin <= 1.e-3:
                         # exitloop = True
                         # kmin = 1.e-3
-                        # ray[1] = self.neutral_ra(kmin, ra_guess)
+                        # ray[1] = self.neutral_ra(kmin, ra_guess, ra_comp)
                         # not able to properly converge anymore
                     ra_guess = ray[1]
             hmin = kmin
