@@ -89,23 +89,17 @@ def cartesian_matrices(self, wnk, ra_num, ra_comp=None):
     freeslip_bot = self.phys.freeslip_bot
     heat_flux_top = self.phys.heat_flux_top
     heat_flux_bot = self.phys.heat_flux_bot
+    lewis = self.phys.lewis
     composition = self.phys.composition
+    comp_terms = lewis is not None or composition is not None
     translation = self.phys.ref_state_translation
-    if composition is not None and ra_comp is None:
+    if comp_terms and ra_comp is None:
         raise ValueError("ra_comp must be specified for compositional problem")
 
     # global indices and slices
     i0n, igf, slall, slint, slgall, slgint = self._slices()
     i_0s, i_ns = zip(*i0n)
-    if composition is None:
-        ip0, iu0, iw0, it0 = i_0s
-        ipn, iun, iwn, itn = i_ns
-        ipg, iug, iwg, itg = igf
-        pall, uall, wall, tall = slall
-        pint, uint, wint, tint = slint
-        pgall, ugall, wgall, tgall = slgall
-        pgint, ugint, wgint, tgint = slgint
-    else:
+    if comp_terms:
         ip0, iu0, iw0, it0, ic0 = i_0s
         ipn, iun, iwn, itn, icn = i_ns
         ipg, iug, iwg, itg, icg = igf
@@ -113,6 +107,14 @@ def cartesian_matrices(self, wnk, ra_num, ra_comp=None):
         pint, uint, wint, tint, cint = slint
         pgall, ugall, wgall, tgall, cgall = slgall
         pgint, ugint, wgint, tgint, cgint = slgint
+    else:
+        ip0, iu0, iw0, it0 = i_0s
+        ipn, iun, iwn, itn = i_ns
+        ipg, iug, iwg, itg = igf
+        pall, uall, wall, tall = slall
+        pint, uint, wint, tint = slint
+        pgall, ugall, wgall, tgall = slgall
+        pgint, ugint, wgint, tgint = slgint
 
     # For pressure. No BCs but side values needed or removed
     # depending on the BCs for W. number of lines need to be
@@ -154,7 +156,7 @@ def cartesian_matrices(self, wnk, ra_num, ra_comp=None):
     lmat[wgint, pgall] = -dz1[wint, pall]
     lmat[wgint, wgall] = lapl[wint, wall]
     lmat[wgint, tgall] = ra_num * one[wint, tall]
-    if composition is not None:
+    if comp_terms:
         lmat[wgint, cgall] = ra_comp * one[wint, call]
     if phi_bot is not None:
         # phase change at bot
@@ -196,11 +198,15 @@ def cartesian_matrices(self, wnk, ra_num, ra_comp=None):
     rmat[tgint, tgall] = one[tint, tall]
 
     # C equations
-    # -u.grad(C_reference) = sigma C
+    # 1/Le lapl(C) - u.grad(C_reference) = sigma C
     if composition is not None:
         lmat[cgint, wgall] = -np.diag(
             np.dot(dz1, composition(zphys)))[cint, wall]
-        rmat[cgint, cgall] = one[tint, tall]
+    elif lewis is not None:
+        lmat[cgint, wgall] = one[cint, wall]
+        lmat[cgint, cgall] = lapl[cint, call] / lewis
+    if comp_terms:
+        rmat[cgint, cgall] = one[cint, call]
 
     return lmat, rmat
 
@@ -210,23 +216,10 @@ def eigval_cartesian(self, wnk, ra_num, ra_comp=None):
     wnk: wave number
     ra_num: Rayleigh number
     """
-    ncheb = self._ncheb
-    dz1, dz2 = self.dr1, self.dr2
-    one = np.identity(ncheb+1)  # identity
-    dh1 = 1.j * wnk * one  # horizontal derivative
-    lapl = dz2 - wnk**2 * one  # laplacian
-    phi_top = self.phys.phi_top
-    phi_bot = self.phys.phi_bot
-    freeslip_top = self.phys.freeslip_top
-    freeslip_bot = self.phys.freeslip_bot
-    heat_flux_top = self.phys.heat_flux_top
-    heat_flux_bot = self.phys.heat_flux_bot
-    translation = self.phys.ref_state_translation
-
     # global indices and slices
     i0n, _, _, _, slgall, _ = self._slices()
     i_0s, i_ns = zip(*i0n)
-    if self.phys.composition is None:
+    if self.phys.composition is None and self.phys.lewis is None:
         ip0, iu0, iw0, it0 = i_0s
         ipn, iun, iwn, itn = i_ns
         pgall, ugall, wgall, tgall = slgall
@@ -491,7 +484,7 @@ class Analyser:
         i_0 = 0 if (heat_flux_top is not None) else 1
         i_n = ncheb if (heat_flux_bot is not None) else ncheb - 1
         i0n.append((i_0, i_n))
-        if (not self.phys.spherical) and self.phys.composition is not None:
+        if self.phys.composition is not None or self.phys.lewis is not None:
             i0n.append((1, ncheb - 1))
         return build_slices(i0n, ncheb)
 

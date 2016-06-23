@@ -14,7 +14,8 @@ FTSZ = 14
 MSIZE = 3
 
 
-def plot_fastest_mode(analyzer, harm, ra_num, name=None, plot_theory=False):
+def plot_fastest_mode(analyzer, harm, ra_num, ra_comp=None,
+                      name=None, plot_theory=False):
     """Plot fastest growing mode for a given harmonic and Ra
 
     plot_theory: theory in case of transition, cartesian geometry
@@ -24,7 +25,7 @@ def plot_fastest_mode(analyzer, harm, ra_num, name=None, plot_theory=False):
     if name is None:
         name = analyzer.phys.name()
 
-    sigma, modes, _ = analyzer.eigval(harm, ra_num)
+    sigma, modes, _ = analyzer.eigval(harm, ra_num, ra_comp)
     # p is pressure in cartesian geometry and
     # poloidal potential in spherical geometry
     p_mode, u_mode, w_mode, t_mode = modes
@@ -170,7 +171,7 @@ def plot_fastest_mode(analyzer, harm, ra_num, name=None, plot_theory=False):
     plt.close(fig)
 
 
-def plot_ran_harm(analyzer, harm, name=None):
+def plot_ran_harm(analyzer, harm, ra_comp=None, name=None):
     """Plot neutral Ra vs harmonic around given harm"""
     if name is None:
         name = analyzer.phys.name()
@@ -195,11 +196,11 @@ def plot_ran_harm(analyzer, harm, name=None):
         filename = '_'.join((name, 'Ra_l.pdf'))
     else:
         kxmin = harm
-        ramin = analyzer.neutral_ra(kxmin)
+        ramin = analyzer.neutral_ra(kxmin, ra_comp=ra_comp)
         wnum = np.linspace(kxmin/2, kxmin*1.5, 50)
-        rayl = [analyzer.neutral_ra(wnum[0], ramin)]
+        rayl = [analyzer.neutral_ra(wnum[0], ramin, ra_comp)]
         for i, kk in enumerate(wnum[1:]):
-            ra2 = analyzer.neutral_ra(kk, rayl[i])
+            ra2 = analyzer.neutral_ra(kk, rayl[i], ra_comp)
             rayl = np.append(rayl, ra2)
 
         plt.plot(wnum, rayl, linewidth=2)

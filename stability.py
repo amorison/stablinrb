@@ -21,10 +21,12 @@ pblm = PhysicalProblem(
     phi_bot=1.e3,
     freeslip_top=True,
     freeslip_bot=True,
-    composition=compo_smo(1.5, 0.8),
+    lewis=10,
     ref_state_translation=False)
 
 NON_LINEAR = False
+
+ra_comp = 20
 
 if NON_LINEAR:
     ana = NonLinearAnalyzer(pblm, ncheb=20)
@@ -33,9 +35,9 @@ if NON_LINEAR:
     print('globval', glob_val)
 else:
     ana = LinearAnalyzer(pblm, ncheb=20)
-    ra_c, harm_c = ana.critical_ra(ra_comp=-20)
-    plot_fastest_mode(ana, harm_c, ra_c)
-    plot_ran_harm(ana, harm_c)
+    ra_c, harm_c = ana.critical_ra(ra_comp=ra_comp)
+    plot_fastest_mode(ana, harm_c, ra_c, ra_comp)
+    plot_ran_harm(ana, harm_c, ra_comp)
 
 
 # Explore phi space
