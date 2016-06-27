@@ -848,6 +848,7 @@ class NonLinearAnalyzer(Analyser):
         # First compute the linear mode and matrix
         ana = LinearAnalyzer(self.phys, self._ncheb)
         ra_c, harm_c = ana.critical_ra()
+        # print('k_c = ', harm_c, 3 / 4 * np.sqrt(phi_top / 2))
         _, mode_c, mats_c = self.eigval(harm_c, ra_c)
         mode_c, _ = normalize_modes(mode_c, norm_mode=2, full_norm=False)
         p_c, u_c, w_c, t_c = mode_c
@@ -855,6 +856,15 @@ class NonLinearAnalyzer(Analyser):
         u_c /= 2
         w_c /= 2
         t_c /= 2
+
+        rr = zcheb/2
+        # replace with the low phi expansion for testing
+        # t_c = (1 - 4 * rr**2) / 16
+        # w_c = np.ones(w_c.shape)/2
+        # u_c = - 3 * 1j / 16 *np.sqrt(2 * phi_top) * rr
+        # harm_c = np.sqrt(phi_top / 2) * 3 / 4
+        # ra_c = 24 * phi_top -81 / 256 * phi_top**2
+
         lmat_c, _ = mats_c
         dt_c = np.dot(self.dr1, t_c)
         # also need the linear problem for wnk=2*harm_c and wnk=0
@@ -875,14 +885,14 @@ class NonLinearAnalyzer(Analyser):
             w20 = mode20[igw0]
         else:
             w20 = 0
-
+        # print('W20 = ',w20)
         p20 = self._insert_boundaries(p20, ip0, ipn)
         t20 = self._insert_boundaries(t20, it0, itn)
         dt20 = np.dot(self.dr1, t20)
+
         # part in 2 k x
         nxcxc2 = np.zeros((itg(itn) + 1))
-        nxcxc2[tgint] = 2 * (np.real(w_c * dt_c) - harm_c * np.imag(u_c) * np.real(t_c))[tint]
-
+        nxcxc2[tgint] = (np.real(w_c * dt_c) - harm_c * np.imag(u_c) * np.real(t_c))[tint]
         # Solve Lc * X2 = NXcXc to get X22
         mode22 = solve(lmat2, nxcxc2)
         # print(mode22)
@@ -891,55 +901,118 @@ class NonLinearAnalyzer(Analyser):
         w22 = mode22[wgall]
         t22 = mode22[tgall]
 
-        p22 = self._insert_boundaries(p22, ip0, ipn)
-        u22 = self._insert_boundaries(u22, iu0, iun)
-        w22 = self._insert_boundaries(w22, iw0, iwn)
+        # p22 = self._insert_boundaries(p22, ip0, ipn)
+        # u22 = self._insert_boundaries(u22, iu0, iun)
+        # w22 = self._insert_boundaries(w22, iw0, iwn)
         t22 = self._insert_boundaries(t22, it0, itn)
-        dt22 = np.dot(self.dr1, t22)
 
         # check the profiles
+        dt22 = np.dot(self.dr1, t22)
+        # dw22 = np.dot(self.dr1, w22)
         # n_rad = 40
         # cheb_space = np.linspace(-1, 1, n_rad)
         # rad = np.linspace(-1/2, 1/2, n_rad)
-        # u_interp = dm.chebint(u_c, cheb_space)
-        # w_interp = dm.chebint(w_c, cheb_space)
-        # t_interp = dm.chebint(t_c, cheb_space)
-        # n2xc = self._insert_boundaries(nxcxc0[tgint0], 1, ncheb - 1)
+        # t20_interp = dm.chebint(t20, cheb_space)
+        # t20_theo = - rad * (4 * rad**2 - 1) * (2560 - 9 * phi_top * (12 * rad**2 - 7)) / 122880
 
-        # n2xc_interp = dm.chebint(n2xc, cheb_space)
-        # fig, axis = plt.subplots(1, 5, sharey=True)
+        # t22_interp = dm.chebint(t22, cheb_space)
+        # t22_theo = (5*phi_top - 256) * rad * (4 * rad**2 - 1) / 24576
+        # w22_theo = phi_top * rad *(1024 + 15 * phi_top * (4 * rad**2 - 1)) / 65536
+        # u22_theo = np.sqrt(phi_top) * rad *(1024 + 15 * phi_top * (12 * rad**2 - 1)) / (49152*np.sqrt(2))
+        # p22_theo = -phi_top * (39 * phi_top * (12 * rad**2 - 1) + 64 * (252*rad**2 - 5)) / 65536
+        # u_interp = dm.chebint(np.imag(u_c), cheb_space)
+        # w_interp = dm.chebint(np.real(w_c), cheb_space)
+        # t_interp = dm.chebint(np.real(t_c), cheb_space)
+        # dt_interp = dm.chebint(np.real(dt_c), cheb_space)
+
+        # fig, axis = plt.subplots(1, 4, sharey=True)
+        # axis[0].plot(t20_interp, rad)
+        # axis[0].plot(t20_theo, rad)
+        # axis[0].plot(t20, zcheb/2, 'o')
+
+        # nxcxc2p = nxcxc2[tgint]
+        # nxcxc2p_theo = rr[1:ncheb] * ( -0.25 + 9 / 1024 * phi_top * (1-4 * rr[1:ncheb]**2))
+        # 22 RHS
+        # axis[0].plot(nxcxc2p_theo+rr[1:ncheb]/4, rr[1:ncheb])
+        # axis[0].plot(nxcxc2p+zcheb[1:ncheb]/8, zcheb[1:ncheb]/2, 'o')
+        # print('max diff nxcxc2 = ', np.max(np.abs(nxcxc2p-nxcxc2p_theo)), np.max(np.abs(nxcxc2p_theo)))
+        #P22
+        # axis[0].plot(p22_theo, rad)
+        # axis[0].plot(p22, zcheb/2, 'o')
+        # print('p22 =', p22)
+        #Theta22
+        # axis[1].plot(t22_interp, rad)
+        # axis[1].plot(t22_theo, rad)
+        # axis[1].plot(t22, zcheb/2, 'o')
+        # W22
+        # axis[2].plot(w22_theo, rad)
+        # axis[2].plot(w22*4, zcheb/2, 'o')
+        # print('w22=', w22)
+        # U22
+        # axis[3].plot(u22_theo, rad)
+        # axis[3].plot(np.imag(u22)*4, zcheb/2, 'o')
+        # print('u22=', u22)
+        # Theta_c
         # axis[0].plot(t_interp, rad)
+        # axis[0].plot((1-4*rad**2)/16, rad)
         # axis[0].plot(t_c, zcheb/2, 'o')
-        # axis[0].plot(np.cos(np.pi*rad)/2/(np.pi**2+harm_c**2), rad)
+        # DT_c
+        # axis[1].plot(dt_interp, rad)
+        # axis[1].plot(-rad/2, rad)
+        # axis[1].plot(dt_c, zcheb/2, 'o')
+        # axis[1].set_xlim(0.499, 0.5005)
+        # W_c
         # axis[1].plot(w_interp, rad)
+        # axis[1].plot(np.ones(rad.shape)/2, rad)
         # axis[1].plot(w_c, zcheb/2, 'o')
-        # axis[1].plot(np.cos(np.pi*rad)/2, rad)
-        # axis[2].plot(n2xc_interp, rad)
-        # axis[2].plot(n2xc, zcheb/2, 'o')
-        # axis[2].plot(-np.pi/2/(np.pi**2+harm_c**2)*np.sin(2*np.pi*rad), rad)
-        # axis[3].plot(np.imag(u_interp), rad)
+        # axis[1].set_xlim(0.499, 0.5005)
+        # U_c
+        # axis[2].plot(u_interp, rad)
+        # axis[2].plot(-3*np.sqrt(2*phi_top)/16*rad, rad)
+        # axis[2].plot(np.imag(u_c), zcheb/2, 'o')
+
+        # nxcxc0p = nxcxc0[tgint0]
+        # nxcxc0p_theo = -(rad/2 + 3 * harm_c / 128 *np.sqrt(2 * phi_top) * rad * (1 - 4 * rad**2))
+        # nxcxc0p_theo = rr[1:ncheb] * ( -0.5 + 9 / 512 * phi_top * (4 * rr[1:ncheb]**2 - 1))
+        # axis[3].plot(nxcxc0p+zcheb[1:ncheb]/4, zcheb[1:ncheb]/2, 'o')
+        # axis[3].plot(nxcxc0p_theo+rr[1:ncheb]/2, rr[1:ncheb])
+        # print('max diff nxcxc0 = ', np.max(np.abs(nxcxc0p-nxcxc0p_theo)), np.max(np.abs(nxcxc0p_theo)))
+        # axis[3].set_xlim(-90 / 256 * phi_top, 90 / 256 * phi_top)
         # axis[3].plot(t20, zcheb/2, 'o')
         # axis[3].plot(1/(np.pi**2+harm_c**2)/(8*np.pi)*np.sin(2*np.pi*rad), rad)
+        # plt.savefig('twu_c.pdf', format='PDF')
+        # plt.close(fig)
 
+        # Check mass conservation
+        # fig, axis = plt.subplots(1, 1, sharey=True)
+        # plt.plot(1j * 2 * harm_c * u22 + dw22, zcheb/2, 'o')
+        # plt.savefig('mass.pdf', format='PDF')
+        # plt.close(fig)
+        
         # denominator in Ra2
         xcmxc =  self.integz(np.real(w_c * t_c))
+        print('xcmxc = ', xcmxc)
         # numerator in Ra2
         xcnx2xc = 2 * harm_c * self.integz(np.real(t_c)**2 * np.imag(u22))
+        print('xcnx2xc 1 ', xcnx2xc)
         xcnx2xc += 2 * self.integz(np.real(t_c * dt_c) * (np.real(w22) + np.real(w20)))
+        print('xcnx2xc 2 ', xcnx2xc)
         # non-linear term xc, x2, along t, in exp(ikx)
         # nxcx2tk = w_c * dt20
         # axis[4].plot(nxcx2tk, zcheb/2, 'o')
         # axis[4].plot(np.cos(np.pi*rad)/8/(np.pi**2+harm_c**2)*np.cos(2*np.pi*rad), rad)
         # axis[4].plot(np.cos(np.pi*rad)/16/(np.pi**2+harm_c**2)*np.cos(2*np.pi*rad), rad, '.-')
-        
-        # plt.savefig('tw.pdf', format='PDF')
 
-        xcnxcx20 = self.integz(t_c * w_c * dt20)
-        xcnxcx22 = self.integz(t_c * w_c * np.real(dt22))
-        xcnxcx22 += 2 * harm_c * self.integz(t_c * np.imag(u_c) * np.real(dt22))
+        xcnxcx20 = self.integz(np.real(t_c) * np.real(w_c) * np.real(dt20))
+        print('1', xcnxcx20)
+        xcnxcx22 = self.integz(np.real(t_c) * np.real(w_c) * np.real(dt22))
+        print('2', xcnxcx22)
+        xcnxcx22 += 2 * harm_c * self.integz(np.real(t_c) * np.imag(u_c) * np.real(dt22))
+        print('3', xcnxcx22)
         xcnxcx2 = xcnxcx20 + xcnxcx22
+        print('4', xcnxcx2)
 
-        ra2 = ra_c * xcnxcx2/xcmxc
+        ra2 = ra_c * (xcnxcx2+xcnx2xc)/xcmxc
 
         # compute some global caracteristics
         moyt = 0.5 * (1 + self.integz(t20)) # 0.5 for scaling to -1/2 ; 1/2

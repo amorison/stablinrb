@@ -17,20 +17,25 @@ from plotting import plot_fastest_mode, plot_ran_harm
 pblm = PhysicalProblem(
     gamma=None,
     phi_top=1e-2,
-    phi_bot=1e-2,
+    phi_bot=1e4,
     freeslip_top=True,
     freeslip_bot=True,
     ref_state_translation=False)
 
+# anl = LinearAnalyzer(pblm, ncheb=20)
+# ra_c, harm_c = anl.critical_ra()
+
+# name = anl.phys.name()
+
+# plot_fastest_mode(name, anl, harm_c, ra_c)
+# plot_ran_harm(name, anl, harm_c)
+
 ana = NonLinearAnalyzer(pblm, ncheb=20)
-name = ana.phys.name()
 
 harm_c, ray, modec, mode20, mode22, glob_val = ana.nonlinana()
 
 print('Ra_c, Ra2 = ', ray)
 print('globval', glob_val)
-# plot_fastest_mode(name, ana, harm_c, ra_c)
-# plot_ran_harm(name, ana, harm_c)
 
 
 # Explore phi space
