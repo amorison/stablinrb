@@ -2,181 +2,12 @@ import dmsuite.dmsuite as dm
 import numpy as np
 import numpy.ma as ma
 from scipy import linalg
-from scipy.optimize import brentq
 from numpy.linalg import solve
 import matplotlib.pyplot as plt
 import seaborn as sns
-from itertools import product
+from physics import PhysicalProblem, wtran
+from misc import build_slices, normalize_modes
 
-class PhysicalProblem:
-
-    """Description of the physical problem"""
-
-    def __init__(self, gamma=None, h_int=0,
-                 phi_top=None, phi_bot=None,
-                 freeslip_top=True, freeslip_bot=True,
-                 heat_flux_top=None, heat_flux_bot=None,
-                 ref_state_translation=False):
-        """Create a physical problem instance
-
-        gamma is r_bot/r_top, cartesian if None
-
-        Boundary conditions:
-        phi_*: phase change number, no phase change if None
-        freeslip_*: whether free-slip of rigid if no phase change
-        heat_flux_*: heat flux, Dirichlet condition if None
-        """
-        self._observers = []
-        self.gamma = gamma
-        self.h_int = h_int
-        self.phi_top = phi_top
-        self.phi_bot = phi_bot
-        self.freeslip_top = freeslip_top
-        self.freeslip_bot = freeslip_bot
-        self.heat_flux_top = heat_flux_top
-        self.heat_flux_bot = heat_flux_bot
-        self.ref_state_translation = ref_state_translation
-
-    def bind_to(self, analyzer):
-        """Connect analyzer to physical problem
-
-        The analyzer will be warned whenever the physical
-        problem geometry has changed"""
-        self._observers.append(analyzer)
-
-    def name(self):
-        """Construct a name for the current case"""
-        name = []
-        if self.spherical:
-            name.append('sph')
-            name.append(np.str(self.gamma).replace('.', '-'))
-        else:
-            name.append('cart')
-        if self.phi_top is not None:
-            name.append('phiT')
-            name.append(np.str(self.phi_top).replace('.', '-'))
-        else:
-            name.append(
-                'freeT' if self.freeslip_top else 'rigidT')
-        if self.phi_bot is not None:
-            name.append('phiB')
-            name.append(np.str(self.phi_bot).replace('.', '-'))
-        else:
-            name.append(
-                'freeB' if self.freeslip_bot else 'rigidB')
-        return '_'.join(name)
-
-    @property
-    def gamma(self):
-        """Aspect ratio of spherical geometry"""
-        return self._gamma
-
-    @gamma.setter
-    def gamma(self, value):
-        """Set spherical according to gamma"""
-        self.spherical = (value is not None) and (0 < value < 1)
-        self._gamma = value if self.spherical else None
-        # warn bounded analyzers that the problem geometry has changed
-        for analyzer in self._observers:
-            analyzer.phys = self
-
-    @property
-    def heat_flux_bot(self):
-        """Imposed heat flux at bottom"""
-        return self._hfbot
-
-    @heat_flux_bot.setter
-    def heat_flux_bot(self, value):
-        """Only one heat flux imposed at the same time"""
-        if value is not None:
-            self._hftop = None
-        self._hfbot = value
-
-    @property
-    def heat_flux_top(self):
-        """Imposed heat flux at top"""
-        return self._hftop
-
-    @heat_flux_top.setter
-    def heat_flux_top(self, value):
-        """Only one heat flux imposed at the same time"""
-        if value is not None:
-            self._hfbot = None
-        self._hftop = value
-
-
-def normalize(arr, norm=None):
-    """Normalize complex array with element of higher modulus
-
-    if norm is given, a first normalization with this norm is done
-    """
-    if norm is not None:
-        arr = arr / norm
-    amax = arr[np.argmax(np.abs(arr))]
-    return arr / amax, amax
-
-
-def normalize_modes(modes, norm_mode=3, full_norm=True):
-    """Normalize modes
-
-    Since modes are eigenvectors, one can choose an arbitrary
-    value to normalize them without any loss of information.
-
-    The chose value is the component of modes[norm_mode] with
-    the max modulus.
-    All the other modes are then normalized by their maximum
-    modulus component.
-    This function return the set of modes after those two
-    normalizations, and the set of normalization components.
-    """
-    ref_vector, norm = normalize(modes[norm_mode])
-    normed_vectors = []
-    norm_values = []
-    for ivec in range(0, norm_mode):
-        if full_norm:
-            nvec, nval = normalize(modes[ivec], norm)
-        else:
-            nvec, nval = modes[ivec] / norm, 1
-        normed_vectors.append(nvec)
-        norm_values.append(nval)
-    normed_vectors.append(ref_vector)
-    norm_values.append(norm)
-    for ivec in range(norm_mode + 1, len(modes)):
-        if full_norm:
-            nvec, nval = normalize(modes[ivec], norm)
-        else:
-            nvec, nval = modes[ivec] / norm, 1
-        normed_vectors.append(nvec)
-        norm_values.append(nval)
-    return normed_vectors, norm_values
-
-
-def wtran(eps):
-    """translation velocity as function of the reduced Rayleigh number"""
-    if eps <= 0:
-        wtr = 0
-        wtrs = 0
-        wtrl = 0
-    else:
-        # function whose roots are the translation velocity
-        func = lambda wtra, eps: \
-            wtra**2 * np.sinh(wtra / 2) - 6 * (1 + eps) * \
-                (wtra * np.cosh(wtra / 2) - 2 * np.sinh(wtra / 2))
-        # value in the large Ra limit
-        wtrl = 6*(eps+1)
-        ful = func(wtrl, eps)
-        # small Ra limit
-        wtrs = 2*np.sqrt(15*eps)
-        fus = func(wtrs, eps)
-        if fus*ful > 0:
-            print('warning in wtran: ',eps, wtrs, fus, wtrl, ful)
-            if eps < 1.e-2:
-                wtr = wtrs
-                print('setting wtr = wtrs= ', wtrs)
-        # complete solution
-        else:
-            wtr = brentq(func, wtrs, wtrl, args=(eps))
-    return wtr, wtrs, wtrl
 
 def cartesian_matrices_0(self, ra_num):
     """LHS matrix for x-independent forcing
@@ -203,29 +34,20 @@ def cartesian_matrices_0(self, ra_num):
     else:
         ip0 = 1
         ipn = ncheb - 1
-    # if (phi_top is not None) else 1
-    # ipn = ncheb if (phi_bot is not None) else ncheb - 1
-    # ip0 = 1
-    # ipn = ncheb-1
     # temperature
     it0 = 0 if (heat_flux_top is not None) else 1
     itn = ncheb if (heat_flux_bot is not None) else ncheb - 1
-    # global indices
-    ipg = lambda idx: idx - ip0
-    itg = lambda idx: idx - it0 + ipg(ipn) + 1
-    # slices
-    # entire vector
-    pall = slice(ip0, ipn + 1)
-    tall = slice(it0, itn + 1)
-    # interior points
-    pint = slice(1, ncheb)
-    tint = slice(1, ncheb)
-    # entire vector with big matrix indexing
-    pgall = slice(ipg(ip0), ipg(ipn + 1))
-    tgall = slice(itg(it0), itg(itn + 1))
-    # interior points with big matrix indexing
-    pgint = slice(ipg(1), ipg(ncheb))
-    tgint = slice(itg(1), itg(ncheb))
+
+    # global indices and slices
+    _, igf, slall, slint, slgall, slgint = build_slices([(ip0, ipn),
+                                                         (it0, itn)],
+                                                        ncheb)
+    ipg, itg = igf
+    pall, tall = slall
+    pint, tint = slint
+    pgall, tgall = slgall
+    pgint, tgint = slgint
+
     # index for vertical velocity
     if phi_top is not None and phi_bot is not None:
         igw = itg(itn+1)
@@ -252,7 +74,7 @@ def cartesian_matrices_0(self, ra_num):
 
     return lmat, pgint, tgint, igw
 
-def cartesian_matrices(self, wnk, ra_num):
+def cartesian_matrices(self, wnk, ra_num, ra_comp=None):
     "LHS and RHS matrices for the linear stability"
     ncheb = self._ncheb
     zphys = self.rad
@@ -267,16 +89,32 @@ def cartesian_matrices(self, wnk, ra_num):
     freeslip_bot = self.phys.freeslip_bot
     heat_flux_top = self.phys.heat_flux_top
     heat_flux_bot = self.phys.heat_flux_bot
+    lewis = self.phys.lewis
+    composition = self.phys.composition
+    comp_terms = lewis is not None or composition is not None
     translation = self.phys.ref_state_translation
+    if comp_terms and ra_comp is None:
+        raise ValueError("ra_comp must be specified for compositional problem")
 
     # global indices and slices
     i0n, igf, slall, slint, slgall, slgint = self._slices()
-    ip0, ipn, iu0, iun, iw0, iwn, it0, itn = i0n
-    ipg, iug, iwg, itg = igf
-    pall, uall, wall, tall = slall
-    pint, uint, wint, tint = slint
-    pgall, ugall, wgall, tgall = slgall
-    pgint, ugint, wgint, tgint = slgint
+    i_0s, i_ns = zip(*i0n)
+    if comp_terms:
+        ip0, iu0, iw0, it0, ic0 = i_0s
+        ipn, iun, iwn, itn, icn = i_ns
+        ipg, iug, iwg, itg, icg = igf
+        pall, uall, wall, tall, call = slall
+        pint, uint, wint, tint, cint = slint
+        pgall, ugall, wgall, tgall, cgall = slgall
+        pgint, ugint, wgint, tgint, cgint = slgint
+    else:
+        ip0, iu0, iw0, it0 = i_0s
+        ipn, iun, iwn, itn = i_ns
+        ipg, iug, iwg, itg = igf
+        pall, uall, wall, tall = slall
+        pint, uint, wint, tint = slint
+        pgall, ugall, wgall, tgall = slgall
+        pgint, ugint, wgint, tgint = slgint
 
     # For pressure. No BCs but side values needed or removed
     # depending on the BCs for W. number of lines need to be
@@ -286,8 +124,8 @@ def cartesian_matrices(self, wnk, ra_num):
         rtr = 12*(phitop+phibot)
         wtrans = wtran((ranum-rtr)/rtr)[0]
 
-    lmat = np.zeros((itg(itn) + 1, itg(itn) + 1)) + 0j
-    rmat = np.zeros((itg(itn) + 1, itg(itn) + 1))
+    lmat = np.zeros((igf[-1](itn) + 1, igf[-1](itn) + 1)) + 0j
+    rmat = np.zeros((igf[-1](itn) + 1, igf[-1](itn) + 1))
 
     # Pressure equations
     # mass conservation
@@ -318,6 +156,8 @@ def cartesian_matrices(self, wnk, ra_num):
     lmat[wgint, pgall] = -dz1[wint, pall]
     lmat[wgint, wgall] = lapl[wint, wall]
     lmat[wgint, tgall] = ra_num * one[wint, tall]
+    if comp_terms:
+        lmat[wgint, cgall] = ra_comp * one[wint, call]
     if phi_bot is not None:
         # phase change at bot
         lmat[iwg(iwn), pgall] = -one[iwn, pall]
@@ -357,33 +197,38 @@ def cartesian_matrices(self, wnk, ra_num):
 
     rmat[tgint, tgall] = one[tint, tall]
 
+    # C equations
+    # 1/Le lapl(C) - u.grad(C_reference) = sigma C
+    if composition is not None:
+        lmat[cgint, wgall] = -np.diag(
+            np.dot(dz1, composition(zphys)))[cint, wall]
+    elif lewis is not None:
+        lmat[cgint, wgall] = one[cint, wall]
+        lmat[cgint, cgall] = lapl[cint, call] / lewis
+    if comp_terms:
+        rmat[cgint, cgall] = one[cint, call]
+
     return lmat, rmat
 
-def eigval_cartesian(self, wnk, ra_num):
+def eigval_cartesian(self, wnk, ra_num, ra_comp=None):
     """Compute the max eigenvalue and associated eigenvector
 
     wnk: wave number
     ra_num: Rayleigh number
     """
-    ncheb = self._ncheb
-    dz1, dz2 = self.dr1, self.dr2
-    one = np.identity(ncheb+1)  # identity
-    dh1 = 1.j * wnk * one  # horizontal derivative
-    lapl = dz2 - wnk**2 * one  # laplacian
-    phi_top = self.phys.phi_top
-    phi_bot = self.phys.phi_bot
-    freeslip_top = self.phys.freeslip_top
-    freeslip_bot = self.phys.freeslip_bot
-    heat_flux_top = self.phys.heat_flux_top
-    heat_flux_bot = self.phys.heat_flux_bot
-    translation = self.phys.ref_state_translation
-
     # global indices and slices
     i0n, _, _, _, slgall, _ = self._slices()
-    ip0, ipn, iu0, iun, iw0, iwn, it0, itn = i0n
-    pgall, ugall, wgall, tgall = slgall
+    i_0s, i_ns = zip(*i0n)
+    if self.phys.composition is None and self.phys.lewis is None:
+        ip0, iu0, iw0, it0 = i_0s
+        ipn, iun, iwn, itn = i_ns
+        pgall, ugall, wgall, tgall = slgall
+    else:
+        ip0, iu0, iw0, it0, ic0 = i_0s
+        ipn, iun, iwn, itn, icn = i_ns
+        pgall, ugall, wgall, tgall, cgall = slgall
 
-    lmat, rmat = cartesian_matrices(self, wnk, ra_num)
+    lmat, rmat = cartesian_matrices(self, wnk, ra_num, ra_comp)
 
     # Find the eigenvalues
     eigvals, eigvecs = linalg.eig(lmat, rmat, right=True)
@@ -436,39 +281,16 @@ def eigval_spherical(self, l_harm, ra_num):
     heat_flux_bot = self.phys.heat_flux_bot
     translation = self.phys.ref_state_translation
 
-    # index min and max
-    # poloidal
-    ip0 = 0
-    ipn = ncheb
-    # laplacian of poloidal
-    iq0 = 0
-    iqn = ncheb
-    # temperature
-    it0 = 0 if (heat_flux_top is not None) else 1
-    itn = ncheb if (heat_flux_bot is not None) else ncheb - 1
-
-    # global indices
-    ipg = lambda idx: idx - ip0
-    iqg = lambda idx: idx - iq0 + ipg(ipn) + 1
-    itg = lambda idx: idx - it0 + iqg(iqn) + 1
-
-    # slices
-    # entire vector
-    pall = slice(ip0, ipn + 1)
-    qall = slice(iq0, iqn + 1)
-    tall = slice(it0, itn + 1)
-    # interior points
-    pint = slice(1, ncheb)
-    qint = slice(1, ncheb)
-    tint = slice(1, ncheb)
-    # entire vector with big matrix indexing
-    pgall = slice(ipg(ip0), ipg(ipn + 1))
-    qgall = slice(iqg(iq0), iqg(iqn + 1))
-    tgall = slice(itg(it0), itg(itn + 1))
-    # interior points with big matrix indexing
-    pgint = slice(ipg(1), ipg(ncheb))
-    qgint = slice(iqg(1), iqg(ncheb))
-    tgint = slice(itg(1), itg(ncheb))
+    # global indices and slices
+    i0n, igf, slall, slint, slgall, slgint = self._slices()
+    i_0s, i_ns = zip(*i0n)
+    ip0, iq0, it0 = i_0s
+    ipn, iqn, itn = i_ns
+    ipg, iqg, itg = igf
+    pall, qall, tall = slall
+    pint, qint, tint = slint
+    pgall, qgall, tgall = slgall
+    pgint, qgint, tgint = slgint
 
     lmat = np.zeros((itg(itn) + 1, itg(itn) + 1))
     rmat = np.zeros((itg(itn) + 1, itg(itn) + 1))
@@ -641,51 +463,30 @@ class Analyser:
         heat_flux_bot = self.phys.heat_flux_bot
         # index min and max
         # remove boundary when Dirichlet condition
-        # pressure
-        ip0 = 0
-        ipn = ncheb
-        # horizontal velocity
-        iu0 = 0 if (phi_top is not None) or freeslip_top else 1
-        iun = ncheb if (phi_bot is not None) or freeslip_bot else ncheb - 1
-        # vertical velocity
-        iw0 = 0 if (phi_top is not None) else 1
-        iwn = ncheb if (phi_bot is not None) else ncheb - 1
+        i0n = []
+        if self.phys.spherical:
+            # poloidal
+            i0n.append((0, ncheb))
+            # laplacian of poloidal
+            i0n.append((0, ncheb))
+        else:
+            # pressure
+            i0n.append((0, ncheb))
+            # horizontal velocity
+            i_0 = 0 if (phi_top is not None) or freeslip_top else 1
+            i_n = ncheb if (phi_bot is not None) or freeslip_bot else ncheb - 1
+            i0n.append((i_0, i_n))
+            # vertical velocity
+            i_0 = 0 if (phi_top is not None) else 1
+            i_n = ncheb if (phi_bot is not None) else ncheb - 1
+            i0n.append((i_0, i_n))
         # temperature
-        it0 = 0 if (heat_flux_top is not None) else 1
-        itn = ncheb if (heat_flux_bot is not None) else ncheb - 1
-        i0n = (ip0, ipn, iu0, iun, iw0, iwn, it0, itn)
-        # global indices
-        ipg = lambda idx: idx - ip0
-        iug = lambda idx: idx - iu0 + ipg(ipn) + 1
-        iwg = lambda idx: idx - iw0 + iug(iun) + 1
-        itg = lambda idx: idx - it0 + iwg(iwn) + 1
-        igf = (ipg, iug, iwg, itg)
-        # slices
-        # entire vector
-        pall = slice(ip0, ipn + 1)
-        uall = slice(iu0, iun + 1)
-        wall = slice(iw0, iwn + 1)
-        tall = slice(it0, itn + 1)
-        slall = (pall, uall, wall, tall)
-        # interior points
-        pint = slice(1, ncheb)
-        uint = slice(1, ncheb)
-        wint = slice(1, ncheb)
-        tint = slice(1, ncheb)
-        slint = (pint, uint, wint, tint)
-        # entire vector with big matrix indexing
-        pgall = slice(ipg(ip0), ipg(ipn + 1))
-        ugall = slice(iug(iu0), iug(iun + 1))
-        wgall = slice(iwg(iw0), iwg(iwn + 1))
-        tgall = slice(itg(it0), itg(itn + 1))
-        slgall = (pgall, ugall, wgall, tgall)
-        # interior points with big matrix indexing
-        pgint = slice(ipg(1), ipg(ncheb))
-        ugint = slice(iug(1), iug(ncheb))
-        wgint = slice(iwg(1), iwg(ncheb))
-        tgint = slice(itg(1), itg(ncheb))
-        slgint = (pgint, ugint, wgint, tgint)
-        return i0n, igf, slall, slint, slgall, slgint
+        i_0 = 0 if (heat_flux_top is not None) else 1
+        i_n = ncheb if (heat_flux_bot is not None) else ncheb - 1
+        i0n.append((i_0, i_n))
+        if self.phys.composition is not None or self.phys.lewis is not None:
+            i0n.append((1, ncheb - 1))
+        return build_slices(i0n, ncheb)
 
 class LinearAnalyzer(Analyser):
 
@@ -695,22 +496,22 @@ class LinearAnalyzer(Analyser):
     phase change at either or both boundaries.
     """
 
-    def eigval(self, harm, ra_num):
+    def eigval(self, harm, ra_num, ra_comp=None):
         """Generic eigval function"""
         if self.phys.spherical:
             return eigval_spherical(self, harm, ra_num)
         else:
-            return eigval_cartesian(self, harm, ra_num)
+            return eigval_cartesian(self, harm, ra_num, ra_comp)
 
-    def neutral_ra(self, harm, ra_guess=600, eps=1.e-8):
+    def neutral_ra(self, harm, ra_guess=600, ra_comp=None, eps=1.e-8):
         """Find Ra which gives neutral stability of a given harmonic
 
         harm is the wave number k or spherical harmonic degree
         """
         ra_min = ra_guess / 2
         ra_max = ra_guess * 2
-        sigma_min = np.real(self.eigval(harm, ra_min)[0])
-        sigma_max = np.real(self.eigval(harm, ra_max)[0])
+        sigma_min = np.real(self.eigval(harm, ra_min, ra_comp)[0])
+        sigma_max = np.real(self.eigval(harm, ra_max, ra_comp)[0])
 
         while sigma_min > 0. or sigma_max < 0.:
             if sigma_min > 0.:
@@ -719,12 +520,12 @@ class LinearAnalyzer(Analyser):
             if sigma_max < 0.:
                 ra_min = ra_max
                 ra_max *= 2
-            sigma_min = np.real(self.eigval(harm, ra_min)[0])
-            sigma_max = np.real(self.eigval(harm, ra_max)[0])
+            sigma_min = np.real(self.eigval(harm, ra_min, ra_comp)[0])
+            sigma_max = np.real(self.eigval(harm, ra_max, ra_comp)[0])
 
         while (ra_max - ra_min) / ra_max > eps:
             ra_mean = (ra_min + ra_max) / 2
-            sigma_mean = np.real(self.eigval(harm, ra_mean)[0])
+            sigma_mean = np.real(self.eigval(harm, ra_mean, ra_comp)[0])
             if sigma_mean < 0.:
                 sigma_min = sigma_mean
                 ra_min = ra_mean
@@ -734,7 +535,7 @@ class LinearAnalyzer(Analyser):
 
         return (ra_min*sigma_max - ra_max*sigma_min) / (sigma_max - sigma_min)
 
-    def critical_ra(self, harm=2, ra_guess=600):
+    def critical_ra(self, harm=2, ra_guess=600, ra_comp=None):
         """Find the harmonic with the lower neutral Ra
 
         harm is an optional initial guess
@@ -746,7 +547,7 @@ class LinearAnalyzer(Analyser):
             harms = range(max(1, harm - 10), harm + 10)
         else:
             harms = np.linspace(harm*(1-eps[0]), harm*(1+2*eps[0]), 3)
-        ray = [self.neutral_ra(h, ra_guess) for h in harms]
+        ray = [self.neutral_ra(h, ra_guess, ra_comp) for h in harms]
 
         if self.phys.spherical:
             min_found = False
@@ -757,7 +558,7 @@ class LinearAnalyzer(Analyser):
                 if imin == 0 and hmin != 1:
                     ra_guess_n = ray[1]
                     harms = range(max(1, hmin - 10), hmin)
-                    ray = [self.neutral_ra(h, ra_guess) for h in harms]
+                    ray = [self.neutral_ra(h, ra_guess, ra_comp) for h in harms]
                     # append local minimum and the next point to
                     # avoid oscillating around the true minimum
                     ray.append(ra_guess)
@@ -765,7 +566,7 @@ class LinearAnalyzer(Analyser):
                     harms = range(max(1, hmin - 10), hmin + 2)
                 elif imin == len(ray) - 1:
                     harms = range(hmin + 1, hmin + 20)
-                    ray = [self.neutral_ra(h, ra_guess) for h in harms]
+                    ray = [self.neutral_ra(h, ra_guess, ra_comp) for h in harms]
                 else:
                     min_found = True
         else:
@@ -777,13 +578,13 @@ class LinearAnalyzer(Analyser):
             for i, err in enumerate([0.03, 1.e-3]):
                 while np.abs(kmin-harms[1]) > err*kmin and not exitloop:
                     harms = np.linspace(kmin*(1-eps[i]), kmin*(1+eps[i]), 3)
-                    ray = [self.neutral_ra(h, ra_guess) for h in harms]
+                    ray = [self.neutral_ra(h, ra_guess, ra_comp) for h in harms]
                     pol = np.polyfit(harms, ray, 2)
                     kmin = -0.5*pol[1]/pol[0]
                     # if kmin <= 1.e-3:
                         # exitloop = True
                         # kmin = 1.e-3
-                        # ray[1] = self.neutral_ra(kmin, ra_guess)
+                        # ray[1] = self.neutral_ra(kmin, ra_guess, ra_comp)
                         # not able to properly converge anymore
                     ra_guess = ray[1]
             hmin = kmin
@@ -838,7 +639,9 @@ class NonLinearAnalyzer(Analyser):
         zcheb = self._zcheb
         # global indices and slices
         i0n, igf, slall, slint, slgall, slgint = self._slices()
-        ip0, ipn, iu0, iun, iw0, iwn, it0, itn = i0n
+        i_0s, i_ns = zip(*i0n)
+        ip0, iu0, iw0, it0 = i_0s
+        ipn, iun, iwn, itn = i_ns
         ipg, iug, iwg, itg = igf
         pall, uall, wall, tall = slall
         pint, uint, wint, tint = slint

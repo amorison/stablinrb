@@ -1,5 +1,5 @@
 import dmsuite.dmsuite as dm
-from analyzer import normalize_modes
+from misc import normalize_modes
 import numpy as np
 from scipy.special import sph_harm
 import matplotlib.pyplot as plt
@@ -11,18 +11,21 @@ import seaborn as sns
 
 # Font and markers size
 FTSZ = 14
-MSIZE = 3
+MSIZE = 6
 
 
-def plot_fastest_mode(name, analyzer, harm, ra_num, plot_theory=False):
+def plot_fastest_mode(analyzer, harm, ra_num, ra_comp=None,
+                      name=None, plot_theory=False):
     """Plot fastest growing mode for a given harmonic and Ra
 
     plot_theory: theory in case of transition, cartesian geometry
     """
     spherical = analyzer.phys.spherical
     gamma = analyzer.phys.gamma
+    if name is None:
+        name = analyzer.phys.name()
 
-    sigma, modes, _ = analyzer.eigval(harm, ra_num)
+    sigma, modes, _ = analyzer.eigval(harm, ra_num, ra_comp)
     # p is pressure in cartesian geometry and
     # poloidal potential in spherical geometry
     p_mode, u_mode, w_mode, t_mode = modes
@@ -168,13 +171,16 @@ def plot_fastest_mode(name, analyzer, harm, ra_num, plot_theory=False):
     plt.close(fig)
 
 
-def plot_ran_harm(name, analyzer, harm):
+def plot_ran_harm(analyzer, harm, ra_comp=None, name=None):
     """Plot neutral Ra vs harmonic around given harm"""
-    fig = plt.figure()
+    if name is None:
+        name = analyzer.phys.name()
+    fig, axis = plt.subplots(1, 1)
     if analyzer.phys.spherical:
         rac_l = []
         lmin = max(1, harm - 5)
-        harms = range(lmin, lmin + 10)
+        lmax = lmin + 9
+        harms = range(lmin, lmax + 1)
         for idx, l_harm in enumerate(harms):
             rac_l.append(analyzer.neutral_ra(
                 l_harm, ra_guess=(rac_l[idx-1] if idx else 600)))
@@ -182,20 +188,22 @@ def plot_ran_harm(name, analyzer, harm):
         l_c, ra_c = min(enumerate(rac_l), key=lambda tpl: tpl[1])
         l_c += lmin
 
-        plt.plot(harms, rac_l, 'o')
+        plt.setp(axis, xlim=[lmin - 0.3, lmax + 0.3])
+        plt.plot(harms, rac_l, 'o', markersize=MSIZE)
         plt.plot(l_c, ra_c, 'o',
-                 label=r'$Ra_{min}=%.2f ; l=%d$' %(ra_c, l_c))
+                 label=r'$Ra_{min}=%.2f ; l=%d$' %(ra_c, l_c),
+                 markersize=MSIZE*1.5)
         plt.xlabel(r'Spherical harmonic $l$', fontsize=FTSZ)
         plt.ylabel(r'Critical Rayleigh number $Ra_c$', fontsize=FTSZ)
         plt.legend(loc='upper right', fontsize=FTSZ)
         filename = '_'.join((name, 'Ra_l.pdf'))
     else:
         kxmin = harm
-        ramin = analyzer.neutral_ra(kxmin)
+        ramin = analyzer.neutral_ra(kxmin, ra_comp=ra_comp)
         wnum = np.linspace(kxmin/2, kxmin*1.5, 50)
-        rayl = [analyzer.neutral_ra(wnum[0], ramin)]
+        rayl = [analyzer.neutral_ra(wnum[0], ramin, ra_comp)]
         for i, kk in enumerate(wnum[1:]):
-            ra2 = analyzer.neutral_ra(kk, rayl[i])
+            ra2 = analyzer.neutral_ra(kk, rayl[i], ra_comp)
             rayl = np.append(rayl, ra2)
 
         plt.plot(wnum, rayl, linewidth=2)
@@ -211,5 +219,6 @@ def plot_ran_harm(name, analyzer, harm):
         filename = '_'.join((name, 'Ra_kx.pdf'))
     plt.xticks(fontsize=FTSZ)
     plt.yticks(fontsize=FTSZ)
+    plt.tight_layout()
     plt.savefig(filename, format='PDF')
     plt.close(fig)
