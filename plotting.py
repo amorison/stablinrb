@@ -11,7 +11,7 @@ import seaborn as sns
 
 # Font and markers size
 FTSZ = 14
-MSIZE = 3
+MSIZE = 6
 
 
 def plot_fastest_mode(analyzer, harm, ra_num, ra_comp=None,
@@ -175,11 +175,12 @@ def plot_ran_harm(analyzer, harm, ra_comp=None, name=None):
     """Plot neutral Ra vs harmonic around given harm"""
     if name is None:
         name = analyzer.phys.name()
-    fig = plt.figure()
+    fig, axis = plt.subplots(1, 1)
     if analyzer.phys.spherical:
         rac_l = []
         lmin = max(1, harm - 5)
-        harms = range(lmin, lmin + 10)
+        lmax = lmin + 9
+        harms = range(lmin, lmax + 1)
         for idx, l_harm in enumerate(harms):
             rac_l.append(analyzer.neutral_ra(
                 l_harm, ra_guess=(rac_l[idx-1] if idx else 600)))
@@ -187,9 +188,11 @@ def plot_ran_harm(analyzer, harm, ra_comp=None, name=None):
         l_c, ra_c = min(enumerate(rac_l), key=lambda tpl: tpl[1])
         l_c += lmin
 
-        plt.plot(harms, rac_l, 'o')
+        plt.setp(axis, xlim=[lmin - 0.3, lmax + 0.3])
+        plt.plot(harms, rac_l, 'o', markersize=MSIZE)
         plt.plot(l_c, ra_c, 'o',
-                 label=r'$Ra_{min}=%.2f ; l=%d$' %(ra_c, l_c))
+                 label=r'$Ra_{min}=%.2f ; l=%d$' %(ra_c, l_c),
+                 markersize=MSIZE*1.5)
         plt.xlabel(r'Spherical harmonic $l$', fontsize=FTSZ)
         plt.ylabel(r'Critical Rayleigh number $Ra_c$', fontsize=FTSZ)
         plt.legend(loc='upper right', fontsize=FTSZ)
@@ -216,5 +219,6 @@ def plot_ran_harm(analyzer, harm, ra_comp=None, name=None):
         filename = '_'.join((name, 'Ra_kx.pdf'))
     plt.xticks(fontsize=FTSZ)
     plt.yticks(fontsize=FTSZ)
+    plt.tight_layout()
     plt.savefig(filename, format='PDF')
     plt.close(fig)
