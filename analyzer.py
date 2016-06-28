@@ -794,12 +794,12 @@ class NonLinearAnalyzer(Analyser):
         
         # denominator in Ra2
         xcmxc =  self.integz(np.real(w_c * t_c))
-        print('xcmxc = ', xcmxc)
+        # print('xcmxc = ', xcmxc)
         # numerator in Ra2
         xcnx2xc = 2 * harm_c * self.integz(np.real(t_c)**2 * np.imag(u22))
-        print('xcnx2xc 1 ', xcnx2xc)
+        # print('xcnx2xc 1 ', xcnx2xc)
         xcnx2xc += 2 * self.integz(np.real(t_c * dt_c) * (np.real(w22) + np.real(w20)))
-        print('xcnx2xc 2 ', xcnx2xc)
+        # print('xcnx2xc 2 ', xcnx2xc)
         # non-linear term xc, x2, along t, in exp(ikx)
         # nxcx2tk = w_c * dt20
         # axis[4].plot(nxcx2tk, zcheb/2, 'o')
@@ -807,25 +807,26 @@ class NonLinearAnalyzer(Analyser):
         # axis[4].plot(np.cos(np.pi*rad)/16/(np.pi**2+harm_c**2)*np.cos(2*np.pi*rad), rad, '.-')
 
         xcnxcx20 = self.integz(np.real(t_c) * np.real(w_c) * np.real(dt20))
-        print('1', xcnxcx20)
+        # print('1', xcnxcx20)
         xcnxcx22 = self.integz(np.real(t_c) * np.real(w_c) * np.real(dt22))
-        print('2', xcnxcx22)
+        # print('2', xcnxcx22)
         xcnxcx22 += 2 * harm_c * self.integz(np.real(t_c) * np.imag(u_c) * np.real(dt22))
-        print('3', xcnxcx22)
+        # print('3', xcnxcx22)
         xcnxcx2 = xcnxcx20 + xcnxcx22
-        print('4', xcnxcx2)
+        # print('4', xcnxcx2)
 
         ra2 = ra_c * (xcnxcx2+xcnx2xc)/xcmxc
 
         # compute some global caracteristics
-        moyt = 0.5 * (1 + self.integz(t20)) # 0.5 for scaling to -1/2 ; 1/2
+        moyt = self.integz(t20) # multiply by epsilon^2 and add 1/2
         qtop = - dt20[0]
-        # * 0.5 * 2 : scaling and times 2 for double product of e^ikx e^-ikx
-        moyv = self.integz(np.imag(u_c)**2)
-        moyv += self.integz(np.abs(u22)**2) # * 0.5 * 2 : scaling and times 2
-        moyv += w20**2 # a constant
-        moyv += self.integz(np.imag(w_c)**2) # * 0.5 * 2 : scaling and times 2
-        moyv += self.integz(np.abs(w22)**2) # * 0.5 * 2 : scaling and times 2
+        # part proportional to epsilon^2
+        moyv2 = 2 * self.integz(np.imag(u_c)**2)
+        moyv2 += 2 * self.integz(np.imag(w_c)**2)
+        # part proportional to epsilon^4
+        moyv4 = 2 * self.integz(np.imag(u22)**2)
+        moyv4 += w20**2 # a constant
+        moyv4 += 2 * self.integz(np.real(w22)**2)
 
         return harm_c, (ra_c, ra2), mode_c, (p20, w20, t20),\
-          (p22, u22, w22, t22), (moyt, moyv, qtop)
+          (p22, u22, w22, t22), (moyt, moyv2, moyv4, qtop)
