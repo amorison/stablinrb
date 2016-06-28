@@ -696,6 +696,7 @@ class NonLinearAnalyzer(Analyser):
         # part in 2 k x
         nxcxc2 = np.zeros((itg(itn) + 1))
         nxcxc2[tgint] = (np.real(w_c * dt_c) - harm_c * np.imag(u_c) * np.real(t_c))[tint]
+        # print('nxcxc2 = ', nxcxc2[tgint])
         # Solve Lc * X2 = NXcXc to get X22
         mode22 = solve(lmat2, nxcxc2)
         # print(mode22)
@@ -810,7 +811,9 @@ class NonLinearAnalyzer(Analyser):
         # print('1', xcnxcx20)
         xcnxcx22 = self.integz(np.real(t_c) * np.real(w_c) * np.real(dt22))
         # print('2', xcnxcx22)
-        xcnxcx22 += 2 * harm_c * self.integz(np.real(t_c) * np.imag(u_c) * np.real(dt22))
+        # print('dt22 =', dt22)
+        # print('prod =', np.real(t_c) * np.imag(u_c) * np.real(t22))
+        xcnxcx22 += 2 * harm_c * self.integz(np.real(t_c) * np.imag(u_c) * np.real(t22))
         # print('3', xcnxcx22)
         xcnxcx2 = xcnxcx20 + xcnxcx22
         # print('4', xcnxcx2)
