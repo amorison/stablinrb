@@ -15,35 +15,93 @@ from physics import PhysicalProblem, compo_smo
 from plotting import plot_fastest_mode, plot_ran_harm
 from misc import normalize_modes
 
+# Font and markers size
+FTSZ = 14
+MSIZE = 3
+
 pblm = PhysicalProblem(
     gamma=None,
-    phi_top=None,
+    phi_top=1e-2,
     phi_bot=1e-2,
     freeslip_top=True,
     freeslip_bot=True,
     ref_state_translation=False)
 
-NON_LINEAR = True
+ONE_CASE_ONLY = False
+if ONE_CASE_ONLY:
+    ra_comp = None
 
-# ra_comp = 20
+    if NON_LINEAR:
+        ana = NonLinearAnalyzer(pblm, ncheb=20)
+        harm_c, ray, modec, mode20, mode22, glob_val = ana.nonlinana()
+        print('Ra_c, Ra2 = ', ray)
+        print('globval', glob_val)
+    else:
+        ana = LinearAnalyzer(pblm, ncheb=20)
+        ra_c, harm_c = ana.critical_ra(ra_comp=ra_comp)
+        print('Rac, kc = ', ra_c, harm_c)
+        plot_fastest_mode(ana, harm_c, ra_c, ra_comp)
+        plot_ran_harm(ana, harm_c, ra_comp)
 
-if NON_LINEAR:
-    ana = NonLinearAnalyzer(pblm, ncheb=20)
-    harm_c, ray, modec, mode20, mode22, glob_val = ana.nonlinana()
-    print('Ra_c, Ra2 = ', ray)
-    print('globval', glob_val)
-else:
-    ana = LinearAnalyzer(pblm, ncheb=20)
-    ra_c, harm_c = ana.critical_ra(ra_comp=ra_comp)
-    plot_fastest_mode(ana, harm_c, ra_c, ra_comp)
-    plot_ran_harm(ana, harm_c, ra_comp)
+EXPLORE_PHASE = True
+if EXPLORE_PHASE:
+    # Explore phi space
+    nphi = 10
+    phinum = np.flipud(np.power(10, np.linspace(-3, 6, nphi)))
+    # Limit case for infinite phi
+    rac = 27*np.pi**4/4
+    kxc = np.pi/np.sqrt(2)
+    NCHEB = 20
 
+    NON_LINEAR = True
 
-# Explore phi space
+    if NON_LINEAR:
+        ana = NonLinearAnalyzer(PhysicalProblem())
+        EQUAL_PHI = True
+        if EQUAL_PHI:
+            ana.phys.phi_top = phinum[0]
+            ana.phys.phi_bot = phinum[0]
+            kx_c, ray, _, _, _, glob_val = ana.nonlinana()
+            ra_c, ray2 = ray
+            mot, mov2, mov4, qtp = glob_val
+            kwn = [kx_c]
+            ram = [ra_c]
+            ra2 = [ray2]
+            moyt = [mot]
+            moyv2 = [mov2]
+            moyv4 = [mov4]
+            qtop = [qtp]
+            print(phinum[0], ram, kwn, ra2, moyt, moyv2, moyv4, qtop)
+            for i, phi in enumerate(phinum[1:]):
+                ana.phys.phi_top = phi
+                ana.phys.phi_bot = phi
+                kx_c, ray, _, _, _, glob_val = ana.nonlinana()
+                ra_c, ray2 = ray
+                mot, mov2, mov4, qtp = glob_val
+                kwn = np.append(kwn, kx_c)
+                ram = np.append(ram, ra_c)
+                ra2 = np.append(ra2, ray2)
+                moyt = np.append(moyt, mot)
+                moyv2 = np.append(moyv2, mov2)
+                moyv4 = np.append(moyv4, mov4)
+                qtop = np.append(qtop, qtp)
+            # save
+            with open('EqualTopBotPhi_nonlin.dat', 'w') as fich:
+                fmt = '{:13}'*8 + '\n'
+                fich.write(fmt.format(' phi', 'kx', 'Ra', 'Ra2', 'moyT', 'moyV2', 'moyV4', 'qtop'))
+                fmt = '{:15.3e}'*7 + '{:15.3}' + '\n'
+                for i in range(nphi):
+                    fich.write(fmt.format(phinum[i], kwn[i], ram[i], ra2[i],
+                                      moyt[i], moyv2[i], moyv4[i], qtop[i]))
+
+    else:
+        ana = LinearAnalyzer(pblm, ncheb=20)
+        ra_c, harm_c = ana.critical_ra()
+        print('Rac, kc = ', ra_c, harm_c)
+        plot_fastest_mode(ana, harm_c, ra_c)
+        plot_ran_harm(ana, harm_c)
+
 COMPUTE_PHASECHANGE = False
-# Font and markers size
-FTSZ = 14
-MSIZE = 3
 
 if COMPUTE_PHASECHANGE:
     # default is free-slip at both boundaries, cartesian geometry
