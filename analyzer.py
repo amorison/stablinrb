@@ -134,17 +134,17 @@ def cartesian_matrices(self, wnk, ra_num, ra_comp=None):
 
     # U equations
     # free-slip at top
-    if phi_top or freeslip_top:
+    if phi_top is not None or freeslip_top:
         lmat[iug(iu0), ugall] = dz1[iu0, uall]
-    if phi_top:
+    if phi_top is not None:
         lmat[iug(iu0), wgall] = dh1[iu0, wall]
     # horizontal momentum conservation
     lmat[ugint, pgall] = -dh1[uint, pall]
     lmat[ugint, ugall] = lapl[uint, uall]
     # free-slip at bot
-    if phi_bot or freeslip_bot:
+    if phi_bot is not None or freeslip_bot:
         lmat[iug(iun), ugall] = dz1[iun, uall]
-    if phi_top:
+    if phi_bot is not None:
         lmat[iug(iun), wgall] = dh1[iun, wall]
 
     # W equations
