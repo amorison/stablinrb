@@ -17,7 +17,7 @@ from misc import normalize_modes
 
 pblm = PhysicalProblem(
     gamma=None,
-    phi_top=1e5,
+    phi_top=None,
     phi_bot=1e-2,
     freeslip_top=True,
     freeslip_bot=True,

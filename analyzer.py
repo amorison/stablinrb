@@ -705,9 +705,9 @@ class NonLinearAnalyzer(Analyser):
         w22 = mode22[wgall]
         t22 = mode22[tgall]
 
-        # p22 = self._insert_boundaries(p22, ip0, ipn)
-        # u22 = self._insert_boundaries(u22, iu0, iun)
-        # w22 = self._insert_boundaries(w22, iw0, iwn)
+        p22 = self._insert_boundaries(p22, ip0, ipn)
+        u22 = self._insert_boundaries(u22, iu0, iun)
+        w22 = self._insert_boundaries(w22, iw0, iwn)
         t22 = self._insert_boundaries(t22, it0, itn)
 
         # check the profiles
