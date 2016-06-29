@@ -46,8 +46,8 @@ if ONE_CASE_ONLY:
 EXPLORE_PHASE = True
 if EXPLORE_PHASE:
     # Explore phi space
-    nphi = 7
-    phinum = np.flipud(np.power(10, np.linspace(-2, 4, nphi)))
+    nphi = 6
+    phinum = np.flipud(np.power(10, np.linspace(-1, 4, nphi)))
     # Limit case for infinite phi
     rac = 27*np.pi**4/4
     kxc = np.pi/np.sqrt(2)
@@ -102,10 +102,18 @@ if EXPLORE_PHASE:
                 for i in range(nphi):
                     fich.write(fmt.format(phinum[i], kwn[i], ram[i], ra2[i],
                                       moyt[i], moyv2[i], moyv4[i], qtop[i]))
-            plt.legend(loc='upper center', fontsize=FTSZ)
+            lgd=plt.legend(bbox_to_anchor=(0., 1.02, 1., .102), loc=3,
+                           borderaxespad=0., mode="expand",
+                           ncol=2,fontsize=FTSZ,
+                           columnspacing=1.0, labelspacing=0.0,
+                           handletextpad=0.0, handlelength=1.5,
+                           fancybox=True, shadow=False)
+
+            # plt.legend(loc='upper center', fontsize=FTSZ)
             axis.set_xlabel(r'Ra', fontsize=FTSZ)
             axis.set_ylabel(r'Nu', fontsize=FTSZ)
-            plt.savefig("Nu_Ra_EqualPhi.pdf", format='PDF')
+            plt.savefig("Nu_Ra_EqualPhi.pdf", format='PDF', bbox_extra_artists=(lgd,),
+                        bbox_inches='tight')
             plt.close(fig)
         BOT_PHI = True
         if BOT_PHI:
@@ -147,10 +155,18 @@ if EXPLORE_PHASE:
                 for i in range(nphi):
                     fich.write(fmt.format(phinum[i], kwn[i], ram[i], ra2[i],
                                       moyt[i], moyv2[i], moyv4[i], qtop[i]))
-            plt.legend(loc='upper center', fontsize=FTSZ)
+            lgd=plt.legend(bbox_to_anchor=(0., 1.02, 1., .102), loc=3,
+                           borderaxespad=0., mode="expand",
+                           ncol=2,fontsize=FTSZ,
+                           columnspacing=1.0, labelspacing=0.0,
+                           handletextpad=0.0, handlelength=1.5,
+                           fancybox=True, shadow=False)
+
+            # plt.legend(loc='upper center', fontsize=FTSZ)
             axis.set_xlabel(r'Ra', fontsize=FTSZ)
             axis.set_ylabel(r'Nu', fontsize=FTSZ)
-            plt.savefig("Nu_Ra_BotPhi.pdf", format='PDF')
+            plt.savefig("Nu_Ra_BotPhi.pdf",  format='PDF', bbox_extra_artists=(lgd,),
+                        bbox_inches='tight')
             plt.close(fig)
 
     else:
