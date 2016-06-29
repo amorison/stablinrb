@@ -119,6 +119,7 @@ if EXPLORE_PHASE:
         if BOT_PHI:
             fig, axis = plt.subplots()
             ana.phys.phi_bot = phinum[0]
+            ana.phys.phi_top = None
             kx_c, ray, _, _, _, glob_val = ana.nonlinana()
             ra_c, ray2 = ray
             mot, mov2, mov4, qtp = glob_val
