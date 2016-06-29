@@ -46,12 +46,15 @@ if ONE_CASE_ONLY:
 EXPLORE_PHASE = True
 if EXPLORE_PHASE:
     # Explore phi space
-    nphi = 10
-    phinum = np.flipud(np.power(10, np.linspace(-3, 6, nphi)))
+    nphi = 7
+    phinum = np.flipud(np.power(10, np.linspace(-2, 4, nphi)))
     # Limit case for infinite phi
     rac = 27*np.pi**4/4
     kxc = np.pi/np.sqrt(2)
     NCHEB = 20
+    myplot = plt.semilogx
+
+    rarc = 4
 
     NON_LINEAR = True
 
@@ -59,6 +62,7 @@ if EXPLORE_PHASE:
         ana = NonLinearAnalyzer(PhysicalProblem())
         EQUAL_PHI = True
         if EQUAL_PHI:
+            fig, axis = plt.subplots()
             ana.phys.phi_top = phinum[0]
             ana.phys.phi_bot = phinum[0]
             kx_c, ray, _, _, _, glob_val = ana.nonlinana()
@@ -71,6 +75,8 @@ if EXPLORE_PHASE:
             moyv2 = [mov2]
             moyv4 = [mov4]
             qtop = [qtp]
+            eps = np.sqrt((rarc-1) * ra_c / ray2)
+            myplot([ra_c, ra_c + eps**2 * ray2], [1, 1 + eps**2 * qtp], label=r'$\Phi^\pm=%.1e$' %(phinum[0]))
             print(phinum[0], ram, kwn, ra2, moyt, moyv2, moyv4, qtop)
             for i, phi in enumerate(phinum[1:]):
                 ana.phys.phi_top = phi
@@ -85,6 +91,9 @@ if EXPLORE_PHASE:
                 moyv2 = np.append(moyv2, mov2)
                 moyv4 = np.append(moyv4, mov4)
                 qtop = np.append(qtop, qtp)
+                print(phi, ra_c, kx_c, ray2, mot, mov2, mov4, qtp)
+                eps = np.sqrt((rarc-1) * ra_c / ray2)
+                myplot([ra_c, ra_c + eps**2 * ray2], [1, 1 + eps**2 * qtp], label=r'$\Phi^\pm=%.1e$' %(phi))
             # save
             with open('EqualTopBotPhi_nonlin.dat', 'w') as fich:
                 fmt = '{:13}'*8 + '\n'
@@ -93,6 +102,56 @@ if EXPLORE_PHASE:
                 for i in range(nphi):
                     fich.write(fmt.format(phinum[i], kwn[i], ram[i], ra2[i],
                                       moyt[i], moyv2[i], moyv4[i], qtop[i]))
+            plt.legend(loc='upper center', fontsize=FTSZ)
+            axis.set_xlabel(r'Ra', fontsize=FTSZ)
+            axis.set_ylabel(r'Nu', fontsize=FTSZ)
+            plt.savefig("Nu_Ra_EqualPhi.pdf", format='PDF')
+            plt.close(fig)
+        BOT_PHI = True
+        if BOT_PHI:
+            fig, axis = plt.subplots()
+            ana.phys.phi_bot = phinum[0]
+            kx_c, ray, _, _, _, glob_val = ana.nonlinana()
+            ra_c, ray2 = ray
+            mot, mov2, mov4, qtp = glob_val
+            kwn = [kx_c]
+            ram = [ra_c]
+            ra2 = [ray2]
+            moyt = [mot]
+            moyv2 = [mov2]
+            moyv4 = [mov4]
+            qtop = [qtp]
+            eps = np.sqrt((rarc-1) * ra_c / ray2)
+            myplot([ra_c, ra_c+eps**2 * ray2], [1, 1+eps**2 * qtp], label=r'$\Phi^-=%.1e$' %(phinum[0]))
+            print(phinum[0], ram, kwn, ra2, moyt, moyv2, moyv4, qtop)
+            for i, phi in enumerate(phinum[1:]):
+                ana.phys.phi_bot = phi
+                kx_c, ray, _, _, _, glob_val = ana.nonlinana()
+                ra_c, ray2 = ray
+                mot, mov2, mov4, qtp = glob_val
+                kwn = np.append(kwn, kx_c)
+                ram = np.append(ram, ra_c)
+                ra2 = np.append(ra2, ray2)
+                moyt = np.append(moyt, mot)
+                moyv2 = np.append(moyv2, mov2)
+                moyv4 = np.append(moyv4, mov4)
+                qtop = np.append(qtop, qtp)
+                print(phi, ra_c, kx_c, ray2, mot, mov2, mov4, qtp)
+                eps = np.sqrt((rarc-1) * ra_c / ray2)
+                myplot([ra_c, ra_c+eps**2 * ray2], [1, 1+eps**2 * qtp], label=r'$\Phi^-=%.1e$' %(phi))
+            # save
+            with open('BotPhi_nonlin.dat', 'w') as fich:
+                fmt = '{:13}'*8 + '\n'
+                fich.write(fmt.format(' phi', 'kx', 'Ra', 'Ra2', 'moyT', 'moyV2', 'moyV4', 'qtop'))
+                fmt = '{:15.3e}'*7 + '{:15.3}' + '\n'
+                for i in range(nphi):
+                    fich.write(fmt.format(phinum[i], kwn[i], ram[i], ra2[i],
+                                      moyt[i], moyv2[i], moyv4[i], qtop[i]))
+            plt.legend(loc='upper center', fontsize=FTSZ)
+            axis.set_xlabel(r'Ra', fontsize=FTSZ)
+            axis.set_ylabel(r'Nu', fontsize=FTSZ)
+            plt.savefig("Nu_Ra_BotPhi.pdf", format='PDF')
+            plt.close(fig)
 
     else:
         ana = LinearAnalyzer(pblm, ncheb=20)
