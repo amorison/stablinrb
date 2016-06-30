@@ -124,8 +124,8 @@ def cartesian_matrices(self, wnk, ra_num, ra_comp=None):
         rtr = 12*(phitop+phibot)
         wtrans = wtran((ranum-rtr)/rtr)[0]
 
-    lmat = np.zeros((igf[-1](itn) + 1, igf[-1](itn) + 1)) + 0j
-    rmat = np.zeros((igf[-1](itn) + 1, igf[-1](itn) + 1))
+    lmat = np.zeros((igf[-1](i_ns[-1]) + 1, igf[-1](i_ns[-1]) + 1))
+    rmat = np.zeros((igf[-1](i_ns[-1]) + 1, igf[-1](i_ns[-1]) + 1))
 
     # Pressure equations
     # mass conservation
@@ -252,7 +252,7 @@ def eigval_cartesian(self, wnk, ra_num, ra_comp=None):
     return eigvals[iegv], (p_mode, u_mode, w_mode, t_mode), (lmat, rmat)
 
 
-def eigval_spherical(self, l_harm, ra_num):
+def eigval_spherical(self, l_harm, ra_num, ra_comp=None):
     """Compute the max eigenvalue and associated eigenvector
 
     l_harm: spherical harmonic degree
@@ -279,21 +279,33 @@ def eigval_spherical(self, l_harm, ra_num):
     h_int = self.phys.h_int
     heat_flux_top = self.phys.heat_flux_top
     heat_flux_bot = self.phys.heat_flux_bot
+    lewis = self.phys.lewis
+    composition = self.phys.composition
+    comp_terms = lewis is not None or composition is not None
     translation = self.phys.ref_state_translation
 
     # global indices and slices
     i0n, igf, slall, slint, slgall, slgint = self._slices()
     i_0s, i_ns = zip(*i0n)
-    ip0, iq0, it0 = i_0s
-    ipn, iqn, itn = i_ns
-    ipg, iqg, itg = igf
-    pall, qall, tall = slall
-    pint, qint, tint = slint
-    pgall, qgall, tgall = slgall
-    pgint, qgint, tgint = slgint
+    if comp_terms:
+        ip0, iq0, it0, ic0 = i_0s
+        ipn, iqn, itn, icn = i_ns
+        ipg, iqg, itg, icg = igf
+        pall, qall, tall, call = slall
+        pint, qint, tint, cint = slint
+        pgall, qgall, tgall, cgall = slgall
+        pgint, qgint, tgint, cgint = slgint
+    else:
+        ip0, iq0, it0 = i_0s
+        ipn, iqn, itn = i_ns
+        ipg, iqg, itg = igf
+        pall, qall, tall = slall
+        pint, qint, tint = slint
+        pgall, qgall, tgall = slgall
+        pgint, qgint, tgint = slgint
 
-    lmat = np.zeros((itg(itn) + 1, itg(itn) + 1))
-    rmat = np.zeros((itg(itn) + 1, itg(itn) + 1))
+    lmat = np.zeros((igf[-1](i_ns[-1]) + 1, igf[-1](i_ns[-1]) + 1))
+    rmat = np.zeros((igf[-1](i_ns[-1]) + 1, igf[-1](i_ns[-1]) + 1))
 
     # Poloidal potential equations
     if phi_top is not None:
@@ -330,6 +342,8 @@ def eigval_spherical(self, l_harm, ra_num):
     # laplacian(Q) - RaT/r = 0
     lmat[qgint, qgall] = lapl[qint, qall]
     lmat[qgint, tgall] = - ra_num * orad1[qint, tall]
+    if comp_terms:
+        lmat[qgint, cgall] = - ra_comp * orad1[qint, call]
     # normal stress continuity at bot
     if phi_bot is not None:
         lmat[iqg(iqn), pgall] = lh2 * (-self.phys.phi_bot *
@@ -369,6 +383,16 @@ def eigval_spherical(self, l_harm, ra_num):
     lmat[tgint, pgall] = np.diag(lh2 * grad_tcond)[tint, pall]
 
     rmat[tgint, tgall] = one[tint, tall]
+
+    # C equations
+    # 1/Le lapl(C) - u.grad(C_reference) = sigma C
+    if composition is not None:
+        grad_comp = np.diag(np.dot(dr1, composition(np.diag(rad))))
+        lmat[cgint, pgall] = -lh2 * np.dot(orad1, grad_comp)[cint, pall]
+    elif lewis is not None:
+        raise ValueError('Finite Lewis not implemented in spherical')
+    if comp_terms:
+        rmat[cgint, cgall] = one[cint, call]
 
     # Find the eigenvalues
     eigvals, eigvecs = linalg.eig(lmat, rmat, right=True)
@@ -499,7 +523,7 @@ class LinearAnalyzer(Analyser):
     def eigval(self, harm, ra_num, ra_comp=None):
         """Generic eigval function"""
         if self.phys.spherical:
-            return eigval_spherical(self, harm, ra_num)
+            return eigval_spherical(self, harm, ra_num, ra_comp)
         else:
             return eigval_cartesian(self, harm, ra_num, ra_comp)
 
