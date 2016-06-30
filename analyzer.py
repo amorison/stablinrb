@@ -559,6 +559,41 @@ class LinearAnalyzer(Analyser):
 
         return (ra_min*sigma_max - ra_max*sigma_min) / (sigma_max - sigma_min)
 
+    def fastest_mode(self, ra_num, ra_comp=None, harm=2):
+        """Find the fastest growing mode at a given Ra"""
+        if self.phys.spherical:
+            harms = range(max(1, harm - 10), harm + 10)
+        else:
+            return None
+        sigma = [self.eigval(harm, ra_num, ra_comp)[0] for harm in harms]
+
+        if self.phys.spherical:
+            max_found = False
+            while not max_found:
+                imax = np.argmax(sigma)
+                smax = sigma[imax]
+                hmax = harms[imax]
+                if imax == 0 and hmax != 1:
+                    sigma_n = sigma[1]
+                    harms = range(max(1, hmax - 10), hmax)
+                    sigma = [self.eigval(harm, ra_num, ra_comp)[0]
+                             for harm in harms]
+                    # append local maximum and the next point to
+                    # avoid oscillating around the true maximum
+                    sigma.append(smax)
+                    sigma.append(sigma_n)
+                    harms = range(max(1, hmax - 10), hmax + 2)
+                elif imax == len(sigma) - 1:
+                    harms = range(hmax + 1, hmax + 20)
+                    sigma = [self.eigval(harm, ra_num, ra_comp)[0]
+                             for harm in harms]
+                else:
+                    max_found = True
+        else:
+            pass
+
+        return smax, hmax
+
     def critical_ra(self, harm=2, ra_guess=600, ra_comp=None):
         """Find the harmonic with the lower neutral Ra
 
