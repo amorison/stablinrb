@@ -66,9 +66,9 @@ if COMPOSITION:
     gamma = lambda h: r_int / r_ext(h)
     rayleigh = lambda h, eta: \
         rho * g * alpha * delta_temp(h) * r_ext(h)**3 / (eta * kappa)
-    ra_comp = 200
-    phi_top = 1e-3
-    phi_bot = 1e-3
+    ra_comp = 20
+    phi_top = 1e4
+    phi_bot = 1e4
     # composition
     lam = 0.999  # R_isentrope / R_earth
     c_0 = ((1 - lam**3) * r_earth**3 / (r_earth**3 - r_int**3))**(1 - part)
@@ -80,7 +80,7 @@ if COMPOSITION:
                                          phi_bot=phi_bot),
                          ncheb=50)
 
-    fig, axis = plt.subplots(1, 2, sharex=True)
+    fig, axis = plt.subplots(1, 1)
     tau_vals = {}
     harm_vals = {}
     for eta in eta_vals:
@@ -93,16 +93,12 @@ if COMPOSITION:
                                            ra_comp)
             tau_vals[eta].append(np.real(tau(sigma, h_crystal)))
             harm_vals[eta].append(harm)
-        axis[0].semilogy(h_crystal_vals/1e3, np.array(tau_vals[eta])/1e6,
-                         label=r'$\eta=10^{%d}$' % (eta))
-        axis[1].plot(h_crystal_vals/1e3, harm_vals[eta],
-                     label=r'$\eta=10^{%d}$' % (eta))
-    plt.setp(axis[1], ylim=[0.9, 3.1])
-    axis[0].set_xlabel(r'Crystallized mantle thickness $h$ (km)')
-    axis[1].set_xlabel(r'Crystallized mantle thickness $h$ (km)')
-    axis[0].set_ylabel(r'Destabilization time scale $\tau$ (Myr)')
-    axis[1].set_ylabel(r'Harmonic degree $l$')
-    axis[1].legend(loc='upper left')
+        axis.semilogy(h_crystal_vals/1e3, np.array(tau_vals[eta])/1e6,
+                         label=r'$\eta=10^{%d}$, $l=%d$' %(eta, harm_vals[eta][0]))
+    axis.set_xlabel(r'Crystallized mantle thickness $h$ (km)', fontsize=FTSZ)
+    axis.set_ylabel(r'Destabilization time scale $\tau$ (Myr)', fontsize=FTSZ)
+    axis.legend(loc='upper right', fontsize=FTSZ)
+    axis.tick_params(labelsize=FTSZ)
     plt.tight_layout()
     plt.savefig('DestabilizationTime.pdf', format='PDF')
 
