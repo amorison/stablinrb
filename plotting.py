@@ -10,7 +10,7 @@ from mpl_toolkits.axisartist.grid_finder import FixedLocator, \
 import seaborn as sns
 
 # Font and markers size
-FTSZ = 14
+FTSZ = 20
 MSIZE = 6
 
 
@@ -161,7 +161,7 @@ def plot_fastest_mode(analyzer, harm, ra_num, ra_comp=None,
         lw = 2 * speed / speed.max()
         plt.streamplot(xgr, zgr, u2d, w2d, linewidth=lw, density=0.7)
         plt.xlabel(r'$x$', fontsize=FTSZ)
-        plt.ylabel(r'$y$', fontsize=FTSZ)
+        plt.ylabel(r'$z$', fontsize=FTSZ)
 
     cbar = plt.colorbar(surf, shrink=0.8)
     cbar.set_label(r'Temperature $\Theta$')

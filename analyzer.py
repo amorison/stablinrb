@@ -124,7 +124,7 @@ def cartesian_matrices(self, wnk, ra_num, ra_comp=None):
         rtr = 12*(phitop+phibot)
         wtrans = wtran((ranum-rtr)/rtr)[0]
 
-    lmat = np.zeros((igf[-1](i_ns[-1]) + 1, igf[-1](i_ns[-1]) + 1))
+    lmat = np.zeros((igf[-1](i_ns[-1]) + 1, igf[-1](i_ns[-1]) + 1)) + 0j
     rmat = np.zeros((igf[-1](i_ns[-1]) + 1, igf[-1](i_ns[-1]) + 1))
 
     # Pressure equations
