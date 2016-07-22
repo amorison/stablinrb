@@ -16,13 +16,13 @@ from plotting import plot_fastest_mode, plot_ran_harm
 from misc import normalize_modes
 
 # Font and markers size
-FTSZ = 12
+FTSZ = 14
 MSIZE = 5
 
 pblm = PhysicalProblem(
     gamma=None,
     phi_top=None,
-    phi_bot=1e-2,
+    phi_bot=1e4,
     freeslip_top=True,
     freeslip_bot=True,
     ref_state_translation=False)
@@ -30,6 +30,7 @@ pblm = PhysicalProblem(
 NON_LINEAR = False
 ONE_CASE_ONLY = False
 COMPOSITION = False
+EXPLORE_PHASE = True
 
 if ONE_CASE_ONLY:
     ra_comp = None
@@ -106,7 +107,6 @@ if COMPOSITION:
     plt.tight_layout()
     plt.savefig('DestabilizationTime.pdf', format='PDF')
 
-EXPLORE_PHASE = False
 if EXPLORE_PHASE:
     # Explore phi space
     nphi = 6
@@ -117,10 +117,10 @@ if EXPLORE_PHASE:
     NCHEB = 20
     myplot = plt.plot
 
-    rarc = 4
-
     if NON_LINEAR:
         ana = NonLinearAnalyzer(PhysicalProblem())
+        rarc = 4
+
         EQUAL_PHI = True
         if EQUAL_PHI:
             fig, axis = plt.subplots()
@@ -251,7 +251,7 @@ if EXPLORE_PHASE:
         kxc = np.pi/np.sqrt(2)
         # NCHEB = 30
 
-        EQUAL_PHI = True
+        EQUAL_PHI = False
         # Computes properties as function of phi, equal for both boundaries
         if EQUAL_PHI:
             # First unstable mode
@@ -307,11 +307,11 @@ if EXPLORE_PHASE:
                                 label=r'Fastest growing mode')
             col1 = p1.get_color()
             # General case
-            axe[0].tick_params(axis=r'$\mathrm{Ra}$', labelsize=30)
-            axe[0].set_ylabel(r'$\mathrm{Ra}$', fontsize=FTSZ)
+            axe[0].tick_params(axis='both', which='major', labelsize=FTSZ-1)
+            axe[0].set_ylabel(r'$\mathrm{Ra}_c$', fontsize=FTSZ)
             # axe[0].set_ylim([0, 800])
             # axe[0].legend(loc=4, fontsize=FTSZ)
-            plt.tick_params(labelsize=FTSZ-1)
+            # plt.tick_params(labelsize=FTSZ-1)
             axe[1].loglog([phinum[0], phinum[-1]], [kxc, kxc], '-.', c='k',
                         label=r'$\mathrm{Ra}_c=\frac{27\pi^4}{4}, k_c=\frac{\pi}{\sqrt{2}}$')
             # Small phi prediction
@@ -322,7 +322,7 @@ if EXPLORE_PHASE:
             axe[1].legend(loc=4, fontsize=FTSZ)
             axe[1].set_ylabel(r'$k_c$', fontsize=FTSZ)
             axe[1].set_xlabel(r'$\Phi^+=\Phi^-$', fontsize=FTSZ)
-            plt.tick_params(labelsize=FTSZ-1)
+            plt.tick_params(axis='both', which='major', labelsize=FTSZ-1)
             plt.savefig("Phi-Ra-kx_EqualPhi.pdf", format='PDF')
             plt.close(fig)
 
@@ -354,7 +354,7 @@ if EXPLORE_PHASE:
             plt.savefig('Phi_ModeMax.pdf', format='PDF')
             plt.close(fig)
 
-        PHASEBOTONLY = False
+        PHASEBOTONLY = True
         if PHASEBOTONLY:
             ana.phys.phi_top = None
             ram = np.zeros(phinum.shape)
@@ -394,9 +394,10 @@ if EXPLORE_PHASE:
             p1, = axe[0].semilogx(phinum, ram, 'o', markersize=MSIZE, label=r'$\Phi^+=\infty$, varying $\Phi^-$')
             col1 = p1.get_color()
             # axe[0].semilogx(phinum, ram2, 'o', markersize=MSIZE, label='Second fastest mode')
-            axe[0].set_ylabel(r'$Ra$', fontsize=FTSZ)
+            axe[0].tick_params(axis='both', which='major', labelsize=FTSZ-1)
+            axe[0].set_ylabel(r'$\mathrm{Ra}_c$', fontsize=FTSZ)
             axe[0].set_ylim([0, 700])
-            axe[0].legend(loc=7)
+            axe[0].legend(loc=7, fontsize=FTSZ)
             # kx
             # classical RB case
             axe[1].semilogx([phinum[0], phinum[-1]], [kxc, kxc], '-.', c='k',
@@ -405,9 +406,10 @@ if EXPLORE_PHASE:
             axe[1].semilogx(phinum, kwn, 'o', markersize=MSIZE, c=col1,
                         label=r'$\Phi^+=\infty$, varying $\Phi^-$')
             # axe[1].loglog(phinum, kwn2, 'o', markersize=MSIZE, label='Second fastest mode')
-            axe[1].legend(loc=4)
-            axe[1].set_ylabel(r'$k$', fontsize=FTSZ)
+            axe[1].legend(loc=4, fontsize=FTSZ)
+            axe[1].set_ylabel(r'$k_c$', fontsize=FTSZ)
             axe[1].set_xlabel(r'$\Phi^-$', fontsize=FTSZ)
+            plt.tick_params(axis='both', which='major', labelsize=FTSZ-1)
             plt.savefig("Phi-Ra-kx_VaryingPhiBotFreeTop.pdf", format='PDF')
             plt.close(fig)
             # plot Pmax, Umax, Wmax and (24phi - Ra) as function of phi

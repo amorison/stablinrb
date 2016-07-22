@@ -148,7 +148,7 @@ def plot_fastest_mode(analyzer, harm, ra_num, ra_comp=None,
         if harm > 0.2:
             fig = plt.figure(figsize=(6*np.pi/harm, 3), dpi=300)
         else:
-            fig = plt.figure()
+            fig = plt.figure(figsize=(6, 3), dpi=300)
         axis = fig.add_subplot(111)
         surf = plt.pcolormesh(xgr, zgr, t2d, cmap='RdBu_r', linewidth=0,)
         plt.axis([xgr.min(), xgr.max(), zgr.min(), zgr.max()])
@@ -160,11 +160,13 @@ def plot_fastest_mode(analyzer, harm, ra_num, ra_comp=None,
         speed = np.sqrt(u2d**2+w2d**2)
         lw = 2 * speed / speed.max()
         plt.streamplot(xgr, zgr, u2d, w2d, linewidth=lw, density=0.7)
-        plt.xlabel(r'$x$', fontsize=FTSZ)
-        plt.ylabel(r'$z$', fontsize=FTSZ)
+        axis.tick_params(axis='both', which='major', labelsize=FTSZ-2)
+        axis.set_xlabel(r'$x$', fontsize=2*FTSZ)
+        axis.set_ylabel(r'$z$', fontsize=2*FTSZ)
 
-    cbar = plt.colorbar(surf, shrink=0.8)
-    cbar.set_label(r'Temperature $\Theta$')
+    cbar = plt.colorbar(surf, shrink=0.8, ticks=[-0.5, 0, 0.5])
+    cbar.ax.tick_params(labelsize=FTSZ-1)
+    cbar.set_label(r'Temperature $\Theta$', fontsize=FTSZ)
     plt.tight_layout()
     filename = '_'.join((name, 'mode.pdf'))
     plt.savefig(filename, format='PDF')
