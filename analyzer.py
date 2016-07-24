@@ -686,6 +686,32 @@ class NonLinearAnalyzer(Analyser):
         # factor 1/2 is to account for the interval -1/2 < z < 1/2 
         return intz
 
+    def indexmat(order, ind):
+        """Indices of the matrix of modes for non-linear analysis
+
+        Returns
+        nmax: the max number of matrix element to solve up to order.
+        ordn, harm: order and harmonic number corresponding to ind in matrix.
+        """
+        nmax = 0
+        ordn = 0
+        harm = 0
+        for n in range(1, order+1):
+            if np.mod(n, 2) == 0:
+                jj = np.int(n/2)
+                indices = [i for i in range(0, n+1, 2)]
+            else:
+                jj = np.int((n-1)/2)
+                indices = [i for i in range(1, n+1, 2)]
+            nmax += jj + 1
+            if ordn ==0 and nmax >= ind:
+                ordn = n
+                print(ind, nmax, jj)
+                print(ind - nmax + jj)
+                harm = indices[ind - nmax + jj]
+                print(indices)
+        return nmax, ordn, harm
+
     def nonlinana(self):
         """Ra2 and X2"""
         ncheb = self._ncheb
