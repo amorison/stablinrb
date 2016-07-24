@@ -28,80 +28,7 @@ pblm = PhysicalProblem(
     ref_state_translation=False)
 
 NON_LINEAR = False
-ONE_CASE_ONLY = False
-COMPOSITION = False
 EXPLORE_PHASE = True
-
-if ONE_CASE_ONLY:
-    ra_comp = None
-
-    if NON_LINEAR:
-        ana = NonLinearAnalyzer(pblm, ncheb=20)
-        harm_c, ray, modec, mode20, mode22, glob_val = ana.nonlinana()
-        print('Ra_c, Ra2 = ', ray)
-        print('globval', glob_val)
-    else:
-        ana = LinearAnalyzer(pblm, ncheb=20)
-        ra_c, harm_c = ana.critical_ra(ra_comp=ra_comp)
-        print('Rac, kc = ', ra_c, harm_c)
-        plot_fastest_mode(ana, harm_c, ra_c, ra_comp)
-        plot_ran_harm(ana, harm_c, ra_comp)
-
-if COMPOSITION:
-    # all in base units
-    r_earth = 6371e3
-    d_crystal = 1500e3
-    r_int = r_earth - d_crystal
-    r_ext = lambda h: r_int + h
-    rho = 4e3
-    g = 10
-    alpha = 1e-5
-    kappa = 1e-6
-    delta_temp = lambda h: 3e-4 * h
-    tau = lambda s, h: r_ext(h)**2 / (kappa * s)
-    part = 0.8  # partitioning coefficient
-    eta_vals = np.array(range(15, 19))
-    h_crystal_vals = np.linspace(100e3, 1300e3, 50)
-
-    # non-dimensional variables
-    gamma = lambda h: r_int / r_ext(h)
-    rayleigh = lambda h, eta: \
-        rho * g * alpha * delta_temp(h) * r_ext(h)**3 / (eta * kappa)
-    ra_comp = 20
-    phi_top = 1e4
-    phi_bot = 1e4
-    # composition
-    lam = 0.999  # R_isentrope / R_earth
-    c_0 = ((1 - lam**3) * r_earth**3 / (r_earth**3 - r_int**3))**(1 - part)
-    composition = lambda r, h, c_0=c_0: \
-        c_0 * (((r_earth**3 - r_int**3) / r_ext(h)**3)
-               / ((r_earth / r_ext(h))**3 - r**3))**(1-part)
-
-    ana = LinearAnalyzer(PhysicalProblem(phi_top=phi_top,
-                                         phi_bot=phi_bot),
-                         ncheb=50)
-
-    fig, axis = plt.subplots(1, 1)
-    tau_vals = {}
-    harm_vals = {}
-    for eta in eta_vals:
-        tau_vals[eta] = []
-        harm_vals[eta] = []
-        for h_crystal in h_crystal_vals:
-            ana.phys.gamma = gamma(h_crystal)
-            ana.phys.composition = lambda r: composition(r, h_crystal)
-            sigma, harm = ana.fastest_mode(rayleigh(h_crystal, 10**eta),
-                                           ra_comp)
-            tau_vals[eta].append(np.real(tau(sigma, h_crystal)))
-            harm_vals[eta].append(harm)
-        axis.semilogy(h_crystal_vals/1e3, np.array(tau_vals[eta])/1e6,
-                         label=r'$\eta=10^{%d}$, $l=%d$' %(eta, harm_vals[eta][0]))
-    axis.set_xlabel(r'Crystallized mantle thickness $h$ (km)', fontsize=FTSZ)
-    axis.set_ylabel(r'Destabilization time scale $\tau$ (Myr)', fontsize=FTSZ)
-    axis.legend(loc='upper right', fontsize=FTSZ)
-    axis.tick_params(labelsize=FTSZ)
-    plt.tight_layout()
-    plt.savefig('DestabilizationTime.pdf', format='PDF')
 
 if EXPLORE_PHASE:
     # Explore phi space
@@ -485,33 +412,3 @@ if EXPLORE_PHASE:
         axe[1].set_xlabel(r'$\Phi^-,\quad \Phi^+$', fontsize=FTSZ)
         plt.savefig("Phi-Ra-kx_VaryingPhiBotTop.pdf", format='PDF')
         plt.close(fig)
-
-STAB_TRANSLATION = False
-# Computes the linear stability of the steady translation mode
-if STAB_TRANSLATION:
-    phit = 0.01
-    phib = 0.01
-    ana.phys.phi_top = phit
-    ana.phys.phi_bot = phib
-    # epsilon = np.flipud(np.linspace(0, 1, 4))
-    epsilon = np.array([5])
-    wkn = np.power(10, np.linspace(-1, 4, 100))
-    sigma = np.zeros(wkn.shape)
-    ana.phys.ref_state_translation = True
-    axe = plt.subplot()
-    for j, eps in enumerate(epsilon):
-        rtr = 12*(phib+phit)
-        ran = rtr*(1+eps)
-        for i, kxn in enumerate(wkn):
-            sigma[i] = ana.eigval(kxn, ran)[0]
-
-        axe.semilogx(wkn, np.real(sigma), label=r'$\varepsilon = %.2f$' %(eps))
-        axe.set_xlabel(r'$k$', fontsize=FTSZ)
-        axe.set_ylabel(r'$Re(\sigma)$', fontsize=FTSZ)
-        plt.legend(loc='upper right', fontsize=FTSZ)
-        # axe.set_ylim((-500, 1500))
-        # axe.set_ylim(bottom=-500)
-
-    plt.savefig('sigmaRa' + np.str(eps) +
-                'Top' + np.str(phit).replace('.', '-') +
-                'Bot' + np.str(phib).replace('.', '-') + '.pdf')
