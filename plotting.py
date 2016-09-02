@@ -180,8 +180,12 @@ def plot_ran_harm(analyzer, harm, ra_comp=None, name=None):
     fig, axis = plt.subplots(1, 1)
     if analyzer.phys.spherical:
         rac_l = []
-        lmin = max(1, harm - 5)
-        lmax = lmin + 9
+        if harm < 25:
+            lmin = 1
+            lmax = max(15, harm + 5)
+        else:
+            lmin = harm - 7
+            lmax = lmin + 14
         harms = range(lmin, lmax + 1)
         for idx, l_harm in enumerate(harms):
             rac_l.append(analyzer.neutral_ra(

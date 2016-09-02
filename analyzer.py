@@ -570,25 +570,24 @@ class LinearAnalyzer(Analyser):
         if self.phys.spherical:
             max_found = False
             while not max_found:
-                imax = np.argmax(sigma)
-                smax = sigma[imax]
-                hmax = harms[imax]
-                if imax == 0 and hmax != 1:
-                    sigma_n = sigma[1]
-                    harms = range(max(1, hmax - 10), hmax)
-                    sigma = [self.eigval(harm, ra_num, ra_comp)[0]
-                             for harm in harms]
-                    # append local maximum and the next point to
-                    # avoid oscillating around the true maximum
-                    sigma.append(smax)
-                    sigma.append(sigma_n)
-                    harms = range(max(1, hmax - 10), hmax + 2)
-                elif imax == len(sigma) - 1:
-                    harms = range(hmax + 1, hmax + 20)
-                    sigma = [self.eigval(harm, ra_num, ra_comp)[0]
-                             for harm in harms]
-                else:
-                    max_found = True
+                max_found = True
+                if harms[0] != 1 and sigma[0] > sigma[1]:
+                    hs_smaller = range(max(1, harms[0]-10), harms[0])
+                    s_smaller = [self.eigval(h, ra_num, ra_comp)[0]
+                                 for h in hs_smaller]
+                    harms = range(hs_smaller[0], harms[-1] + 1)
+                    sigma = s_smaller + sigma
+                    max_found = False
+                if sigma[-1] > sigma[-2]:
+                    hs_greater = range(harms[-1] + 1, harms[-1] + 10)
+                    s_greater = [self.eigval(h, ra_num, ra_comp)[0]
+                                 for h in hs_greater]
+                    harms = range(harms[0], hs_greater[-1] + 1)
+                    sigma = sigma + s_greater
+                    max_found = False
+            imax = np.argmax(sigma)
+            smax = sigma[imax]
+            hmax = harms[imax]
         else:
             pass
 
@@ -611,23 +610,24 @@ class LinearAnalyzer(Analyser):
         if self.phys.spherical:
             min_found = False
             while not min_found:
-                imin = np.argmin(ray)
-                ra_guess = ray[imin]
-                hmin = harms[imin]
-                if imin == 0 and hmin != 1:
-                    ra_guess_n = ray[1]
-                    harms = range(max(1, hmin - 10), hmin)
-                    ray = [self.neutral_ra(h, ra_guess, ra_comp) for h in harms]
-                    # append local minimum and the next point to
-                    # avoid oscillating around the true minimum
-                    ray.append(ra_guess)
-                    ray.append(ra_guess_n)
-                    harms = range(max(1, hmin - 10), hmin + 2)
-                elif imin == len(ray) - 1:
-                    harms = range(hmin + 1, hmin + 20)
-                    ray = [self.neutral_ra(h, ra_guess, ra_comp) for h in harms]
-                else:
-                    min_found = True
+                min_found = True
+                if harms[0] != 1 and ray[0] < ray[1]:
+                    hs_smaller = range(max(1, harms[0]-10), harms[0])
+                    ray_smaller = [self.neutral_ra(h, ray[0], ra_comp)
+                                   for h in hs_smaller]
+                    harms = range(hs_smaller[0], harms[-1] + 1)
+                    ray = ray_smaller + ray
+                    min_found = False
+                if ray[-1] < ray[-2]:
+                    hs_greater = range(harms[-1] + 1, harms[-1] + 10)
+                    ray_greater = [self.neutral_ra(h, ray[-1], ra_comp)
+                                   for h in hs_greater]
+                    harms = range(harms[0], hs_greater[-1] + 1)
+                    ray = ray + ray_greater
+                    min_found = False
+            imin = np.argmin(ray)
+            ra_guess = ray[imin]
+            hmin = harms[imin]
         else:
             # fit a degree 2 polynomial
             pol = np.polyfit(harms, ray, 2)
