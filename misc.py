@@ -18,7 +18,7 @@ def normalize_modes(modes, norm_mode=3, full_norm=True):
     Since modes are eigenvectors, one can choose an arbitrary
     value to normalize them without any loss of information.
 
-    The chose value is the component of modes[norm_mode] with
+    The chosen value is the component of modes[norm_mode] with
     the max modulus.
     All the other modes are then normalized by their maximum
     modulus component.

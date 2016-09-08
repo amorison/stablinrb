@@ -216,17 +216,6 @@ def eigval_cartesian(self, wnk, ra_num, ra_comp=None):
     wnk: wave number
     ra_num: Rayleigh number
     """
-    # global indices and slices
-    i0n, _, _, _, slgall, _ = self._slices()
-    i_0s, i_ns = zip(*i0n)
-    if self.phys.composition is None and self.phys.lewis is None:
-        ip0, iu0, iw0, it0 = i_0s
-        ipn, iun, iwn, itn = i_ns
-        pgall, ugall, wgall, tgall = slgall
-    else:
-        ip0, iu0, iw0, it0, ic0 = i_0s
-        ipn, iun, iwn, itn, icn = i_ns
-        pgall, ugall, wgall, tgall, cgall = slgall
 
     lmat, rmat = cartesian_matrices(self, wnk, ra_num, ra_comp)
 
@@ -239,17 +228,8 @@ def eigval_cartesian(self, wnk, ra_num, ra_comp=None):
     # Extract modes from eigenvector
     eigvecs = eigvecs[:, index]
     eigvecs = eigvecs[:, iegv]
-    p_mode = eigvecs[pgall]
-    u_mode = eigvecs[ugall]
-    w_mode = eigvecs[wgall]
-    t_mode = eigvecs[tgall]
 
-    p_mode = self._insert_boundaries(p_mode, ip0, ipn)
-    u_mode = self._insert_boundaries(u_mode, iu0, iun)
-    w_mode = self._insert_boundaries(w_mode, iw0, iwn)
-    t_mode = self._insert_boundaries(t_mode, it0, itn)
-
-    return eigvals[iegv], (p_mode, u_mode, w_mode, t_mode), (lmat, rmat)
+    return eigvals[iegv], eigvecs, (lmat, rmat)
 
 
 def eigval_spherical(self, l_harm, ra_num, ra_comp=None):
@@ -403,29 +383,22 @@ def eigval_spherical(self, l_harm, ra_num, ra_comp=None):
     # Extract modes from eigenvector
     eigvecs = eigvecs[:, index]
     eigvecs = eigvecs[:, iegv]
-    p_mode = eigvecs[pgall]
-    q_mode = eigvecs[qgall]
-    t_mode = eigvecs[tgall]
 
-    p_mode = self._insert_boundaries(p_mode, ip0, ipn)
-    t_mode = self._insert_boundaries(t_mode, it0, itn)
-
-    ur_mode = l_harm * (l_harm + 1) * p_mode / self.rad
-    up_mode = 1j * l_harm * (np.dot(dr1, p_mode) + p_mode / self.rad)
-
-    return eigvals[iegv], (p_mode, up_mode, ur_mode, t_mode), (lmat, rmat)
+    return eigvals[iegv], eigvecs, (lmat, rmat)
 
 class Analyser:
     """Define various elements common to both analysers"""
 
-    def __init__(self, phys, ncheb=15):
+    def __init__(self, phys, ncheb=15, nnonlin=2):
         """Create a generic analyzer
         
         phys is the PhysicalProblem
         ncheb is the number of Chebyshev nodes
+        nnonlin is the maximum order of non-linear analysis
         """
         # get differentiation matrices
         self._ncheb = ncheb
+        self._nnonlin = nnonlin
         # dm should be modified to go from 0 to ncheb
         self._zcheb, self._ddm = dm.chebdif(self._ncheb+1, 2)
 
@@ -511,6 +484,84 @@ class Analyser:
         if self.phys.composition is not None or self.phys.lewis is not None:
             i0n.append((1, ncheb - 1))
         return build_slices(i0n, ncheb)
+
+    def _split_mode_cartesian(self, eigvec, apply_bc=False):
+        """Split 1D cartesian mode into (p, u, w, t) tuple
+
+        Optionally apply boundary conditions
+        """
+        # global indices and slices
+        i0n, _, _, _, slgall, _ = self._slices()
+        i_0s, i_ns = zip(*i0n)
+        if self.phys.composition is None and self.phys.lewis is None:
+            ip0, iu0, iw0, it0 = i_0s
+            ipn, iun, iwn, itn = i_ns
+            pgall, ugall, wgall, tgall = slgall
+        else:
+            ip0, iu0, iw0, it0, ic0 = i_0s
+            ipn, iun, iwn, itn, icn = i_ns
+            pgall, ugall, wgall, tgall, cgall = slgall
+
+        p_mode = eigvec[pgall]
+        u_mode = eigvec[ugall]
+        w_mode = eigvec[wgall]
+        t_mode = eigvec[tgall]
+
+        if apply_bc:
+            p_mode = self._insert_boundaries(p_mode, ip0, ipn)
+            u_mode = self._insert_boundaries(u_mode, iu0, iun)
+            w_mode = self._insert_boundaries(w_mode, iw0, iwn)
+            t_mode = self._insert_boundaries(t_mode, it0, itn)
+            # c_mode should be added in case of composition
+        return (p_mode, u_mode, w_mode, t_mode)
+
+    def _split_mode_spherical(self, eigvec, l_harm, apply_bc=False):
+        """Split 1D spherical mode into (p, u, w, t) tuple
+
+        Optionally apply boundary conditions
+        """
+        lewis = self.phys.lewis
+        composition = self.phys.composition
+        comp_terms = lewis is not None or composition is not None
+        # global indices and slices
+        i0n, igf, slall, slint, slgall, slgint = self._slices()
+        i_0s, i_ns = zip(*i0n)
+        if comp_terms:
+            ip0, iq0, it0, ic0 = i_0s
+            ipn, iqn, itn, icn = i_ns
+            ipg, iqg, itg, icg = igf
+            pall, qall, tall, call = slall
+            pint, qint, tint, cint = slint
+            pgall, qgall, tgall, cgall = slgall
+            pgint, qgint, tgint, cgint = slgint
+        else:
+            ip0, iq0, it0 = i_0s
+            ipn, iqn, itn = i_ns
+            ipg, iqg, itg = igf
+            pall, qall, tall = slall
+            pint, qint, tint = slint
+            pgall, qgall, tgall = slgall
+            pgint, qgint, tgint = slgint
+
+        p_mode = eigvec[pgall]
+        q_mode = eigvec[qgall]
+        t_mode = eigvec[tgall]
+
+        if apply_bc:
+            p_mode = self._insert_boundaries(p_mode, ip0, ipn)
+            t_mode = self._insert_boundaries(t_mode, it0, itn)
+
+        ur_mode = l_harm * (l_harm + 1) * p_mode / self.rad
+        up_mode = 1j * l_harm * (np.dot(self.dr1, p_mode) + p_mode / self.rad)
+
+        return (p_mode, up_mode, ur_mode, t_mode)
+
+    def split_mode(self, eigvec, harm, apply_bc=False):
+        """Generic splitting function"""
+        if self.phys.spherical:
+            return self._split_mode_spherical(eigvec, harm, apply_bc)
+        else:
+            return self._split_mode_cartesian(eigvec, apply_bc)
 
 class LinearAnalyzer(Analyser):
 
@@ -640,11 +691,6 @@ class LinearAnalyzer(Analyser):
                     ray = [self.neutral_ra(h, ra_guess, ra_comp) for h in harms]
                     pol = np.polyfit(harms, ray, 2)
                     kmin = -0.5*pol[1]/pol[0]
-                    # if kmin <= 1.e-3:
-                        # exitloop = True
-                        # kmin = 1.e-3
-                        # ray[1] = self.neutral_ra(kmin, ra_guess, ra_comp)
-                        # not able to properly converge anymore
                     ra_guess = ray[1]
             hmin = kmin
 
@@ -712,9 +758,19 @@ class NonLinearAnalyzer(Analyser):
                 print(indices)
         return nmax, ordn, harm
 
+    def ntern(self, model, modem):
+        """Non-linear term on the RHS
+
+        input : two modes as tuples of (p, u, w, t)
+        outup : one mode to use on the rhs. Only in the t position,
+        ordered by wavenumber
+        """
+        return
+
     def nonlinana(self):
         """Ra2 and X2"""
         ncheb = self._ncheb
+        nnonlin = self._nnonlin
         phi_top = self.phys.phi_top
         phi_bot = self.phys.phi_bot
         freeslip_top = self.phys.freeslip_top
@@ -739,6 +795,7 @@ class NonLinearAnalyzer(Analyser):
         # print('k_c = ', harm_c, 3 / 4 * np.sqrt(phi_top / 2))
         _, mode_c, mats_c = self.eigval(harm_c, ra_c)
         mode_c, _ = normalize_modes(mode_c, norm_mode=2, full_norm=False)
+        # divide by 2 because cos = (e^i+e^-i)/2
         p_c, u_c, w_c, t_c = mode_c
         p_c /= 2
         u_c /= 2
@@ -755,9 +812,12 @@ class NonLinearAnalyzer(Analyser):
 
         lmat_c, _ = mats_c
         dt_c = np.dot(self.dr1, t_c)
-        # also need the linear problem for wnk=2*harm_c and wnk=0
-        lmat2 = self.matrices(2 * harm_c, ra_c)[0]
-        lmat0, pgint0, tgint0, igw0 = cartesian_matrices_0(self, ra_c)
+        # also need the linear problem for wnk up to nnonlin*harm_c
+        lmat = np.zeros((nnonlin + 1, lmat_c.shape[0], lmat_c.shape[1]))
+        lmat[0], pgint0, tgint0, igw0 = cartesian_matrices_0(self, ra_c)
+        lmat[1] = lmat_c
+        for ii in range(2, nnonlin+1):
+            lmat[ii] = self.matrices(ii * harm_c, ra_c)[0]
 
         # theta part of the non-linear term N(Xc, Xc)
         # part constant in x
@@ -765,7 +825,7 @@ class NonLinearAnalyzer(Analyser):
         nxcxc0[tgint0] = 2 * (np.real(w_c * dt_c) + harm_c * np.imag(u_c) * np.real(t_c))[tint]
 
         # Solve Lc * X2 = NXcXc to get X20
-        mode20 = solve(lmat0, nxcxc0)
+        mode20 = solve(lmat[0], nxcxc0)
 
         p20 = mode20[pgint0]
         t20 = mode20[tgint0]
@@ -783,7 +843,7 @@ class NonLinearAnalyzer(Analyser):
         nxcxc2[tgint] = (np.real(w_c * dt_c) - harm_c * np.imag(u_c) * np.real(t_c))[tint]
         # print('nxcxc2 = ', nxcxc2[tgint])
         # Solve Lc * X2 = NXcXc to get X22
-        mode22 = solve(lmat2, nxcxc2)
+        mode22 = solve(lmat[2], nxcxc2)
         # print(mode22)
         p22 = mode22[pgall]
         u22 = mode22[ugall]
