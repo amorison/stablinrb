@@ -15,11 +15,12 @@ FTSZ = 14
 MSIZE = 5
 
 pblm = PhysicalProblem(
-    gamma=None,
+    gamma=0.7,
     phi_top=None,
-    phi_bot=1e4,
+    phi_bot=1e-2,
     freeslip_top=True,
     freeslip_bot=True,
+    eta_r = None,  # lambda r: 1,
     ref_state_translation=False)
 
 NON_LINEAR = False
@@ -36,4 +37,3 @@ else:
     print('Rac, kc = ', ra_c, harm_c)
     plot_fastest_mode(ana, harm_c, ra_c, ra_comp)
     plot_ran_harm(ana, harm_c, ra_comp)
-    

@@ -279,6 +279,10 @@ def eigval_spherical(self, l_harm, ra_num, ra_comp=None):
     h_int = self.phys.h_int
     heat_flux_top = self.phys.heat_flux_top
     heat_flux_bot = self.phys.heat_flux_bot
+    if self.phys.eta_r is not None:
+        eta_r = np.diag(np.vectorize(self.phys.eta_r)(np.diag(rad)))
+    else:
+        eta_r = one
     lewis = self.phys.lewis
     composition = self.phys.composition
     comp_terms = lewis is not None or composition is not None
@@ -331,25 +335,37 @@ def eigval_spherical(self, l_harm, ra_num, ra_comp=None):
     # normal stress continuity at top
     if phi_top is not None:
         lmat[iqg(iq0), pgall] = lh2 * (self.phys.phi_top *
-            orad1[iq0, pall] - 2 * orad2[iq0, pall] +
-            2 * np.dot(orad1, dr1)[iq0, pall])
-        lmat[iqg(iq0), qgall] = -one[iq0, qall] - np.dot(rad, dr1)[iq0, qall]
+            orad1[iq0, pall] - 2 * np.dot(eta_r, orad2)[iq0, pall] +
+            2 * np.dot(eta_r, np.dot(orad1, dr1))[iq0, pall])
+        lmat[iqg(iq0), qgall] = -eta_r[iq0, qall] - \
+            np.dot(eta_r, np.dot(rad, dr1))[iq0, qall]
     elif freeslip_top:
         lmat[iqg(iq0), pgall] = dr2[iq0, pall]
     else:
         # rigid
         lmat[iqg(iq0), pgall] = dr1[iq0, pall]
-    # laplacian(Q) - RaT/r = 0
-    lmat[qgint, qgall] = lapl[qint, qall]
+    if self.phys.eta_r is not None:
+        deta_dr = np.diag(np.dot(dr1, np.diag(eta_r)))
+        d2eta_dr2 = np.diag(np.dot(dr2, np.diag(eta_r)))
+        lmat[qgint, pgall] = (2 * (lh2 - 1) *
+            (np.dot(orad2, d2eta_dr2) - np.dot(orad3, deta_dr)) -
+            2 * np.dot(np.dot(orad1, d2eta_dr2) - np.dot(orad2, deta_dr), dr1)
+            )[qint, pall]
+        lmat[qgint, qgall] = (np.dot(eta_r, lapl) + d2eta_dr2 +
+            2 * np.dot(deta_dr, dr1))[qint, qall]
+    else:
+        # laplacian(Q) - RaT/r = 0
+        lmat[qgint, qgall] = lapl[qint, qall]
     lmat[qgint, tgall] = - ra_num * orad1[qint, tall]
     if comp_terms:
         lmat[qgint, cgall] = - ra_comp * orad1[qint, call]
     # normal stress continuity at bot
     if phi_bot is not None:
         lmat[iqg(iqn), pgall] = lh2 * (-self.phys.phi_bot *
-            orad1[iqn, pall] - 2 * orad2[iqn, pall] +
-            2 * np.dot(orad1, dr1)[iqn, pall])
-        lmat[iqg(iqn), qgall] = -one[iqn, qall] - np.dot(rad, dr1)[iqn, qall]
+            orad1[iqn, pall] - 2 * np.dot(eta_r, orad2)[iqn, pall] +
+            2 * np.dot(eta_r, np.dot(orad1, dr1))[iqn, pall])
+        lmat[iqg(iqn), qgall] = -eta_r[iqn, qall] - \
+            np.dot(eta_r, np.dot(rad, dr1))[iqn, qall]
     elif freeslip_bot:
         lmat[iqg(iqn), pgall] = dr2[iqn, pall]
     else:
