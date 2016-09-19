@@ -9,6 +9,7 @@ from mpl_toolkits.axisartist.grid_finder import FixedLocator, \
     MaxNLocator, DictFormatter
 import seaborn as sns
 
+
 # Font and markers size
 FTSZ = 20
 MSIZE = 6
@@ -28,7 +29,7 @@ def plot_fastest_mode(analyzer, harm, ra_num, ra_comp=None,
     sigma, modes, _ = analyzer.eigval(harm, ra_num, ra_comp)
     # p is pressure in cartesian geometry and
     # poloidal potential in spherical geometry
-    p_mode, u_mode, w_mode, t_mode = modes
+    (p_mode, u_mode, w_mode, t_mode) = analyzer.split_mode(modes, harm, apply_bc=True)
     rad_cheb = analyzer.rad
     if spherical:
         # stream function
@@ -50,7 +51,7 @@ def plot_fastest_mode(analyzer, harm, ra_num, ra_comp=None,
 
     # normalization with max of T and then
     # element of max modulus of each vector
-    norms, maxs = normalize_modes(modes)
+    norms, maxs = normalize_modes((p_mode, u_mode, w_mode, t_mode))
     p_norm, u_norm, w_norm, t_norm = norms
     p_max, u_max, w_max, t_max = maxs
 
