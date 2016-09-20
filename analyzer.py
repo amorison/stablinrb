@@ -474,7 +474,18 @@ class Analyser:
         else:
             return cartesian_matrices(self, harm, ra_num, ra_comp)
 
-    def eigval(self, harm, ra_num, ra_comp):
+    def eigval(self, harm, ra_num, ra_comp=None):
+        """Compute the max eigenvalue
+
+        harm: wave number
+        ra_num: thermal Rayleigh number
+        ra_comp: compositional Ra
+        """
+        lmat, rmat = self.matrices(harm, ra_num, ra_comp)
+        eigvals = linalg.eigvals(lmat, rmat)
+        return np.max(np.real(ma.masked_invalid(eigvals)))
+
+    def eigvec(self, harm, ra_num, ra_comp=None):
         """Compute the max eigenvalue and associated eigenvector
 
         harm: wave number
@@ -484,7 +495,7 @@ class Analyser:
         lmat, rmat = self.matrices(harm, ra_num, ra_comp)
         eigvals, eigvecs = linalg.eig(lmat, rmat)
         iegv = np.argmax(np.real(ma.masked_invalid(eigvals)))
-        return eigvals[iegv], eigvecs[:, iegv], (lmat, rmat)
+        return eigvals[iegv], eigvecs[:, iegv]
 
     def _split_mode_cartesian(self, eigvec, apply_bc=False):
         """Split 1D cartesian mode into (p, u, w, t) tuple
@@ -579,8 +590,8 @@ class LinearAnalyzer(Analyser):
         """
         ra_min = ra_guess / 2
         ra_max = ra_guess * 2
-        sigma_min = np.real(self.eigval(harm, ra_min, ra_comp)[0])
-        sigma_max = np.real(self.eigval(harm, ra_max, ra_comp)[0])
+        sigma_min = np.real(self.eigval(harm, ra_min, ra_comp))
+        sigma_max = np.real(self.eigval(harm, ra_max, ra_comp))
 
         while sigma_min > 0. or sigma_max < 0.:
             if sigma_min > 0.:
@@ -589,12 +600,12 @@ class LinearAnalyzer(Analyser):
             if sigma_max < 0.:
                 ra_min = ra_max
                 ra_max *= 2
-            sigma_min = np.real(self.eigval(harm, ra_min, ra_comp)[0])
-            sigma_max = np.real(self.eigval(harm, ra_max, ra_comp)[0])
+            sigma_min = np.real(self.eigval(harm, ra_min, ra_comp))
+            sigma_max = np.real(self.eigval(harm, ra_max, ra_comp))
 
         while (ra_max - ra_min) / ra_max > eps:
             ra_mean = (ra_min + ra_max) / 2
-            sigma_mean = np.real(self.eigval(harm, ra_mean, ra_comp)[0])
+            sigma_mean = np.real(self.eigval(harm, ra_mean, ra_comp))
             if sigma_mean < 0.:
                 sigma_min = sigma_mean
                 ra_min = ra_mean
@@ -610,7 +621,7 @@ class LinearAnalyzer(Analyser):
             harms = range(max(1, harm - 10), harm + 10)
         else:
             return None
-        sigma = [self.eigval(harm, ra_num, ra_comp)[0] for harm in harms]
+        sigma = [self.eigval(harm, ra_num, ra_comp) for harm in harms]
 
         if self.phys.spherical:
             max_found = False
@@ -618,14 +629,14 @@ class LinearAnalyzer(Analyser):
                 max_found = True
                 if harms[0] != 1 and sigma[0] > sigma[1]:
                     hs_smaller = range(max(1, harms[0]-10), harms[0])
-                    s_smaller = [self.eigval(h, ra_num, ra_comp)[0]
+                    s_smaller = [self.eigval(h, ra_num, ra_comp)
                                  for h in hs_smaller]
                     harms = range(hs_smaller[0], harms[-1] + 1)
                     sigma = s_smaller + sigma
                     max_found = False
                 if sigma[-1] > sigma[-2]:
                     hs_greater = range(harms[-1] + 1, harms[-1] + 10)
-                    s_greater = [self.eigval(h, ra_num, ra_comp)[0]
+                    s_greater = [self.eigval(h, ra_num, ra_comp)
                                  for h in hs_greater]
                     harms = range(harms[0], hs_greater[-1] + 1)
                     sigma = sigma + s_greater
@@ -773,7 +784,8 @@ class NonLinearAnalyzer(Analyser):
         ana = LinearAnalyzer(self.phys, self._ncheb)
         ra_c, harm_c = ana.critical_ra()
         # print('k_c = ', harm_c, 3 / 4 * np.sqrt(phi_top / 2))
-        _, mode_c, mats_c = self.eigval(harm_c, ra_c)
+        lmat_c, _ = self.matrices(harm_c, ra_c)
+        _, mode_c = self.eigvec(harm_c, ra_c)
         mode_c, _ = normalize_modes(mode_c, norm_mode=2, full_norm=False)
         # divide by 2 because cos = (e^i+e^-i)/2
         p_c, u_c, w_c, t_c = mode_c
@@ -790,7 +802,6 @@ class NonLinearAnalyzer(Analyser):
         # harm_c = np.sqrt(phi_top / 2) * 3 / 4
         # ra_c = 24 * phi_top -81 / 256 * phi_top**2
 
-        lmat_c, _ = mats_c
         dt_c = np.dot(self.dr1, t_c)
         # also need the linear problem for wnk up to nnonlin*harm_c
         lmat = np.zeros((nnonlin + 1, lmat_c.shape[0], lmat_c.shape[1]))

@@ -41,7 +41,7 @@ for j, eps in enumerate(epsilon):
     rtr = 12*(phib+phit)
     ran = rtr*(1+eps)
     for i, kxn in enumerate(wkn):
-        sigma[i] = ana.eigval(kxn, ran)[0]
+        sigma[i] = ana.eigval(kxn, ran)
 
     axe.semilogx(wkn, np.real(sigma), label=r'$\varepsilon = %.2f$' %(eps))
     axe.set_xlabel(r'$k$', fontsize=FTSZ)

@@ -26,7 +26,7 @@ def plot_fastest_mode(analyzer, harm, ra_num, ra_comp=None,
     if name is None:
         name = analyzer.phys.name()
 
-    sigma, modes, _ = analyzer.eigval(harm, ra_num, ra_comp)
+    sigma, modes = analyzer.eigvec(harm, ra_num, ra_comp)
     # p is pressure in cartesian geometry and
     # poloidal potential in spherical geometry
     (p_mode, u_mode, w_mode, t_mode) = analyzer.split_mode(modes, harm, apply_bc=True)
