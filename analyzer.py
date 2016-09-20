@@ -75,7 +75,7 @@ def cartesian_matrices_0(self, ra_num):
     return lmat, pgint, tgint, igw
 
 def cartesian_matrices(self, wnk, ra_num, ra_comp=None):
-    "LHS and RHS matrices for the linear stability"
+    """Build left and right matrices in cartesian case"""
     ncheb = self._ncheb
     zphys = self.rad
     h_int = self.phys.h_int
@@ -210,34 +210,9 @@ def cartesian_matrices(self, wnk, ra_num, ra_comp=None):
 
     return lmat, rmat
 
-def eigval_cartesian(self, wnk, ra_num, ra_comp=None):
-    """Compute the max eigenvalue and associated eigenvector
 
-    wnk: wave number
-    ra_num: Rayleigh number
-    """
-
-    lmat, rmat = cartesian_matrices(self, wnk, ra_num, ra_comp)
-
-    # Find the eigenvalues
-    eigvals, eigvecs = linalg.eig(lmat, rmat, right=True)
-    index = np.argsort(ma.masked_invalid(eigvals))
-    eigvals = ma.masked_invalid(eigvals[index])
-    iegv = np.argmax(np.real(eigvals))
-
-    # Extract modes from eigenvector
-    eigvecs = eigvecs[:, index]
-    eigvecs = eigvecs[:, iegv]
-
-    return eigvals[iegv], eigvecs, (lmat, rmat)
-
-
-def eigval_spherical(self, l_harm, ra_num, ra_comp=None):
-    """Compute the max eigenvalue and associated eigenvector
-
-    l_harm: spherical harmonic degree
-    ra_num: Rayleigh number
-    """
+def spherical_matrices(self, l_harm, ra_num, ra_comp=None):
+    """Build left and right matrices in spherical case"""
     rad = self.rad
     ncheb = self._ncheb
     dr1, dr2 = self.dr1, self.dr2
@@ -390,17 +365,8 @@ def eigval_spherical(self, l_harm, ra_num, ra_comp=None):
     if comp_terms:
         rmat[cgint, cgall] = one[cint, call]
 
-    # Find the eigenvalues
-    eigvals, eigvecs = linalg.eig(lmat, rmat, right=True)
-    index = np.argsort(ma.masked_invalid(eigvals))
-    eigvals = ma.masked_invalid(eigvals[index])
-    iegv = np.argmax(np.real(eigvals))
+    return lmat, rmat
 
-    # Extract modes from eigenvector
-    eigvecs = eigvecs[:, index]
-    eigvecs = eigvecs[:, iegv]
-
-    return eigvals[iegv], eigvecs, (lmat, rmat)
 
 class Analyser:
     """Define various elements common to both analysers"""
@@ -501,6 +467,34 @@ class Analyser:
             i0n.append((1, ncheb - 1))
         return build_slices(i0n, ncheb)
 
+    def matrices(self, harm, ra_num, ra_comp=None):
+        """Build left and right matrices"""
+        if self.phys.spherical:
+            return spherical_matrices(self, harm, ra_num, ra_comp)
+        else:
+            return cartesian_matrices(self, harm, ra_num, ra_comp)
+
+    def eigval(self, harm, ra_num, ra_comp):
+        """Compute the max eigenvalue and associated eigenvector
+
+        harm: wave number
+        ra_num: thermal Rayleigh number
+        ra_comp: compositional Ra
+        """
+        lmat, rmat = self.matrices(harm, ra_num, ra_comp)
+
+        # Find the eigenvalues
+        eigvals, eigvecs = linalg.eig(lmat, rmat, right=True)
+        index = np.argsort(ma.masked_invalid(eigvals))
+        eigvals = ma.masked_invalid(eigvals[index])
+        iegv = np.argmax(np.real(eigvals))
+
+        # Extract modes from eigenvector
+        eigvecs = eigvecs[:, index]
+        eigvecs = eigvecs[:, iegv]
+
+        return eigvals[iegv], eigvecs, (lmat, rmat)
+
     def _split_mode_cartesian(self, eigvec, apply_bc=False):
         """Split 1D cartesian mode into (p, u, w, t) tuple
 
@@ -586,13 +580,6 @@ class LinearAnalyzer(Analyser):
     The studied problem is the one of Rayleigh-Benard convection with
     phase change at either or both boundaries.
     """
-
-    def eigval(self, harm, ra_num, ra_comp=None):
-        """Generic eigval function"""
-        if self.phys.spherical:
-            return eigval_spherical(self, harm, ra_num, ra_comp)
-        else:
-            return eigval_cartesian(self, harm, ra_num, ra_comp)
 
     def neutral_ra(self, harm, ra_guess=600, ra_comp=None, eps=1.e-8):
         """Find Ra which gives neutral stability of a given harmonic
@@ -720,20 +707,6 @@ class NonLinearAnalyzer(Analyser):
     The studied problem is the one of Rayleigh-Benard convection with
     phase change at either or both boundaries.
     """
-
-    def matrices(self, harm, ra_num):
-        """Generic eigval function"""
-        if self.phys.spherical:
-            return spherical_matrices(self, harm, ra_num) # not yet treated beyond that point
-        else:
-            return cartesian_matrices(self, harm, ra_num)
-
-    def eigval(self, harm, ra_num):
-        """Generic eigval function"""
-        if self.phys.spherical:
-            return eigval_spherical(self, harm, ra_num) # not yet treated beyond that point
-        else:
-            return eigval_cartesian(self, harm, ra_num)
 
     def integz(self, prof):
         """Integral on the -1/2 <= z <= 1/2 interval"""
