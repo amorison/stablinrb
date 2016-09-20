@@ -482,18 +482,9 @@ class Analyser:
         ra_comp: compositional Ra
         """
         lmat, rmat = self.matrices(harm, ra_num, ra_comp)
-
-        # Find the eigenvalues
-        eigvals, eigvecs = linalg.eig(lmat, rmat, right=True)
-        index = np.argsort(ma.masked_invalid(eigvals))
-        eigvals = ma.masked_invalid(eigvals[index])
-        iegv = np.argmax(np.real(eigvals))
-
-        # Extract modes from eigenvector
-        eigvecs = eigvecs[:, index]
-        eigvecs = eigvecs[:, iegv]
-
-        return eigvals[iegv], eigvecs, (lmat, rmat)
+        eigvals, eigvecs = linalg.eig(lmat, rmat)
+        iegv = np.argmax(np.real(ma.masked_invalid(eigvals)))
+        return eigvals[iegv], eigvecs[:, iegv], (lmat, rmat)
 
     def _split_mode_cartesian(self, eigvec, apply_bc=False):
         """Split 1D cartesian mode into (p, u, w, t) tuple
