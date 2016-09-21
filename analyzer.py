@@ -649,6 +649,34 @@ class LinearAnalyzer(Analyser):
 
         return smax, hmax
 
+    def ran_l_mins(self):
+        """Find neutral Rayleigh of mode giving square cells and of mode l=1"""
+        if not self.phys.spherical:
+            raise ValueError('ran_l_mins expects a spherical problem')
+        lmax = 2
+        rans = [self.neutral_ra(h) for h in (1,2)]
+        ranp, ran = rans
+        while ran <= ranp or lmax <= np.pi / (1 - self.phys.gamma):
+            lmax += 1
+            ranp = ran
+            ran = self.neutral_ra(lmax, ranp)
+            rans.append(ran)
+        print(rans)
+        ran_mod1 = rans[0]
+        ranlast = rans.pop()
+        ranllast = rans.pop()
+        loff = 0
+        while ranllast < ranlast:
+            loff += 1
+            ranlast = ranllast
+            try:
+                ranllast = rans.pop()
+            except IndexError:
+                ranllast = ranlast + 1
+        l_mod2 = lmax - loff
+        ran_mod2 = ranlast
+        return ((1, ran_mod1), (l_mod2, ran_mod2))
+
     def critical_ra(self, harm=2, ra_guess=600, ra_comp=None):
         """Find the harmonic with the lower neutral Ra
 
