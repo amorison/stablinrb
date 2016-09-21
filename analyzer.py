@@ -661,7 +661,6 @@ class LinearAnalyzer(Analyser):
             ranp = ran
             ran = self.neutral_ra(lmax, ranp)
             rans.append(ran)
-        print(rans)
         ran_mod1 = rans[0]
         ranlast = rans.pop()
         ranllast = rans.pop()
