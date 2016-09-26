@@ -4,6 +4,8 @@ Tracking of neutral Ra of harmonic degree corresponding to square cells
          and of neutral Ra of mode l=1
 through problems space.
 """
+import heapq
+import itertools
 import numpy as np
 import matplotlib as mpl
 import matplotlib.pyplot as plt
@@ -16,61 +18,81 @@ FTSZ = 14
 MSIZE = 5
 
 ngamma = 200
+gamma_min = 0.3
+gamma_max = 0.85
+phi_top = None
+phi_bot = 1.e-2
 
 ana = LinearAnalyzer(
     phys=PhysicalProblem(
-        gamma=0.7,
-        phi_top=None,
-        phi_bot=1.e-2,
+        gamma=gamma_max,
+        phi_top=phi_top,
+        phi_bot=phi_bot,
         #eta_r = lambda r: np.exp(10*r-10),
         freeslip_top=True,
         freeslip_bot=True),
     ncheb=20)
 
-gams = np.linspace(0.2, 0.85, ngamma)
+_, (l_max, _) = ana.ran_l_mins()
+l_max = max(l_max, 3)
 
-ran1s = []
-ran2s = []
-l_stars = []
+gams = np.linspace(gamma_min, gamma_max, ngamma)
+l_vals = np.arange(1, l_max+1)
+rans_l = np.zeros((l_max, ngamma))
 
-for gamma in gams:
+for igam, gamma in enumerate(gams):
     ana.phys.gamma = gamma
-    (_, ran1), (l_star, ran2) = ana.ran_l_mins()
-    ran1s.append(ran1 * (1-gamma)**3)
-    ran2s.append(ran2 * (1-gamma)**3)
-    l_stars.append(l_star)
-
-l_stars = np.array(l_stars)
-l_vals = np.unique(l_stars)
-ran2s = np.array(ran2s)
+    ran_p = 600
+    for l_harm in l_vals:
+        ran_p = ana.neutral_ra(l_harm, ra_guess=ran_p)
+        rans_l[l_harm-1, igam] = ran_p * (1 - gamma)**3
 
 # define discrete colormap
 cmap = plt.cm.jet
-lmax = np.max(l_stars)
-norm = mpl.colors.BoundaryNorm(np.append(l_vals, lmax + 1) - 0.5, cmap.N)
+norm = mpl.colors.BoundaryNorm(np.append(l_vals, l_max + 1) - 0.5, cmap.N)
 
-# set of line segments colored individually
-points = np.array([gams, ran2s]).T.reshape(-1, 1, 2)
-segments = np.concatenate([points[:-1], points[1:]], axis=1)
-lc = mpl.collections.LineCollection(segments, cmap=cmap, norm=norm)
-lc.set_array(l_stars)
+# plot Ra_n(gamma) for each harmonic degree
+fig, axis = plt.subplots(1, 2, gridspec_kw={'width_ratios': [24, 1]})
+for l_harm in l_vals:
+    axis[0].plot(gams, rans_l[l_harm-1], label=r'$l={}$'.format(l_harm),
+              linestyle='dotted', color=cmap(norm(l_harm)))
 
-fig, axis = plt.subplots(1, 1)
+# plot Ra_c(gamma)
+l_mins = itertools.groupby(np.argmin(rans_l, 0) + 1)
+i_s = 0
+i_e = 0
+for l_harm, l_dum in l_mins:
+    i_e = i_s + len(list(l_dum))
+    i_f = min(ngamma, i_e+1)
+    axis[0].plot(gams[i_s:i_f], rans_l[l_harm-1, i_s:i_f],
+                 color=cmap(norm(l_harm)))
+    i_s = i_e
 
-axis.plot(gams, ran1s, label=r'$l=1$', linestyle='dotted',
-          color=cmap(norm(1)))
-#axis.plot(gams, ran2s, label=r'$l_\star$')
-cax = axis.add_collection(lc)
-cbar = plt.colorbar(cax, ticks=l_vals)
-cbar.set_label(r'   $l_\star$', rotation=0, fontsize=FTSZ)
+cbar = mpl.colorbar.ColorbarBase(axis[1], cmap=cmap, norm=norm, ticks=l_vals)
+cbar.set_label(r'   $l$', rotation=0, fontsize=FTSZ)
 
-#axis.set_xscale('log')
-#axis.set_yscale('log')
+axis[0].set_xlabel(r'$\gamma$', fontsize=FTSZ)
+axis[0].set_ylabel(r'$\mathrm{Ra}_n(1-\gamma)^3$', fontsize=FTSZ)
 
-axis.set_xlabel(r'$\gamma$', fontsize=FTSZ)
-axis.set_ylabel(r'$\mathrm{Ra}_n(1-\gamma)^3$', fontsize=FTSZ)
-axis.legend(loc='upper right', fontsize=FTSZ)
+axis[0].set_xlim([gamma_min, gamma_max])
+ra_min = np.min(rans_l, 0)
+ra_2ndmax = heapq.nsmallest(2, np.max(rans_l, 0))[1]
+axis[0].set_ylim([np.min(ra_min),
+                  max(np.max(ra_min), ra_2ndmax)
+                 ])
 
-axis.tick_params(labelsize=FTSZ)
+axis[0].tick_params(labelsize=FTSZ)
+axis[1].tick_params(labelsize=FTSZ)
+
+if phi_bot is not None:
+    title = '$\Phi^-={}$, '.format(phi_bot)
+else:
+    title = 'Closed bottom, '
+if phi_top is not None:
+    title += '$\Phi^+={}$, '.format(phi_top)
+else:
+    title += 'Closed top'
+axis[0].set_title(title)
+
 plt.tight_layout()
 plt.savefig('track_lmin.pdf', format='PDF')
