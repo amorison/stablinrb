@@ -38,7 +38,7 @@ def cartesian_matrices_0(self, ra_num):
     it0 = 0 if (heat_flux_top is not None) else 1
     itn = ncheb if (heat_flux_bot is not None) else ncheb - 1
 
-    # global indices and slices
+    # global indices and slices in the solution containing only P and T
     _, igf, slall, slint, slgall, slgint = build_slices([(ip0, ipn),
                                                          (it0, itn)],
                                                         ncheb)
@@ -53,6 +53,9 @@ def cartesian_matrices_0(self, ra_num):
         igw = itg(itn+1)
     else:
         igw = itg(itn)
+
+    # global indices and slices in the total solution
+    
 
     # initialize matrix
     lmat = np.zeros((igw + 1, igw + 1))
@@ -563,6 +566,36 @@ class Analyser:
         else:
             return self._split_mode_cartesian(eigvec, apply_bc)
 
+    def _join_mode_cartesian(self, mode):
+        """concatenate (p, u, w, t) mode into 1D cartesian eigvec"""
+        # global indices and slices
+        i0n, igf, _, slint, slgall, slgint = self._slices()
+        i_0s, i_ns = zip(*i0n)
+        if self.phys.composition is None and self.phys.lewis is None:
+            ip0, iu0, iw0, it0 = i_0s
+            ipn, iun, iwn, itn = i_ns
+            pint, uint, wint, tint = slint
+            pgall, ugall, wgall, tgall = slgall
+            pgint, ugint, wgint, tgint = slgint
+        else:
+            ip0, iu0, iw0, it0, ic0 = i_0s
+            ipn, iun, iwn, itn, icn = i_ns
+            pint, uint, wint, tint, cint = slint
+            pgall, ugall, wgall, tgall, cgall = slgall
+            pgint, ugint, wgint, tgint, cgint = slgint
+
+        (pmod, umod, wmod, tmod) = mode
+
+        eigvec = np.zeros(igf[-1](i_ns[-1]) + 1) + 0j
+        eigvec[pgint] = pmod[pint]
+        eigvec[ugint] = umod[uint]
+        eigvec[wgint] = wmod[wint]
+        eigvec[tgint] = tmod[tint]
+
+            # c_mode should be added in case of composition
+        return eigvec
+
+        
 class LinearAnalyzer(Analyser):
 
     """Perform linear analysis
@@ -732,18 +765,22 @@ class NonLinearAnalyzer(Analyser):
         # factor 1/2 is to account for the interval -1/2 < z < 1/2 
         return intz
 
-    def indexmat(order, ind):
+    def indexmat(self, order, ind=1, harmm=None):
         """Indices of the matrix of modes for non-linear analysis
 
         Returns
         nmax: the max number of matrix element to solve up to order.
         ordn, harm: order and harmonic number corresponding to ind in matrix.
+        ind: matrix index corresponding to ordnn and harmm
         """
+        # if ordnn > order:
+            # raise ValueError("in indexmat, ordnn > order")
         nmax = 0
         ordn = 0
         harm = 0
+        index = 0
         for n in range(1, order+1):
-            if np.mod(n, 2) == 0:
+            if n % 2 == 0:
                 jj = np.int(n/2)
                 indices = [i for i in range(0, n+1, 2)]
             else:
@@ -752,19 +789,60 @@ class NonLinearAnalyzer(Analyser):
             nmax += jj + 1
             if ordn ==0 and nmax >= ind:
                 ordn = n
-                print(ind, nmax, jj)
-                print(ind - nmax + jj)
                 harm = indices[ind - nmax + jj]
-                print(indices)
-        return nmax, ordn, harm
+            if harmm is not None:
+                if n == order:
+                    index += np.where(np.array(indices)==harmm)[0][0]
+                else:
+                    index += len(indices)
+        return nmax, ordn, harm, index
 
-    def ntern(self, model, modem):
-        """Non-linear term on the RHS
+    def ntermprod(self, mle, mri, harm):
+        """One non-linear term on the RHS
 
-        input : two modes as tuples of (p, u, w, t)
-        outup : one mode to use on the rhs. Only in the t position,
+        input : orders of the two modes to be combined, mle (left) and mri (right)
+        input values for the modes themselves are taken from the predefined
+        full_sol array, results are added to the nterm array.
         ordered by wavenumber
         """
+        ncheb = self._ncheb
+        # order of the produced mode
+        nmo = mle + mri
+        # decompose mxx = 2 lxx + yxx
+        (lle, yle) = divmod(mle, 2)
+        (lri, yri) = divmod(mri, 2)
+        # compute the sum
+        for lr in range(lri + 1):
+            # outer loop on the right one to avoid computing
+            # radial derivative several times
+            # index for the right mode in matrix
+            indri = self.indexmat(mri, harmm=2*lr+yri)[3]
+            dtr = np.dot(self.dr1[1:ncheb, 1:ncheb], self.full_t[indri])
+            for ll in range(lle + 1):
+                # index for the left mode in matrix
+                indle = self.indexmat(mle, harmm=2*ll+yle)[3]
+                # index for nmo and ll+lr
+                nharmm = 2*(ll+lr)+yle+yri
+                iind = self.indexmat(nmo, harmm=nharmm)[3]
+                self.ntermt[iind] += 1j * harm * (2 * lr + yri) * \
+                    self.full_u[indle] * self.full_t[indri] +\
+                    self.full_w[indle] * dtr
+                # index for nmo and ll-lr
+                nharmm = 2*(ll-lr)+yle-yri
+                iind = self.indexmat(nmo, harmm=np.abs(nharmm))[3]
+                if nharmm > 0 :
+                    self.ntermt[iind] += -1j * harm * (2 * lr + yri) * \
+                        self.full_u[indle] * np.conj(self.full_t[indri]) + \
+                        self.full_w[indle] * np.conj(dtr)
+                elif nharmm == 0:
+                    # add complex 
+                    self.ntermt[iind] += 2 * np.real(-1j * harm * (2 * lr + yri) * \
+                        self.full_u[indle] * np.conj(self.full_t[indri]) + \
+                        self.full_w[indle] * np.conj(dtr))                    
+                else:
+                    self.ntermt[iind] += 1j * harm * (2 * lr + yri) * \
+                        np.conj(self.full_u[indle]) * self.full_t[indri] + \
+                        np.conj(self.full_w[indle]) * dtr
         return
 
     def nonlinana(self):
@@ -792,15 +870,33 @@ class NonLinearAnalyzer(Analyser):
         # First compute the linear mode and matrix
         ana = LinearAnalyzer(self.phys, self._ncheb)
         ra_c, harm_c = ana.critical_ra()
-        # print('k_c = ', harm_c, 3 / 4 * np.sqrt(phi_top / 2))
         _, mode_c, mats_c = self.eigval(harm_c, ra_c)
-        mode_c, _ = normalize_modes(mode_c, norm_mode=2, full_norm=False)
+
+        # setup matrices for the non linear solution
+        nmodez = np.shape(mode_c)
+        nkmax = self.indexmat(nnonlin)[0]
+        self.full_sol = np.zeros((nkmax, nmodez[0])) * (1+1j)
+        # self.full_sol[0] = mode_c
+        self.full_u = self.full_sol[:, ugint]
+        self.full_w = self.full_sol[:, wgint]
+        self.full_t = self.full_sol[:, tgint]
+        self.nterm = np.zeros(self.full_sol.shape) * (1+1j)
+        self.mterm = np.zeros(self.full_sol.shape) * (1+1j) # in practice, some parts will stay null.
+        # temperature part, the only non-null one
+        self.ntermt = self.nterm[:, tgint]
+        ratot = np.zeros(nnonlin)
+        ratot[0] = ra_c
+
+        modec = self.split_mode(mode_c, harm_c, apply_bc=True)
+        modec, _ = normalize_modes(modec, norm_mode=2, full_norm=False)
         # divide by 2 because cos = (e^i+e^-i)/2
-        p_c, u_c, w_c, t_c = mode_c
+        (p_c, u_c, w_c, t_c) = modec
         p_c /= 2
         u_c /= 2
         w_c /= 2
         t_c /= 2
+
+        self.full_sol[0] = self._join_mode_cartesian((p_c, u_c, w_c, t_c))
 
         rr = zcheb/2
         # replace with the low phi expansion for testing
@@ -813,19 +909,30 @@ class NonLinearAnalyzer(Analyser):
         lmat_c, _ = mats_c
         dt_c = np.dot(self.dr1, t_c)
         # also need the linear problem for wnk up to nnonlin*harm_c
-        lmat = np.zeros((nnonlin + 1, lmat_c.shape[0], lmat_c.shape[1]))
-        lmat[0], pgint0, tgint0, igw0 = cartesian_matrices_0(self, ra_c)
-        lmat[1] = lmat_c
-        for ii in range(2, nnonlin+1):
+        lmat = np.zeros((nnonlin, lmat_c.shape[0], lmat_c.shape[1])) * (1+1j)
+        lmat0, pgint0, tgint0, igw0 = cartesian_matrices_0(self, ra_c)
+        lmat[0] = lmat_c
+        for ii in range(1, nnonlin):
             lmat[ii] = self.matrices(ii * harm_c, ra_c)[0]
+
+        # now compute the non-linear source terms up to degree 2
+        self.ntermprod(1, 1, harm_c)
 
         # theta part of the non-linear term N(Xc, Xc)
         # part constant in x
-        nxcxc0 = np.zeros((igw0 + 1))
-        nxcxc0[tgint0] = 2 * (np.real(w_c * dt_c) + harm_c * np.imag(u_c) * np.real(t_c))[tint]
+        # nxcxc0 = np.zeros((igw0 + 1))
+        # nxcxc0[tgint0] = 2 * (np.real(w_c * dt_c) + harm_c * np.imag(u_c) * np.real(t_c))[tint]
 
+        # print('nxcxc0= ', nxcxc0)
+        # print('nterm ', np.r_[self.nterm[1, pgint], self.nterm[1, tgint]])
+        # print('diff =', np.abs(np.r_[self.nterm[1, pgint], self.nterm[1, tgint]]-nxcxc0))
         # Solve Lc * X2 = NXcXc to get X20
-        mode20 = solve(lmat[0], nxcxc0)
+        # mode20 = solve(lmat0, nxcxc0)
+
+        # solve for mode 20
+        mode20 = solve(lmat0, np.r_[self.nterm[1, pgint], self.nterm[1, tgint]])
+
+        # print('mode20', mode20.shape)
 
         p20 = mode20[pgint0]
         t20 = mode20[tgint0]
@@ -833,22 +940,29 @@ class NonLinearAnalyzer(Analyser):
             w20 = mode20[igw0]
         else:
             w20 = 0
-        # print('W20 = ',w20)
+        self.full_sol[1, pgint] = p20
+        self.full_sol[1, wgall] = w20
+        self.full_sol[1, tgint] = t20
         p20 = self._insert_boundaries(p20, ip0, ipn)
         t20 = self._insert_boundaries(t20, it0, itn)
         dt20 = np.dot(self.dr1, t20)
 
+        
         # part in 2 k x
-        nxcxc2 = np.zeros((itg(itn) + 1))
-        nxcxc2[tgint] = (np.real(w_c * dt_c) - harm_c * np.imag(u_c) * np.real(t_c))[tint]
-        # print('nxcxc2 = ', nxcxc2[tgint])
-        # Solve Lc * X2 = NXcXc to get X22
-        mode22 = solve(lmat[2], nxcxc2)
-        # print(mode22)
+        # nxcxc2 = np.zeros((itg(itn) + 1))
+        # nxcxc2[tgint] = (np.real(w_c * dt_c) - harm_c * np.imag(u_c) * np.real(t_c))[tint]
+
+        mode22 = solve(lmat[1], self.nterm[2])
         p22 = mode22[pgall]
         u22 = mode22[ugall]
         w22 = mode22[wgall]
         t22 = mode22[tgall]
+        self.full_sol[2, pgall] = p22
+        self.full_sol[2, ugall] = u22
+        self.full_sol[2, wgall] = w22
+        self.full_sol[2, tgall] = t22
+
+        # print('full_sol = ', self.full_sol)
 
         p22 = self._insert_boundaries(p22, ip0, ipn)
         u22 = self._insert_boundaries(u22, iu0, iun)

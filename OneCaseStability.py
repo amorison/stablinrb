@@ -17,12 +17,12 @@ MSIZE = 5
 pblm = PhysicalProblem(
     gamma=None,
     phi_top=None,
-    phi_bot=1e-2,
+    phi_bot=1e3,
     freeslip_top=True,
     freeslip_bot=True,
     ref_state_translation=False)
 
-NON_LINEAR = False
+NON_LINEAR = True
 ra_comp = None
 
 if NON_LINEAR:
