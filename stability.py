@@ -181,7 +181,7 @@ if EXPLORE_PHASE:
             ana.phys.phi_top = phinum[0]
             ana.phys.phi_bot = phinum[0]
             ra_c, kx_c = ana.critical_ra()
-            modes = ana.eigval(kx_c, ra_c)[1]
+            _, modes = ana.eigvec(kx_c, ra_c)
             _, mode_max = normalize_modes(modes)
             ram = [ra_c]
             kwn = [kx_c]
@@ -194,7 +194,7 @@ if EXPLORE_PHASE:
                 ana.phys.phi_top = phi
                 ana.phys.phi_bot = phi
                 ra_c, kx_c = ana.critical_ra(harm=kwn[-1], ra_guess=ram[-1])
-                modes = ana.eigval(kx_c, ra_c)[1]
+                _, modes = ana.eigvec(kx_c, ra_c)
                 _, mode_max = normalize_modes(modes)
                 print(i, phi, ra_c, kx_c)
                 ram = np.append(ram, ra_c)
@@ -290,7 +290,7 @@ if EXPLORE_PHASE:
             for i, phi in enumerate(phinum):
                 ana.phys.phi_bot = phi
                 ra_c, kx_c = ana.critical_ra()
-                modes = ana.eigval(kx_c, ra_c)[1]
+                _, modes = ana.eigvec(kx_c, ra_c)
                 _, mode_max = normalize_modes(modes)
                 print(i, phi, ra_c, kx_c)
                 ram[i] = ra_c

@@ -20,6 +20,7 @@ pblm = PhysicalProblem(
     phi_bot=1e3,
     freeslip_top=True,
     freeslip_bot=True,
+    eta_r = None,  # lambda r: 1,
     ref_state_translation=False)
 
 NON_LINEAR = True
@@ -36,4 +37,3 @@ else:
     print('Rac, kc = ', ra_c, harm_c)
     plot_fastest_mode(ana, harm_c, ra_c, ra_comp)
     plot_ran_harm(ana, harm_c, ra_comp)
-    

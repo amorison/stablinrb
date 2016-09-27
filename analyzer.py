@@ -78,7 +78,7 @@ def cartesian_matrices_0(self, ra_num):
     return lmat, pgint, tgint, igw
 
 def cartesian_matrices(self, wnk, ra_num, ra_comp=None):
-    "LHS and RHS matrices for the linear stability"
+    """Build left and right matrices in cartesian case"""
     ncheb = self._ncheb
     zphys = self.rad
     h_int = self.phys.h_int
@@ -213,34 +213,9 @@ def cartesian_matrices(self, wnk, ra_num, ra_comp=None):
 
     return lmat, rmat
 
-def eigval_cartesian(self, wnk, ra_num, ra_comp=None):
-    """Compute the max eigenvalue and associated eigenvector
 
-    wnk: wave number
-    ra_num: Rayleigh number
-    """
-
-    lmat, rmat = cartesian_matrices(self, wnk, ra_num, ra_comp)
-
-    # Find the eigenvalues
-    eigvals, eigvecs = linalg.eig(lmat, rmat, right=True)
-    index = np.argsort(ma.masked_invalid(eigvals))
-    eigvals = ma.masked_invalid(eigvals[index])
-    iegv = np.argmax(np.real(eigvals))
-
-    # Extract modes from eigenvector
-    eigvecs = eigvecs[:, index]
-    eigvecs = eigvecs[:, iegv]
-
-    return eigvals[iegv], eigvecs, (lmat, rmat)
-
-
-def eigval_spherical(self, l_harm, ra_num, ra_comp=None):
-    """Compute the max eigenvalue and associated eigenvector
-
-    l_harm: spherical harmonic degree
-    ra_num: Rayleigh number
-    """
+def spherical_matrices(self, l_harm, ra_num, ra_comp=None):
+    """Build left and right matrices in spherical case"""
     rad = self.rad
     ncheb = self._ncheb
     dr1, dr2 = self.dr1, self.dr2
@@ -262,6 +237,10 @@ def eigval_spherical(self, l_harm, ra_num, ra_comp=None):
     h_int = self.phys.h_int
     heat_flux_top = self.phys.heat_flux_top
     heat_flux_bot = self.phys.heat_flux_bot
+    if self.phys.eta_r is not None:
+        eta_r = np.diag(np.vectorize(self.phys.eta_r)(np.diag(rad)))
+    else:
+        eta_r = one
     lewis = self.phys.lewis
     composition = self.phys.composition
     comp_terms = lewis is not None or composition is not None
@@ -314,25 +293,37 @@ def eigval_spherical(self, l_harm, ra_num, ra_comp=None):
     # normal stress continuity at top
     if phi_top is not None:
         lmat[iqg(iq0), pgall] = lh2 * (self.phys.phi_top *
-            orad1[iq0, pall] - 2 * orad2[iq0, pall] +
-            2 * np.dot(orad1, dr1)[iq0, pall])
-        lmat[iqg(iq0), qgall] = -one[iq0, qall] - np.dot(rad, dr1)[iq0, qall]
+            orad1[iq0, pall] - 2 * np.dot(eta_r, orad2)[iq0, pall] +
+            2 * np.dot(eta_r, np.dot(orad1, dr1))[iq0, pall])
+        lmat[iqg(iq0), qgall] = -eta_r[iq0, qall] - \
+            np.dot(eta_r, np.dot(rad, dr1))[iq0, qall]
     elif freeslip_top:
         lmat[iqg(iq0), pgall] = dr2[iq0, pall]
     else:
         # rigid
         lmat[iqg(iq0), pgall] = dr1[iq0, pall]
-    # laplacian(Q) - RaT/r = 0
-    lmat[qgint, qgall] = lapl[qint, qall]
+    if self.phys.eta_r is not None:
+        deta_dr = np.diag(np.dot(dr1, np.diag(eta_r)))
+        d2eta_dr2 = np.diag(np.dot(dr2, np.diag(eta_r)))
+        lmat[qgint, pgall] = (2 * (lh2 - 1) *
+            (np.dot(orad2, d2eta_dr2) - np.dot(orad3, deta_dr)) -
+            2 * np.dot(np.dot(orad1, d2eta_dr2) - np.dot(orad2, deta_dr), dr1)
+            )[qint, pall]
+        lmat[qgint, qgall] = (np.dot(eta_r, lapl) + d2eta_dr2 +
+            2 * np.dot(deta_dr, dr1))[qint, qall]
+    else:
+        # laplacian(Q) - RaT/r = 0
+        lmat[qgint, qgall] = lapl[qint, qall]
     lmat[qgint, tgall] = - ra_num * orad1[qint, tall]
     if comp_terms:
         lmat[qgint, cgall] = - ra_comp * orad1[qint, call]
     # normal stress continuity at bot
     if phi_bot is not None:
         lmat[iqg(iqn), pgall] = lh2 * (-self.phys.phi_bot *
-            orad1[iqn, pall] - 2 * orad2[iqn, pall] +
-            2 * np.dot(orad1, dr1)[iqn, pall])
-        lmat[iqg(iqn), qgall] = -one[iqn, qall] - np.dot(rad, dr1)[iqn, qall]
+            orad1[iqn, pall] - 2 * np.dot(eta_r, orad2)[iqn, pall] +
+            2 * np.dot(eta_r, np.dot(orad1, dr1))[iqn, pall])
+        lmat[iqg(iqn), qgall] = -eta_r[iqn, qall] - \
+            np.dot(eta_r, np.dot(rad, dr1))[iqn, qall]
     elif freeslip_bot:
         lmat[iqg(iqn), pgall] = dr2[iqn, pall]
     else:
@@ -377,17 +368,8 @@ def eigval_spherical(self, l_harm, ra_num, ra_comp=None):
     if comp_terms:
         rmat[cgint, cgall] = one[cint, call]
 
-    # Find the eigenvalues
-    eigvals, eigvecs = linalg.eig(lmat, rmat, right=True)
-    index = np.argsort(ma.masked_invalid(eigvals))
-    eigvals = ma.masked_invalid(eigvals[index])
-    iegv = np.argmax(np.real(eigvals))
+    return lmat, rmat
 
-    # Extract modes from eigenvector
-    eigvecs = eigvecs[:, index]
-    eigvecs = eigvecs[:, iegv]
-
-    return eigvals[iegv], eigvecs, (lmat, rmat)
 
 class Analyser:
     """Define various elements common to both analysers"""
@@ -487,6 +469,36 @@ class Analyser:
         if self.phys.composition is not None or self.phys.lewis is not None:
             i0n.append((1, ncheb - 1))
         return build_slices(i0n, ncheb)
+
+    def matrices(self, harm, ra_num, ra_comp=None):
+        """Build left and right matrices"""
+        if self.phys.spherical:
+            return spherical_matrices(self, harm, ra_num, ra_comp)
+        else:
+            return cartesian_matrices(self, harm, ra_num, ra_comp)
+
+    def eigval(self, harm, ra_num, ra_comp=None):
+        """Compute the max eigenvalue
+
+        harm: wave number
+        ra_num: thermal Rayleigh number
+        ra_comp: compositional Ra
+        """
+        lmat, rmat = self.matrices(harm, ra_num, ra_comp)
+        eigvals = linalg.eigvals(lmat, rmat)
+        return np.max(np.real(ma.masked_invalid(eigvals)))
+
+    def eigvec(self, harm, ra_num, ra_comp=None):
+        """Compute the max eigenvalue and associated eigenvector
+
+        harm: wave number
+        ra_num: thermal Rayleigh number
+        ra_comp: compositional Ra
+        """
+        lmat, rmat = self.matrices(harm, ra_num, ra_comp)
+        eigvals, eigvecs = linalg.eig(lmat, rmat)
+        iegv = np.argmax(np.real(ma.masked_invalid(eigvals)))
+        return eigvals[iegv], eigvecs[:, iegv]
 
     def _split_mode_cartesian(self, eigvec, apply_bc=False):
         """Split 1D cartesian mode into (p, u, w, t) tuple
@@ -604,13 +616,6 @@ class LinearAnalyzer(Analyser):
     phase change at either or both boundaries.
     """
 
-    def eigval(self, harm, ra_num, ra_comp=None):
-        """Generic eigval function"""
-        if self.phys.spherical:
-            return eigval_spherical(self, harm, ra_num, ra_comp)
-        else:
-            return eigval_cartesian(self, harm, ra_num, ra_comp)
-
     def neutral_ra(self, harm, ra_guess=600, ra_comp=None, eps=1.e-8):
         """Find Ra which gives neutral stability of a given harmonic
 
@@ -618,8 +623,8 @@ class LinearAnalyzer(Analyser):
         """
         ra_min = ra_guess / 2
         ra_max = ra_guess * 2
-        sigma_min = np.real(self.eigval(harm, ra_min, ra_comp)[0])
-        sigma_max = np.real(self.eigval(harm, ra_max, ra_comp)[0])
+        sigma_min = np.real(self.eigval(harm, ra_min, ra_comp))
+        sigma_max = np.real(self.eigval(harm, ra_max, ra_comp))
 
         while sigma_min > 0. or sigma_max < 0.:
             if sigma_min > 0.:
@@ -628,12 +633,12 @@ class LinearAnalyzer(Analyser):
             if sigma_max < 0.:
                 ra_min = ra_max
                 ra_max *= 2
-            sigma_min = np.real(self.eigval(harm, ra_min, ra_comp)[0])
-            sigma_max = np.real(self.eigval(harm, ra_max, ra_comp)[0])
+            sigma_min = np.real(self.eigval(harm, ra_min, ra_comp))
+            sigma_max = np.real(self.eigval(harm, ra_max, ra_comp))
 
         while (ra_max - ra_min) / ra_max > eps:
             ra_mean = (ra_min + ra_max) / 2
-            sigma_mean = np.real(self.eigval(harm, ra_mean, ra_comp)[0])
+            sigma_mean = np.real(self.eigval(harm, ra_mean, ra_comp))
             if sigma_mean < 0.:
                 sigma_min = sigma_mean
                 ra_min = ra_mean
@@ -649,7 +654,7 @@ class LinearAnalyzer(Analyser):
             harms = range(max(1, harm - 10), harm + 10)
         else:
             return None
-        sigma = [self.eigval(harm, ra_num, ra_comp)[0] for harm in harms]
+        sigma = [self.eigval(harm, ra_num, ra_comp) for harm in harms]
 
         if self.phys.spherical:
             max_found = False
@@ -657,14 +662,14 @@ class LinearAnalyzer(Analyser):
                 max_found = True
                 if harms[0] != 1 and sigma[0] > sigma[1]:
                     hs_smaller = range(max(1, harms[0]-10), harms[0])
-                    s_smaller = [self.eigval(h, ra_num, ra_comp)[0]
+                    s_smaller = [self.eigval(h, ra_num, ra_comp)
                                  for h in hs_smaller]
                     harms = range(hs_smaller[0], harms[-1] + 1)
                     sigma = s_smaller + sigma
                     max_found = False
                 if sigma[-1] > sigma[-2]:
                     hs_greater = range(harms[-1] + 1, harms[-1] + 10)
-                    s_greater = [self.eigval(h, ra_num, ra_comp)[0]
+                    s_greater = [self.eigval(h, ra_num, ra_comp)
                                  for h in hs_greater]
                     harms = range(harms[0], hs_greater[-1] + 1)
                     sigma = sigma + s_greater
@@ -676,6 +681,33 @@ class LinearAnalyzer(Analyser):
             pass
 
         return smax, hmax
+
+    def ran_l_mins(self):
+        """Find neutral Rayleigh of mode giving square cells and of mode l=1"""
+        if not self.phys.spherical:
+            raise ValueError('ran_l_mins expects a spherical problem')
+        lmax = 2
+        rans = [self.neutral_ra(h) for h in (1,2)]
+        ranp, ran = rans
+        while ran <= ranp or lmax <= np.pi / (1 - self.phys.gamma):
+            lmax += 1
+            ranp = ran
+            ran = self.neutral_ra(lmax, ranp)
+            rans.append(ran)
+        ran_mod1 = rans[0]
+        ranlast = rans.pop()
+        ranllast = rans.pop()
+        loff = 0
+        while ranllast < ranlast:
+            loff += 1
+            ranlast = ranllast
+            try:
+                ranllast = rans.pop()
+            except IndexError:
+                ranllast = ranlast + 1
+        l_mod2 = lmax - loff
+        ran_mod2 = ranlast
+        return ((1, ran_mod1), (l_mod2, ran_mod2))
 
     def critical_ra(self, harm=2, ra_guess=600, ra_comp=None):
         """Find the harmonic with the lower neutral Ra
@@ -737,20 +769,6 @@ class NonLinearAnalyzer(Analyser):
     The studied problem is the one of Rayleigh-Benard convection with
     phase change at either or both boundaries.
     """
-
-    def matrices(self, harm, ra_num):
-        """Generic eigval function"""
-        if self.phys.spherical:
-            return spherical_matrices(self, harm, ra_num) # not yet treated beyond that point
-        else:
-            return cartesian_matrices(self, harm, ra_num)
-
-    def eigval(self, harm, ra_num):
-        """Generic eigval function"""
-        if self.phys.spherical:
-            return eigval_spherical(self, harm, ra_num) # not yet treated beyond that point
-        else:
-            return eigval_cartesian(self, harm, ra_num)
 
     def integz(self, prof):
         """Integral on the -1/2 <= z <= 1/2 interval"""
@@ -870,13 +888,15 @@ class NonLinearAnalyzer(Analyser):
         # First compute the linear mode and matrix
         ana = LinearAnalyzer(self.phys, self._ncheb)
         ra_c, harm_c = ana.critical_ra()
-        _, mode_c, mats_c = self.eigval(harm_c, ra_c)
+        lmat_c, _ = self.matrices(harm_c, ra_c)
+        _, mode_c = self.eigvec(harm_c, ra_c)
+        modec = self.split_mode(mode_c, harm_c, apply_bc=True)
+        modec, _ = normalize_modes(modec, norm_mode=2, full_norm=False)
 
         # setup matrices for the non linear solution
         nmodez = np.shape(mode_c)
         nkmax = self.indexmat(nnonlin)[0]
         self.full_sol = np.zeros((nkmax, nmodez[0])) * (1+1j)
-        # self.full_sol[0] = mode_c
         self.full_u = self.full_sol[:, ugint]
         self.full_w = self.full_sol[:, wgint]
         self.full_t = self.full_sol[:, tgint]
@@ -887,9 +907,6 @@ class NonLinearAnalyzer(Analyser):
         ratot = np.zeros(nnonlin)
         ratot[0] = ra_c
 
-        modec = self.split_mode(mode_c, harm_c, apply_bc=True)
-        modec, _ = normalize_modes(modec, norm_mode=2, full_norm=False)
-        # divide by 2 because cos = (e^i+e^-i)/2
         (p_c, u_c, w_c, t_c) = modec
         p_c /= 2
         u_c /= 2
@@ -906,7 +923,6 @@ class NonLinearAnalyzer(Analyser):
         # harm_c = np.sqrt(phi_top / 2) * 3 / 4
         # ra_c = 24 * phi_top -81 / 256 * phi_top**2
 
-        lmat_c, _ = mats_c
         dt_c = np.dot(self.dr1, t_c)
         # also need the linear problem for wnk up to nnonlin*harm_c
         lmat = np.zeros((nnonlin, lmat_c.shape[0], lmat_c.shape[1])) * (1+1j)
