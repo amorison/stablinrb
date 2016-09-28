@@ -11,7 +11,7 @@ import matplotlib as mpl
 import matplotlib.pyplot as plt
 import seaborn as sns
 from analyzer import LinearAnalyzer
-from physics import PhysicalProblem
+from physics import PhysicalProblem, visco_Arrhenius
 
 # Font and markers size
 FTSZ = 14
@@ -22,16 +22,16 @@ gamma_min = 0.3
 gamma_max = 0.85
 phi_top = None
 phi_bot = 1.e-2
+eta_c = 10**5
 
 ana = LinearAnalyzer(
     phys=PhysicalProblem(
         gamma=gamma_max,
         phi_top=phi_top,
         phi_bot=phi_bot,
-        #eta_r = lambda r: np.exp(10*r-10),
         freeslip_top=True,
         freeslip_bot=True),
-    ncheb=20)
+    ncheb=50)
 
 _, (l_max, _) = ana.ran_l_mins()
 l_max = max(l_max, 3)
@@ -40,10 +40,12 @@ gams = np.linspace(gamma_min, gamma_max, ngamma)
 l_vals = np.arange(1, l_max+1)
 rans_l = np.zeros((l_max, ngamma))
 
-for igam, gamma in enumerate(gams):
-    ana.phys.gamma = gamma
+for l_harm in l_vals:
     ran_p = 600
-    for l_harm in l_vals:
+    for igam, gamma in enumerate(gams):
+        ana.phys.gamma = gamma
+        if eta_c is not None:
+            ana.phys.eta_r = visco_Arrhenius(eta_c, gamma)
         ran_p = ana.neutral_ra(l_harm, ra_guess=ran_p)
         rans_l[l_harm-1, igam] = ran_p * (1 - gamma)**3
 
