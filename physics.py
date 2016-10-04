@@ -167,3 +167,8 @@ def compo_smo(thick_tot, partition_coef, c_0=None):
         c_0 = (1 - 1 / thick_tot**3)**(1 - partition_coef)
     return lambda z: c_0 * (thick_tot**3 / (thick_tot**3 -
         (z + 1 / 2)**3))**(1 - partition_coef)
+
+
+def visco_Arrhenius(eta_c, gamma):
+    """Viscosity profile in a conductive shell"""
+    return lambda r: np.exp(np.log(eta_c) * gamma / (1 - gamma) * (1 - 1 / r))

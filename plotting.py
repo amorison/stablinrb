@@ -229,3 +229,28 @@ def plot_ran_harm(analyzer, harm, ra_comp=None, name=None):
     plt.tight_layout()
     plt.savefig(filename, format='PDF')
     plt.close(fig)
+
+
+def plot_viscosity(pblm):
+    """Plot viscosity profile of a give physical problem"""
+    if pblm.eta_r is None:
+        return
+    nrad = 100
+    if pblm.spherical:
+        rad = np.linspace(pblm.gamma, 1, nrad)
+    else:
+        rad = np.linspace(-1/2, 1/2, nrad)
+    eta_r = np.vectorize(pblm.eta_r)(rad)
+    fig, axis = plt.subplots(1, 2, sharey=True)
+    axis[0].plot(eta_r, rad)
+    axis[1].semilogx(eta_r, rad)
+    if pblm.spherical:
+        plt.setp(axis, ylim=[pblm.gamma, 1])
+    else:
+        plt.setp(axis, ylim=[-1/2, 1/2])
+    filename = '_'.join((pblm.name(), 'visco.pdf'))
+    axis[0].set_xlabel(r'$\eta$', fontsize=FTSZ)
+    axis[1].set_xlabel(r'$\eta$', fontsize=FTSZ)
+    axis[0].set_ylabel(r'$r$', fontsize=FTSZ)
+    plt.tight_layout()
+    plt.savefig(filename, format='PDF')
