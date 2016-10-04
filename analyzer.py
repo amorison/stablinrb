@@ -1036,12 +1036,6 @@ class NonLinearAnalyzer(Analyser):
         u22 = mode22[ugall]
         w22 = mode22[wgall]
         t22 = mode22[tgall]
-        # self.full_sol[2, pgall] = p22
-        # self.full_sol[2, ugall] = u22
-        # self.full_sol[2, wgall] = w22
-        # self.full_sol[2, tgall] = t22
-
-        # print('full_sol = ', self.full_sol)
 
         p22 = self._insert_boundaries(p22, ip0, ipn)
         u22 = self._insert_boundaries(u22, iu0, iun)
