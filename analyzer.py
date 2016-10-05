@@ -12,7 +12,7 @@ from misc import build_slices, normalize_modes
 def cartesian_matrices_0(self, ra_num):
     """LHS matrix for x-independent forcing
 
-    When the RHS is independent of x, the solution is also
+    When the RHS is independent of x, the also solution is,
     and the velocity is uniform and only vertical, possibly null.
     Only the pressure, temperature and uniform vertical velocity
     are solved"""
@@ -75,7 +75,7 @@ def cartesian_matrices_0(self, ra_num):
         lmat[igw, 0] = 1
         lmat[igw, ipn] = -1
 
-    return lmat, pgint, tgint, igw
+    return lmat, pgint, tgint, pgall, tgall, igw
 
 def cartesian_matrices(self, wnk, ra_num, ra_comp=None):
     """Build left and right matrices in cartesian case"""
@@ -937,8 +937,7 @@ class NonLinearAnalyzer(Analyser):
 
         dt_c = np.dot(self.dr1, t_c)
         lmat = np.zeros((nnonlin+1, lmat_c.shape[0], lmat_c.shape[1])) * (1+1j)
-        lmat0, pgint0, tgint0, igw0 = cartesian_matrices_0(self, ra_c)
-        print('igw0 = ', igw0)
+        lmat0, pgint0, tgint0, pgall0, tgall0, igw0 = cartesian_matrices_0(self, ra_c)
         lmat[0] = lmat_c
         # loop on the orders
         for ii in range(2, nnonlin + 2):
@@ -982,8 +981,13 @@ class NonLinearAnalyzer(Analyser):
                 # index to fill in: same parity as ii
                 _, _, _, ind = self.indexmat(ii, harmm=2*jj+yii)
                 if jj == 0 : # special treatment for 0 modes.
-                    # np.r_[self.full_sol[ind, pgint], self.full_sol[ind, tgint]] = \
-                    sol=solve(lmat0, np.r_[self.rhs[ind, pgint], self.rhs[ind, tgint]])
+                    # should be possible to avoid the use of a rhs0
+                    rhs0 = np.zeros(lmat0.shape[1]) * (1 + 1j)
+                    rhs0[pgall0] = self.rhs[ind, pgall0]
+                    rhs0[tgall0] = self.rhs[ind, tgall0]
+                    
+                    # sol = solve(lmat0, np.r_[self.rhs[ind, pgall0], self.rhs[ind, tgall0]])
+                    sol = solve(lmat0, rhs0)
                     self.full_sol[ind, pgint] = sol[pgint0]
                     self.full_sol[ind, tgint] = sol[tgint0]
                     if phi_top is not None and phi_bot is not None:
@@ -1008,19 +1012,16 @@ class NonLinearAnalyzer(Analyser):
         # mode20 = solve(lmat0, nxcxc0)
 
         # solve for mode 20
-        mode20 = solve(lmat0, np.r_[self.nterm[1, pgint], self.nterm[1, tgint]])
+        # mode20 = solve(lmat0, np.r_[self.nterm[1, pgint], self.nterm[1, tgint]])
 
-        print('mode20', mode20)
-        print('sol20', self.full_sol[1])
-        # print('mode20', mode20.shape)
-
-        p20 = mode20[pgint0]
-        t20 = mode20[tgint0]
+        p20 = self.full_sol[1, pgall0]
+        t20 = self.full_sol[1, tgall0]
         if phi_top is not None and phi_bot is not None:
-            w20 = mode20[igw0]
+            w20 = self.full_sol[1, igw0]
         else:
             w20 = 0
-        p20 = self._insert_boundaries(p20, ip0, ipn)
+            p20 = self._insert_boundaries(p20, ip0, ipn)
+
         t20 = self._insert_boundaries(t20, it0, itn)
         dt20 = np.dot(self.dr1, t20)
 
@@ -1029,13 +1030,11 @@ class NonLinearAnalyzer(Analyser):
         # nxcxc2 = np.zeros((itg(itn) + 1))
         # nxcxc2[tgint] = (np.real(w_c * dt_c) - harm_c * np.imag(u_c) * np.real(t_c))[tint]
 
-        mode22 = solve(lmat[1], self.rhs[2])
-        print('mode22 = ', mode22)
-        print('sol22 = ', self.full_sol[2])
-        p22 = mode22[pgall]
-        u22 = mode22[ugall]
-        w22 = mode22[wgall]
-        t22 = mode22[tgall]
+        # mode22 = solve(lmat[1], self.rhs[2])
+        p22 = self.full_sol[2, pgall]
+        u22 = self.full_sol[2, ugall]
+        w22 = self.full_sol[2, wgall]
+        t22 = self.full_sol[2, tgall]
 
         p22 = self._insert_boundaries(p22, ip0, ipn)
         u22 = self._insert_boundaries(u22, iu0, iun)
@@ -1161,5 +1160,5 @@ class NonLinearAnalyzer(Analyser):
         moyv4 += w20**2 # a constant
         moyv4 += 2 * self.integz(np.real(w22)**2)
 
-        return harm_c, (ra_c, ra2), mode_c, (p20, w20, t20),\
+        return harm_c, (ratot[0], ra2), mode_c, (p20, w20, t20),\
           (p22, u22, w22, t22), (moyt, moyv2, moyv4, qtop)
