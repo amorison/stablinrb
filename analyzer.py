@@ -37,7 +37,6 @@ def cartesian_matrices_0(self, ra_num):
     # temperature
     it0 = 0 if (heat_flux_top is not None) else 1
     itn = ncheb if (heat_flux_bot is not None) else ncheb - 1
-
     # global indices and slices in the solution containing only P and T
     _, igf, slall, slint, slgall, slgint = build_slices([(ip0, ipn),
                                                          (it0, itn)],
@@ -66,11 +65,14 @@ def cartesian_matrices_0(self, ra_num):
     lmat[tgint, tgall] = dz2[tint, tall]
     # the case for a translating vertical velocity (mode 0)
     if phi_top is not None and phi_bot is not None:
+        # Uniform vertical velocity in the temperature equation
         lmat[tgint, igw] = 1
+        # Vertical velocity in momentum boundary conditions
         lmat[0, 0] = -1
         lmat[0, igw] = phi_top
         lmat[ipn, 0] = 1
         lmat[0, igw] = phi_bot
+        # equation for the uniform vertical velocity
         lmat[igw, igw] = phi_top + phi_bot
         lmat[igw, 0] = 1
         lmat[igw, ipn] = -1
@@ -961,7 +963,8 @@ class NonLinearAnalyzer(Analyser):
                     # + sign because denominator takes the minus.
                     ratot[ii-1] += ratot[2 * jj] * \
                       self.integz(np.real(self.full_w[0] * self.full_t[ind]))
-                ratot[ii-1] /= xcmxc
+                print('ratot = ',  ratot[ii-1], xcmxc)
+                ratot[ii-1] *= ratot[0] / xcmxc
 
             # add mterm to nterm to get rhs
             _, _, _, imin = self.indexmat(ii, harmm=yii)
@@ -979,24 +982,30 @@ class NonLinearAnalyzer(Analyser):
             # invert matrix for each harmonic number
             for jj in range(lii+1):
                 # index to fill in: same parity as ii
-                _, _, _, ind = self.indexmat(ii, harmm=2*jj+yii)
-                if jj == 0 : # special treatment for 0 modes.
+                harmjj = 2*jj+yii
+                _, _, _, ind = self.indexmat(ii, harmm=harmjj)
+                if harmjj == 0 : # special treatment for 0 modes.
                     # should be possible to avoid the use of a rhs0
                     rhs0 = np.zeros(lmat0.shape[1]) * (1 + 1j)
-                    rhs0[pgall0] = self.rhs[ind, pgall0]
-                    rhs0[tgall0] = self.rhs[ind, tgall0]
-                    
+                    # rhs0[pgall0] = self.rhs[ind, pgall] # no rhs for pressure
+                    rhs0[tgall0] = self.rhs[ind, tgall]
+                    # print('tgall0 = ', tgall0, tgint0)
+                    # print('ind =', ind, ii, 2*jj+yii)
+                    # print('rhs ', self.rhs[ind])
+                    # print('rhs0 =', rhs0)
                     # sol = solve(lmat0, np.r_[self.rhs[ind, pgall0], self.rhs[ind, tgall0]])
                     sol = solve(lmat0, rhs0)
+                    # print('sol = ', sol)
                     self.full_sol[ind, pgint] = sol[pgint0]
                     self.full_sol[ind, tgint] = sol[tgint0]
                     if phi_top is not None and phi_bot is not None:
                         # translation veolcity possible
-                        self.full_w0[ind] = sol[igw0]
+                        self.full_w0[ind] = np.real(sol[igw0])
+                        # print('w0 =', self.full_w0[ind])
                     else:
                         self.full_w0[ind] = 0
                 else:
-                    self.full_sol[ind] = solve(lmat[2*jj+yii - 1], self.rhs[ind])
+                    self.full_sol[ind] = solve(lmat[harmjj - 1], self.rhs[ind])
         # now compute the non-linear source terms up to degree 2
         # self.ntermprod(1, 1, harm_c)
 
@@ -1013,6 +1022,11 @@ class NonLinearAnalyzer(Analyser):
 
         # solve for mode 20
         # mode20 = solve(lmat0, np.r_[self.nterm[1, pgint], self.nterm[1, tgint]])
+
+        # print('rhs20', self.rhs[1])
+        # print('sol20', self.full_sol[1])
+        # print('rhs22', self.rhs[2])
+        # print('sol22', self.full_sol[2])
 
         p20 = self.full_sol[1, pgall0]
         t20 = self.full_sol[1, tgall0]
@@ -1160,5 +1174,5 @@ class NonLinearAnalyzer(Analyser):
         moyv4 += w20**2 # a constant
         moyv4 += 2 * self.integz(np.real(w22)**2)
 
-        return harm_c, (ratot[0], ra2), mode_c, (p20, w20, t20),\
+        return harm_c, (ratot[0], ratot[2]), mode_c, (p20, w20, t20),\
           (p22, u22, w22, t22), (moyt, moyv2, moyv4, qtop)
