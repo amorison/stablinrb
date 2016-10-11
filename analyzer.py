@@ -855,8 +855,8 @@ class NonLinearAnalyzer(Analyser):
                         self.full_u[indle] * np.conj(self.full_t[indri]) + \
                         self.full_w[indle] * np.conj(dtr)
                 elif nharmm == 0:
-                    # add complex 
-                    self.ntermt[iind] += 2 * np.real(-1j * harm * (2 * lr + yri) * \
+                    # add complex conjugate -> times 2. No! Otherwise it is counted twice later!
+                    self.ntermt[iind] += np.real(-1j * harm * (2 * lr + yri) * \
                         self.full_u[indle] * np.conj(self.full_t[indri]) + \
                         self.full_w[indle] * np.conj(dtr))                    
                 else:
@@ -864,14 +864,6 @@ class NonLinearAnalyzer(Analyser):
                         np.conj(self.full_u[indle]) * self.full_t[indri] + \
                         np.conj(self.full_w[indle]) * dtr
         return
-
-    # def mterm(self, imat):
-        # """adds the mterm to nterm to get the rhs.
-        
-        # imat: index in the solution matrix on which to compute the mterm
-        # """
-        
-        # return
 
     def nonlinana(self):
         """Ra2 and X2"""
@@ -912,12 +904,19 @@ class NonLinearAnalyzer(Analyser):
         self.full_t = self.full_sol[:, tgint]
         self.full_w0 = np.zeros(nkmax) # translation velocity
         self.nterm = np.zeros(self.full_sol.shape) * (1+1j)
-        # self.mterm = np.zeros(self.full_sol.shape) * (1+1j)
         self.rhs = np.zeros(self.full_sol.shape) * (1+1j)
-        # temperature part, the only non-null one
+        # temperature part, the only non-null one in the non-linear term
         self.ntermt = self.nterm[:, tgint]
+        # the suite of Rayleigh numbers
         ratot = np.zeros(nnonlin+1)
         ratot[0] = ra_c
+        # coefficient for the average temperature
+        meant = np.zeros(nnonlin+1)
+        meant[0] = 1/2
+        # coefficient for the nusselt number
+        qtop = np.zeros(nnonlin+1)
+        qtop[0] = 1
+        # coefficients for the velocity RMS. More complex. To be done.
 
         (p_c, u_c, w_c, t_c) = modec
         p_c /= 2
@@ -953,17 +952,18 @@ class NonLinearAnalyzer(Analyser):
             # compute Ra_{ii-1} if ii is odd (otherwise keep it 0).
             if yii == 1:
                 # only term in harm_c from nterm contributes
+                # nterm already summed by harmonics.
                 _, _, _, ind = self.indexmat(ii, harmm=1)
                 prof = self._insert_boundaries(np.real(self.full_t[0] *\
-                                                        self.ntermt[ind]), it0, itn)
+                                                        np.conj(self.ntermt[ind])), it0, itn)
                 ratot[ii-1] = self.integz(prof)
                 for jj in range(1, lii):
                     # only the ones in harm_c can contribute for each degree
                     _, _, _, ind = self.indexmat(2 * (lii - jj) + 1, harmm=1)
                     # + sign because denominator takes the minus.
-                    ratot[ii-1] += ratot[2 * jj] * \
-                      self.integz(np.real(self.full_w[0] * self.full_t[ind]))
-                print('ratot = ',  ratot[ii-1], xcmxc)
+                    prof = self._insert_boundaries(np.real(self.full_w[0] *\
+                                                           self.full_t[ind]), it0, itn)
+                    ratot[ii-1] += ratot[2 * jj] * self.integz(prof)
                 ratot[ii-1] *= ratot[0] / xcmxc
 
             # add mterm to nterm to get rhs
@@ -987,192 +987,31 @@ class NonLinearAnalyzer(Analyser):
                 if harmjj == 0 : # special treatment for 0 modes.
                     # should be possible to avoid the use of a rhs0
                     rhs0 = np.zeros(lmat0.shape[1]) * (1 + 1j)
-                    # rhs0[pgall0] = self.rhs[ind, pgall] # no rhs for pressure
                     rhs0[tgall0] = self.rhs[ind, tgall]
-                    # print('tgall0 = ', tgall0, tgint0)
-                    # print('ind =', ind, ii, 2*jj+yii)
-                    # print('rhs ', self.rhs[ind])
-                    # print('rhs0 =', rhs0)
-                    # sol = solve(lmat0, np.r_[self.rhs[ind, pgall0], self.rhs[ind, tgall0]])
                     sol = solve(lmat0, rhs0)
-                    # print('sol = ', sol)
                     self.full_sol[ind, pgint] = sol[pgint0]
                     self.full_sol[ind, tgint] = sol[tgint0]
+                    # compute coefficient ii in meant
+                    # factor to account for the complex conjugate
+                    prot = self._insert_boundaries(2 * np.real(sol[tgint0]), it0, itn)
+                    meant[ii] = self.integz(prot)
+                    dprot = np.dot(self.dr1, prot)
+                    qtop[ii] = - dprot[0]
                     if phi_top is not None and phi_bot is not None:
-                        # translation veolcity possible
+                        # translation velocity possible
                         self.full_w0[ind] = np.real(sol[igw0])
                         # print('w0 =', self.full_w0[ind])
                     else:
                         self.full_w0[ind] = 0
                 else:
                     self.full_sol[ind] = solve(lmat[harmjj - 1], self.rhs[ind])
-        # now compute the non-linear source terms up to degree 2
-        # self.ntermprod(1, 1, harm_c)
 
-        # theta part of the non-linear term N(Xc, Xc)
-        # part constant in x
-        # nxcxc0 = np.zeros((igw0 + 1))
-        # nxcxc0[tgint0] = 2 * (np.real(w_c * dt_c) + harm_c * np.imag(u_c) * np.real(t_c))[tint]
-
-        # print('nxcxc0= ', nxcxc0)
-        # print('nterm ', np.r_[self.nterm[1, pgint], self.nterm[1, tgint]])
-        # print('diff =', np.abs(np.r_[self.nterm[1, pgint], self.nterm[1, tgint]]-nxcxc0))
-        # Solve Lc * X2 = NXcXc to get X20
-        # mode20 = solve(lmat0, nxcxc0)
-
-        # solve for mode 20
-        # mode20 = solve(lmat0, np.r_[self.nterm[1, pgint], self.nterm[1, tgint]])
-
-        # print('rhs20', self.rhs[1])
-        # print('sol20', self.full_sol[1])
-        # print('rhs22', self.rhs[2])
-        # print('sol22', self.full_sol[2])
-
-        p20 = self.full_sol[1, pgall0]
-        t20 = self.full_sol[1, tgall0]
-        if phi_top is not None and phi_bot is not None:
-            w20 = self.full_sol[1, igw0]
-        else:
-            w20 = 0
-            p20 = self._insert_boundaries(p20, ip0, ipn)
-
-        t20 = self._insert_boundaries(t20, it0, itn)
-        dt20 = np.dot(self.dr1, t20)
-
-        
-        # part in 2 k x
-        # nxcxc2 = np.zeros((itg(itn) + 1))
-        # nxcxc2[tgint] = (np.real(w_c * dt_c) - harm_c * np.imag(u_c) * np.real(t_c))[tint]
-
-        # mode22 = solve(lmat[1], self.rhs[2])
-        p22 = self.full_sol[2, pgall]
-        u22 = self.full_sol[2, ugall]
-        w22 = self.full_sol[2, wgall]
-        t22 = self.full_sol[2, tgall]
-
-        p22 = self._insert_boundaries(p22, ip0, ipn)
-        u22 = self._insert_boundaries(u22, iu0, iun)
-        w22 = self._insert_boundaries(w22, iw0, iwn)
-        t22 = self._insert_boundaries(t22, it0, itn)
-
-        # check the profiles
-        dt22 = np.dot(self.dr1, t22)
-        # dw22 = np.dot(self.dr1, w22)
-        # n_rad = 40
-        # cheb_space = np.linspace(-1, 1, n_rad)
-        # rad = np.linspace(-1/2, 1/2, n_rad)
-        # t20_interp = dm.chebint(t20, cheb_space)
-        # t20_theo = - rad * (4 * rad**2 - 1) * (2560 - 9 * phi_top * (12 * rad**2 - 7)) / 122880
-
-        # t22_interp = dm.chebint(t22, cheb_space)
-        # t22_theo = (5*phi_top - 256) * rad * (4 * rad**2 - 1) / 24576
-        # w22_theo = phi_top * rad *(1024 + 15 * phi_top * (4 * rad**2 - 1)) / 65536
-        # u22_theo = np.sqrt(phi_top) * rad *(1024 + 15 * phi_top * (12 * rad**2 - 1)) / (49152*np.sqrt(2))
-        # p22_theo = -phi_top * (39 * phi_top * (12 * rad**2 - 1) + 64 * (252*rad**2 - 5)) / 65536
-        # u_interp = dm.chebint(np.imag(u_c), cheb_space)
-        # w_interp = dm.chebint(np.real(w_c), cheb_space)
-        # t_interp = dm.chebint(np.real(t_c), cheb_space)
-        # dt_interp = dm.chebint(np.real(dt_c), cheb_space)
-
-        # fig, axis = plt.subplots(1, 4, sharey=True)
-        # axis[0].plot(t20_interp, rad)
-        # axis[0].plot(t20_theo, rad)
-        # axis[0].plot(t20, zcheb/2, 'o')
-
-        # nxcxc2p = nxcxc2[tgint]
-        # nxcxc2p_theo = rr[1:ncheb] * ( -0.25 + 9 / 1024 * phi_top * (1-4 * rr[1:ncheb]**2))
-        # 22 RHS
-        # axis[0].plot(nxcxc2p_theo+rr[1:ncheb]/4, rr[1:ncheb])
-        # axis[0].plot(nxcxc2p+zcheb[1:ncheb]/8, zcheb[1:ncheb]/2, 'o')
-        # print('max diff nxcxc2 = ', np.max(np.abs(nxcxc2p-nxcxc2p_theo)), np.max(np.abs(nxcxc2p_theo)))
-        #P22
-        # axis[0].plot(p22_theo, rad)
-        # axis[0].plot(p22, zcheb/2, 'o')
-        # print('p22 =', p22)
-        #Theta22
-        # axis[1].plot(t22_interp, rad)
-        # axis[1].plot(t22_theo, rad)
-        # axis[1].plot(t22, zcheb/2, 'o')
-        # W22
-        # axis[2].plot(w22_theo, rad)
-        # axis[2].plot(w22*4, zcheb/2, 'o')
-        # print('w22=', w22)
-        # U22
-        # axis[3].plot(u22_theo, rad)
-        # axis[3].plot(np.imag(u22)*4, zcheb/2, 'o')
-        # print('u22=', u22)
-        # Theta_c
-        # axis[0].plot(t_interp, rad)
-        # axis[0].plot((1-4*rad**2)/16, rad)
-        # axis[0].plot(t_c, zcheb/2, 'o')
-        # DT_c
-        # axis[1].plot(dt_interp, rad)
-        # axis[1].plot(-rad/2, rad)
-        # axis[1].plot(dt_c, zcheb/2, 'o')
-        # axis[1].set_xlim(0.499, 0.5005)
-        # W_c
-        # axis[1].plot(w_interp, rad)
-        # axis[1].plot(np.ones(rad.shape)/2, rad)
-        # axis[1].plot(w_c, zcheb/2, 'o')
-        # axis[1].set_xlim(0.499, 0.5005)
-        # U_c
-        # axis[2].plot(u_interp, rad)
-        # axis[2].plot(-3*np.sqrt(2*phi_top)/16*rad, rad)
-        # axis[2].plot(np.imag(u_c), zcheb/2, 'o')
-
-        # nxcxc0p = nxcxc0[tgint0]
-        # nxcxc0p_theo = -(rad/2 + 3 * harm_c / 128 *np.sqrt(2 * phi_top) * rad * (1 - 4 * rad**2))
-        # nxcxc0p_theo = rr[1:ncheb] * ( -0.5 + 9 / 512 * phi_top * (4 * rr[1:ncheb]**2 - 1))
-        # axis[3].plot(nxcxc0p+zcheb[1:ncheb]/4, zcheb[1:ncheb]/2, 'o')
-        # axis[3].plot(nxcxc0p_theo+rr[1:ncheb]/2, rr[1:ncheb])
-        # print('max diff nxcxc0 = ', np.max(np.abs(nxcxc0p-nxcxc0p_theo)), np.max(np.abs(nxcxc0p_theo)))
-        # axis[3].set_xlim(-90 / 256 * phi_top, 90 / 256 * phi_top)
-        # axis[3].plot(t20, zcheb/2, 'o')
-        # axis[3].plot(1/(np.pi**2+harm_c**2)/(8*np.pi)*np.sin(2*np.pi*rad), rad)
-        # plt.savefig('twu_c.pdf', format='PDF')
-        # plt.close(fig)
-
-        # Check mass conservation
-        # fig, axis = plt.subplots(1, 1, sharey=True)
-        # plt.plot(1j * 2 * harm_c * u22 + dw22, zcheb/2, 'o')
-        # plt.savefig('mass.pdf', format='PDF')
-        # plt.close(fig)
-        
-        # print('xcmxc = ', xcmxc)
-        # numerator in Ra2
-        xcnx2xc = 2 * harm_c * self.integz(np.real(t_c)**2 * np.imag(u22))
-        # print('xcnx2xc 1 ', xcnx2xc)
-        xcnx2xc += 2 * self.integz(np.real(t_c * dt_c) * (np.real(w22) + np.real(w20)))
-        # print('xcnx2xc 2 ', xcnx2xc)
-        # non-linear term xc, x2, along t, in exp(ikx)
-        # nxcx2tk = w_c * dt20
-        # axis[4].plot(nxcx2tk, zcheb/2, 'o')
-        # axis[4].plot(np.cos(np.pi*rad)/8/(np.pi**2+harm_c**2)*np.cos(2*np.pi*rad), rad)
-        # axis[4].plot(np.cos(np.pi*rad)/16/(np.pi**2+harm_c**2)*np.cos(2*np.pi*rad), rad, '.-')
-
-        xcnxcx20 = self.integz(np.real(t_c) * np.real(w_c) * np.real(dt20))
-        # print('1', xcnxcx20)
-        xcnxcx22 = self.integz(np.real(t_c) * np.real(w_c) * np.real(dt22))
-        # print('2', xcnxcx22)
-        # print('dt22 =', dt22)
-        # print('prod =', np.real(t_c) * np.imag(u_c) * np.real(t22))
-        xcnxcx22 += 2 * harm_c * self.integz(np.real(t_c) * np.imag(u_c) * np.real(t22))
-        # print('3', xcnxcx22)
-        xcnxcx2 = xcnxcx20 + xcnxcx22
-        # print('4', xcnxcx2)
-
-        ra2 = ra_c * (xcnxcx2+xcnx2xc)/xcmxc
-
-        # compute some global caracteristics
-        moyt = self.integz(t20) # multiply by epsilon^2 and add 1/2
-        qtop = - dt20[0]
         # part proportional to epsilon^2
-        moyv2 = 2 * self.integz(np.imag(u_c)**2)
-        moyv2 += 2 * self.integz(np.imag(w_c)**2)
+        # moyv2 = 2 * self.integz(np.imag(u_c)**2)
+        # moyv2 += 2 * self.integz(np.imag(w_c)**2)
         # part proportional to epsilon^4
-        moyv4 = 2 * self.integz(np.imag(u22)**2)
-        moyv4 += w20**2 # a constant
-        moyv4 += 2 * self.integz(np.real(w22)**2)
+        # moyv4 = 2 * self.integz(np.imag(u22)**2)
+        # moyv4 += w20**2 # a constant
+        # moyv4 += 2 * self.integz(np.real(w22)**2)
 
-        return harm_c, (ratot[0], ratot[2]), mode_c, (p20, w20, t20),\
-          (p22, u22, w22, t22), (moyt, moyv2, moyv4, qtop)
+        return harm_c, ratot, self.full_sol, meant, qtop

@@ -28,10 +28,25 @@ NON_LINEAR = True
 ra_comp = None
 
 if NON_LINEAR:
-    ana = NonLinearAnalyzer(pblm, ncheb=20)
-    harm_c, ray, modec, mode20, mode22, glob_val = ana.nonlinana()
-    print('Ra_c, Ra2 = ', ray)
-    print('globval', glob_val)
+    ana = NonLinearAnalyzer(pblm, ncheb=20, nnonlin=4)
+    harm_c, ray, mode, moyt, qtop = ana.nonlinana()
+    print('Rayleigh = ', ray)
+    print('moyt = ', moyt)
+    print('qtop = ', qtop)
+    nterms = qtop.shape[0]
+    eps = np.linspace(0, 1, num=10)
+    vdm = np.vander(eps, nterms, increasing=True)
+    rayl = np.dot(vdm, ray)
+    nuss = np.dot(vdm, qtop)
+    meant = np.dot(vdm, moyt)
+    fig, axe = plt.subplots(2, 1, sharex=True)
+    axe[0].plot(rayl, nuss)
+    axe[0].set_ylabel('Nusselt number', fontsize=FTSZ)
+    axe[0].set_xlabel('Rayleigh number', fontsize=FTSZ)
+    axe[1].plot(rayl, meant)
+    axe[1].set_xlabel('Rayleigh number', fontsize=FTSZ)
+    axe[1].set_ylabel('Mean T', fontsize=FTSZ)
+    plt.savefig('Ra-Nu-Tmean.pdf', format='PDF')
 else:
     ana = LinearAnalyzer(pblm, ncheb=20)
     ra_c, harm_c = ana.critical_ra(ra_comp=ra_comp)
