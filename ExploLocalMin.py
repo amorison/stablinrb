@@ -87,14 +87,21 @@ axis[0].tick_params(labelsize=FTSZ)
 axis[1].tick_params(labelsize=FTSZ)
 
 if phi_bot is not None:
-    title = '$\Phi^-={}$, '.format(phi_bot)
+    title = r'$\Phi^-={}$, '.format(phi_bot)
 else:
     title = 'Closed bottom, '
 if phi_top is not None:
-    title += '$\Phi^+={}$, '.format(phi_top)
+    title += r'$\Phi^+={}$'.format(phi_top)
 else:
     title += 'Closed top'
-axis[0].set_title(title)
+if eta_c is not None:
+    title += r', $\eta_0/\eta_\gamma'
+    eta_om = int(round(np.log10(eta_c)))
+    if eta_om < 2:
+        title += r'={}$'.format(eta_c)
+    else:
+        title += r'\sim10^{{{}}}$'.format(eta_om)
+axis[0].set_title(title, fontsize=FTSZ*1.2)
 
 plt.tight_layout()
 plt.savefig('track_lmin.pdf', format='PDF')
