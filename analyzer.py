@@ -12,7 +12,7 @@ from misc import build_slices, normalize_modes
 def cartesian_matrices_0(self, ra_num):
     """LHS matrix for x-independent forcing
 
-    When the RHS is independent of x, the solution is also
+    When the RHS is independent of x, the also solution is,
     and the velocity is uniform and only vertical, possibly null.
     Only the pressure, temperature and uniform vertical velocity
     are solved"""
@@ -75,7 +75,7 @@ def cartesian_matrices_0(self, ra_num):
         lmat[igw, 0] = 1
         lmat[igw, ipn] = -1
 
-    return lmat, pgint, tgint, igw
+    return lmat, pgint, tgint, pgall, tgall, igw
 
 def cartesian_matrices(self, wnk, ra_num, ra_comp=None):
     """Build left and right matrices in cartesian case"""
@@ -789,7 +789,7 @@ class NonLinearAnalyzer(Analyser):
         Returns
         nmax: the max number of matrix element to solve up to order.
         ordn, harm: order and harmonic number corresponding to ind in matrix.
-        ind: matrix index corresponding to ordnn and harmm
+        ind: matrix index corresponding to order and harmm
         """
         # if ordnn > order:
             # raise ValueError("in indexmat, ordnn > order")
@@ -863,6 +863,14 @@ class NonLinearAnalyzer(Analyser):
                         np.conj(self.full_w[indle]) * dtr
         return
 
+    # def mterm(self, imat):
+        # """adds the mterm to nterm to get the rhs.
+        
+        # imat: index in the solution matrix on which to compute the mterm
+        # """
+        
+        # return
+
     def nonlinana(self):
         """Ra2 and X2"""
         ncheb = self._ncheb
@@ -895,16 +903,18 @@ class NonLinearAnalyzer(Analyser):
 
         # setup matrices for the non linear solution
         nmodez = np.shape(mode_c)
-        nkmax = self.indexmat(nnonlin)[0]
+        nkmax = self.indexmat(nnonlin+1)[0]
         self.full_sol = np.zeros((nkmax, nmodez[0])) * (1+1j)
         self.full_u = self.full_sol[:, ugint]
         self.full_w = self.full_sol[:, wgint]
         self.full_t = self.full_sol[:, tgint]
+        self.full_w0 = np.zeros(nkmax) # translation velocity
         self.nterm = np.zeros(self.full_sol.shape) * (1+1j)
-        self.mterm = np.zeros(self.full_sol.shape) * (1+1j) # in practice, some parts will stay null.
+        # self.mterm = np.zeros(self.full_sol.shape) * (1+1j)
+        self.rhs = np.zeros(self.full_sol.shape) * (1+1j)
         # temperature part, the only non-null one
         self.ntermt = self.nterm[:, tgint]
-        ratot = np.zeros(nnonlin)
+        ratot = np.zeros(nnonlin+1)
         ratot[0] = ra_c
 
         (p_c, u_c, w_c, t_c) = modec
@@ -914,6 +924,8 @@ class NonLinearAnalyzer(Analyser):
         t_c /= 2
 
         self.full_sol[0] = self._join_mode_cartesian((p_c, u_c, w_c, t_c))
+        # denominator in Ra_i
+        xcmxc =  self.integz(np.real(w_c * t_c))
 
         rr = zcheb/2
         # replace with the low phi expansion for testing
@@ -924,15 +936,69 @@ class NonLinearAnalyzer(Analyser):
         # ra_c = 24 * phi_top -81 / 256 * phi_top**2
 
         dt_c = np.dot(self.dr1, t_c)
-        # also need the linear problem for wnk up to nnonlin*harm_c
-        lmat = np.zeros((nnonlin, lmat_c.shape[0], lmat_c.shape[1])) * (1+1j)
-        lmat0, pgint0, tgint0, igw0 = cartesian_matrices_0(self, ra_c)
+        lmat = np.zeros((nnonlin+1, lmat_c.shape[0], lmat_c.shape[1])) * (1+1j)
+        lmat0, pgint0, tgint0, pgall0, tgall0, igw0 = cartesian_matrices_0(self, ra_c)
         lmat[0] = lmat_c
-        for ii in range(1, nnonlin):
-            lmat[ii] = self.matrices(ii * harm_c, ra_c)[0]
+        # loop on the orders
+        for ii in range(2, nnonlin + 2):
+            # also need the linear problem for wnk up to nnonlin*harm_c
+            lmat[ii - 1] = self.matrices(ii * harm_c, ra_c)[0]
+            (lii, yii) = divmod(ii, 2)
+            # compute the N terms
+            for ll in range(1, ii):
+                self.ntermprod(ll, ii - ll, harm_c)
 
+            # compute Ra_{ii-1} if ii is odd (otherwise keep it 0).
+            if yii == 1:
+                # only term in harm_c from nterm contributes
+                _, _, _, ind = self.indexmat(ii, harmm=1)
+                prof = self._insert_boundaries(np.real(self.full_t[0] *\
+                                                        self.ntermt[ind]), it0, itn)
+                ratot[ii-1] = self.integz(prof)
+                for jj in range(1, lii):
+                    # only the ones in harm_c can contribute for each degree
+                    _, _, _, ind = self.indexmat(2 * (lii - jj) + 1, harmm=1)
+                    # + sign because denominator takes the minus.
+                    ratot[ii-1] += ratot[2 * jj] * \
+                      self.integz(np.real(self.full_w[0] * self.full_t[ind]))
+                ratot[ii-1] /= xcmxc
+
+            # add mterm to nterm to get rhs
+            _, _, _, imin = self.indexmat(ii, harmm=yii)
+            _, _, _, imax = self.indexmat(ii, harmm=ii)
+            self.rhs[imin:imax+1] = self.nterm[imin:imax+1]
+            jmax = lii if yii==0 else lii+1
+            for jj in range(2, jmax, 2):
+                # jj is index for Ra
+                # index for MX is ii-jj
+                (lmx, ymx) = divmod(ii - jj, 2)
+                for kk in range(lmx + 1):
+                    _, _, _, indjj = self.indexmat(ii, harmm=2*kk+ymx)
+                    self.rhs[indjj, wgint] -= ratot[jj] * self.full_t[indjj]
+
+            # invert matrix for each harmonic number
+            for jj in range(lii+1):
+                # index to fill in: same parity as ii
+                _, _, _, ind = self.indexmat(ii, harmm=2*jj+yii)
+                if jj == 0 : # special treatment for 0 modes.
+                    # should be possible to avoid the use of a rhs0
+                    rhs0 = np.zeros(lmat0.shape[1]) * (1 + 1j)
+                    rhs0[pgall0] = self.rhs[ind, pgall0]
+                    rhs0[tgall0] = self.rhs[ind, tgall0]
+                    
+                    # sol = solve(lmat0, np.r_[self.rhs[ind, pgall0], self.rhs[ind, tgall0]])
+                    sol = solve(lmat0, rhs0)
+                    self.full_sol[ind, pgint] = sol[pgint0]
+                    self.full_sol[ind, tgint] = sol[tgint0]
+                    if phi_top is not None and phi_bot is not None:
+                        # translation veolcity possible
+                        self.full_w0[ind] = sol[igw0]
+                    else:
+                        self.full_w0[ind] = 0
+                else:
+                    self.full_sol[ind] = solve(lmat[2*jj+yii - 1], self.rhs[ind])
         # now compute the non-linear source terms up to degree 2
-        self.ntermprod(1, 1, harm_c)
+        # self.ntermprod(1, 1, harm_c)
 
         # theta part of the non-linear term N(Xc, Xc)
         # part constant in x
@@ -946,20 +1012,16 @@ class NonLinearAnalyzer(Analyser):
         # mode20 = solve(lmat0, nxcxc0)
 
         # solve for mode 20
-        mode20 = solve(lmat0, np.r_[self.nterm[1, pgint], self.nterm[1, tgint]])
+        # mode20 = solve(lmat0, np.r_[self.nterm[1, pgint], self.nterm[1, tgint]])
 
-        # print('mode20', mode20.shape)
-
-        p20 = mode20[pgint0]
-        t20 = mode20[tgint0]
+        p20 = self.full_sol[1, pgall0]
+        t20 = self.full_sol[1, tgall0]
         if phi_top is not None and phi_bot is not None:
-            w20 = mode20[igw0]
+            w20 = self.full_sol[1, igw0]
         else:
             w20 = 0
-        self.full_sol[1, pgint] = p20
-        self.full_sol[1, wgall] = w20
-        self.full_sol[1, tgint] = t20
-        p20 = self._insert_boundaries(p20, ip0, ipn)
+            p20 = self._insert_boundaries(p20, ip0, ipn)
+
         t20 = self._insert_boundaries(t20, it0, itn)
         dt20 = np.dot(self.dr1, t20)
 
@@ -968,17 +1030,11 @@ class NonLinearAnalyzer(Analyser):
         # nxcxc2 = np.zeros((itg(itn) + 1))
         # nxcxc2[tgint] = (np.real(w_c * dt_c) - harm_c * np.imag(u_c) * np.real(t_c))[tint]
 
-        mode22 = solve(lmat[1], self.nterm[2])
-        p22 = mode22[pgall]
-        u22 = mode22[ugall]
-        w22 = mode22[wgall]
-        t22 = mode22[tgall]
-        self.full_sol[2, pgall] = p22
-        self.full_sol[2, ugall] = u22
-        self.full_sol[2, wgall] = w22
-        self.full_sol[2, tgall] = t22
-
-        # print('full_sol = ', self.full_sol)
+        # mode22 = solve(lmat[1], self.rhs[2])
+        p22 = self.full_sol[2, pgall]
+        u22 = self.full_sol[2, ugall]
+        w22 = self.full_sol[2, wgall]
+        t22 = self.full_sol[2, tgall]
 
         p22 = self._insert_boundaries(p22, ip0, ipn)
         u22 = self._insert_boundaries(u22, iu0, iun)
@@ -1068,8 +1124,6 @@ class NonLinearAnalyzer(Analyser):
         # plt.savefig('mass.pdf', format='PDF')
         # plt.close(fig)
         
-        # denominator in Ra2
-        xcmxc =  self.integz(np.real(w_c * t_c))
         # print('xcmxc = ', xcmxc)
         # numerator in Ra2
         xcnx2xc = 2 * harm_c * self.integz(np.real(t_c)**2 * np.imag(u22))
@@ -1106,5 +1160,5 @@ class NonLinearAnalyzer(Analyser):
         moyv4 += w20**2 # a constant
         moyv4 += 2 * self.integz(np.real(w22)**2)
 
-        return harm_c, (ra_c, ra2), mode_c, (p20, w20, t20),\
+        return harm_c, (ratot[0], ra2), mode_c, (p20, w20, t20),\
           (p22, u22, w22, t22), (moyt, moyv2, moyv4, qtop)

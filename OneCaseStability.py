@@ -16,15 +16,15 @@ MSIZE = 5
 gamma = 0.7
 eta_c = 10**7
 pblm = PhysicalProblem(
-    gamma=gamma,
-    phi_top=None,
-    phi_bot=1e-2,
+    gamma=None,
+    phi_top=1e4,
+    phi_bot=None,
     freeslip_top=True,
     freeslip_bot=True,
     eta_r = visco_Arrhenius(eta_c, gamma) if eta_c is not None else None,
     ref_state_translation=False)
 
-NON_LINEAR = False
+NON_LINEAR = True
 ra_comp = None
 
 if NON_LINEAR:
