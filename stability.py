@@ -9,15 +9,18 @@ Also treats the phase change boundary conditions.
 """
 import numpy as np
 import matplotlib.pyplot as plt
-import seaborn as sns
+import matplotlib.ticker as ticker
+# import seaborn as sns
 from analyzer import LinearAnalyzer, NonLinearAnalyzer
 from physics import PhysicalProblem, compo_smo
 from plotting import plot_fastest_mode, plot_ran_harm
 from misc import normalize_modes
 
+# import os.path.isfile as isfile
+
 # Font and markers size
-FTSZ = 14
-MSIZE = 5
+FTSZ = 11
+MSIZE = 3
 
 pblm = PhysicalProblem(
     gamma=None,
@@ -82,7 +85,7 @@ if EXPLORE_PHASE:
             with open('EqualTopBotPhi_nonlin.dat', 'w') as fich:
                 fmt = '{:13}'*8 + '\n'
                 fich.write(fmt.format(' phi', 'kx', 'Ra', 'Ra2', 'moyT', 'moyV2', 'moyV4', 'qtop'))
-                fmt = '{:15.3e}'*7 + '{:15.3}' + '\n'
+                fmt = '{ :15.3e }'*3 + '{ :.2f }'*5 + '\n'
                 for i in range(nphi):
                     fich.write(fmt.format(phinum[i], kwn[i], ram[i], ra2[i],
                                       moyt[i], moyv2[i], moyv4[i], qtop[i]))
@@ -169,6 +172,7 @@ if EXPLORE_PHASE:
         ana = LinearAnalyzer(PhysicalProblem())
         nphi = 50
         phinum = np.flipud(np.power(10, np.linspace(-2, 4, nphi)))
+        phinum2 = np.flipud(np.power(10, np.linspace(-2, 4, 300)))
         # Limit case for infinite phi
         rac = 27*np.pi**4/4
         kxc = np.pi/np.sqrt(2)
@@ -177,72 +181,91 @@ if EXPLORE_PHASE:
         EQUAL_PHI = False
         # Computes properties as function of phi, equal for both boundaries
         if EQUAL_PHI:
+            if True:
+            # if not isfile(('EqualTopBotPhi.dat', 'w'):
             # First unstable mode
-            ana.phys.phi_top = phinum[0]
-            ana.phys.phi_bot = phinum[0]
-            ra_c, kx_c = ana.critical_ra()
-            _, modes = ana.eigvec(kx_c, ra_c)
-            _, mode_max = normalize_modes(modes)
-            ram = [ra_c]
-            kwn = [kx_c]
-            pmax = [mode_max[0]]
-            umax = [mode_max[1]]
-            wmax = [mode_max[2]]
-            tmax = [mode_max[3]]
-            print(phinum[0], ram, kwn)
-            for i, phi in enumerate(phinum[1:]):
-                ana.phys.phi_top = phi
-                ana.phys.phi_bot = phi
-                ra_c, kx_c = ana.critical_ra(harm=kwn[-1], ra_guess=ram[-1])
+                ana.phys.phi_top = phinum[0]
+                ana.phys.phi_bot = phinum[0]
+                ra_c, kx_c = ana.critical_ra()
                 _, modes = ana.eigvec(kx_c, ra_c)
-                _, mode_max = normalize_modes(modes)
-                print(i, phi, ra_c, kx_c)
-                ram = np.append(ram, ra_c)
-                kwn = np.append(kwn, kx_c)
-                pmax = np.append(pmax, mode_max[0])
-                umax = np.append(umax, mode_max[1])
-                wmax = np.append(wmax, mode_max[2])
-                tmax = np.append(tmax, mode_max[3])
-            # save
-            with open('EqualTopBotPhi.dat', 'w') as fich:
-                fmt = '{:13}'*7 + '\n'
-                fich.write(fmt.format(' phi', 'kx', 'Ra', 'Pmax', 'Umax', 'Tmax', 'Wmax'))
-                fmt = '{:15.3e}'*6 + '{:15.3}' + '\n'
-                for i in range(nphi):
-                    fich.write(fmt.format(phinum[i], kwn[i], ram[i], pmax[i],
-                                        umax[i], tmax[i], wmax[i]))
-
+                (p_mode, u_mode, w_mode, t_mode) = ana.split_mode(modes, kx_c, apply_bc=True)
+                _, mode_max = normalize_modes((p_mode, u_mode, w_mode, t_mode))
+                ram = [ra_c]
+                kwn = [kx_c]
+                pmax = [mode_max[0]]
+                umax = [mode_max[1]]
+                wmax = [mode_max[2]]
+                tmax = [mode_max[3]]
+                print(phinum[0], ram, kwn)
+                for i, phi in enumerate(phinum[1:]):
+                    ana.phys.phi_top = phi
+                    ana.phys.phi_bot = phi
+                    ra_c, kx_c = ana.critical_ra(harm=kwn[-1], ra_guess=ram[-1])
+                    _, modes = ana.eigvec(kx_c, ra_c)
+                    (p_mode, u_mode, w_mode, t_mode) = ana.split_mode(modes, kx_c, apply_bc=True)
+                    _, mode_max = normalize_modes((p_mode, u_mode, w_mode, t_mode))
+                    print(i, phi, ra_c, kx_c)
+                    ram = np.append(ram, ra_c)
+                    kwn = np.append(kwn, kx_c)
+                    pmax = np.append(pmax, mode_max[0])
+                    umax = np.append(umax, mode_max[1])
+                    wmax = np.append(wmax, mode_max[2])
+                    tmax = np.append(tmax, mode_max[3])
+                # save
+                with open('EqualTopBotPhi.dat', 'w') as fich:
+                    fmt = '{:13}'*7 + '\n'
+                    fich.write(fmt.format(' phi', 'kx', 'Ra', 'Pmax', 'Umax', 'Tmax', 'Wmax'))
+                    fmt = '{:20.3e}'*6 + '{:20.3e}' + '\n'
+                    for i in range(nphi):
+                        fich.write(fmt.format(phinum[i], kwn[i], ram[i], np.abs(pmax[i]),
+                                            np.abs(umax[i]), np.abs(tmax[i]), np.abs(wmax[i])))
+                # with open('EqualTopBotPhi.dat', 'w') as fich:
+                #     fmt = '{:13}'*7 + '\n'
+                #     fich.write(fmt.format(' phi', 'kx', 'Ra', 'Pmax', 'Umax', 'Tmax', 'Wmax'))
+                #     fmt = '{:20.3e}'*6 + '{20.3}' + '\n'
+                #     for i in range(nphi):
+                #         fich.write(fmt.format(phinum[i], kwn[i], ram[i], pmax[i],
+                #                             umax[i], tmax[i], wmax[i]))
+            else:
+                with open('EqualTopBotPhi.dat', 'r') as fich:
+                    # fmt = '{:13}'*7 + '\n'
+                    # fich.write(fmt.format(' phi', 'kx', 'Ra', 'Pmax', 'Umax', 'Tmax', 'Wmax'))
+                    next(fich)
+                    for line in fich:
+                        fich.read(fmt.format(phinum[i], kwn[i], ram[i], pmax[i],
+                                            umax[i], tmax[i], wmax[i]))
+    
             # plot kx and ra as function of phi
             fig, axe = plt.subplots(2, 1, sharex=True)
             # Theoretical prediction for translation
             axe[0].loglog(phinum, 24*phinum, '--', c='k', label=r'Translation mode')
             # Theoretical for low phi development
-            ra_theo = 24*phinum-81*phinum**2/256
-            rat2 = ra_theo[np.log10(np.abs(ra_theo-ram))<1]
-            phi2 = phinum[np.log10(np.abs(ra_theo-ram))<1]
-            axe[0].loglog(phinum, ra_theo, '-', c='k',
-                            label=r'Small $\Phi$ prediction')
+            ra_theo = 24*phinum2-81*phinum2**2/256
+            # rat2 = ra_theo[np.log10(np.abs(ra_theo-ram))<1]
+            # phi2 = phinum[np.log10(np.abs(ra_theo-ram))<1]
+            axe[0].loglog(phinum2, ra_theo, '-', c='k')
+                            # label=r'Small $\Phi$ prediction')
             # classical RB case
-            axe[0].loglog([phinum[0], phinum[-1]], [rac, rac], '-.', c='k',
-                            label=r'$\frac{27\pi^4}{4}$')
+            axe[0].loglog([phinum[0], phinum[-1]], [rac, rac], '-.', c='k')
+                            # label=r'$\frac{27\pi^4}{4}$')
             # col0 = p0.get_color()
-            p1, = axe[0].loglog(phinum, ram, 'o', markersize=MSIZE,
-                                label=r'Fastest growing mode')
+            p1, = axe[0].loglog(phinum, ram, 'o', markersize=MSIZE, markeredgewidth=0.0)
+                                # label=r'Fastest growing mode')
             col1 = p1.get_color()
             # General case
             axe[0].tick_params(axis='both', which='major', labelsize=FTSZ-1)
             axe[0].set_ylabel(r'$\mathrm{Ra}_c$', fontsize=FTSZ)
             # axe[0].set_ylim([0, 800])
-            # axe[0].legend(loc=4, fontsize=FTSZ)
+            axe[0].legend(loc=4, frameon=False, fontsize=FTSZ-2)
             # plt.tick_params(labelsize=FTSZ-1)
             axe[1].loglog([phinum[0], phinum[-1]], [kxc, kxc], '-.', c='k',
-                        label=r'$\mathrm{Ra}_c=\frac{27\pi^4}{4}, k_c=\frac{\pi}{\sqrt{2}}$')
+                        label=r'$\mathrm{R}_c=\frac{27\pi^4}{4}, k_c=\frac{\pi}{\sqrt{2}}$')
             # Small phi prediction
-            axe[1].loglog(phinum, np.sqrt(9*phinum/32), '-', c='k',
+            axe[1].loglog(phinum2, np.sqrt(9*phinum2/32), '-', c='k',
                         label=r'Small $\Phi$ prediction')
-            axe[1].loglog(phinum, kwn, 'o', markersize=MSIZE, c=col1,
+            axe[1].loglog(phinum, kwn, 'o', markersize=MSIZE, markeredgewidth=0.0, c=col1,
                         label=r'Fastest growing mode')
-            axe[1].legend(loc=4, fontsize=FTSZ)
+            axe[1].legend(loc=4, frameon=False, fontsize=FTSZ-2)
             axe[1].set_ylabel(r'$k_c$', fontsize=FTSZ)
             axe[1].set_xlabel(r'$\Phi^+=\Phi^-$', fontsize=FTSZ)
             plt.tick_params(axis='both', which='major', labelsize=FTSZ-1)
@@ -251,28 +274,35 @@ if EXPLORE_PHASE:
 
             # plot Pmax, Umax, Wmax and (24phi - Ra) as function of phi
             fig, axe = plt.subplots(4, 1, sharex=True)
-            axe[0].loglog(phinum, np.abs(pmax), marker='.', linestyle='-')
+            axe[0].loglog(phinum, np.abs(pmax), 'o', markersize=MSIZE, markeredgewidth=0.0)#, linestyle='-')
             axe[0].loglog(phinum, 13*np.sqrt(13)/8*phinum, linestyle='--', c='k',
                             label=r'$13\sqrt{13}\Phi/8$')
-            axe[0].legend(loc='upper left', fontsize=FTSZ)
+            axe[0].legend(loc='upper left', fontsize=FTSZ-2, frameon=False)
             axe[0].set_ylabel(r'$P_{max}$', fontsize=FTSZ)
-            axe[1].loglog(phinum, np.abs(umax), marker='.', linestyle='-')
+            # axe[0].set_yticks(np.power(10, np.arange(-2, 5, 2)))
+            axe[0].yaxis.set_major_locator(ticker.LogLocator(base=100))
+            axe[1].loglog(phinum, np.abs(umax), 'o', markersize=MSIZE, markeredgewidth=0.0)#, linestyle='-')
             axe[1].loglog(phinum, 3*np.sqrt(phinum/2), linestyle='--', c='k',
                             label=r'$3\sqrt{\Phi/2}$')
-            axe[1].legend(loc='upper left', fontsize=FTSZ)
+            axe[1].legend(loc='upper left', fontsize=FTSZ-2, frameon=False)
             axe[1].set_ylabel(r'$U_{max}$', fontsize=FTSZ)
-            axe[2].semilogx(phinum, np.abs(wmax), marker='.', linestyle='-')
+            axe[2].semilogx(phinum, np.abs(wmax), 'o', markersize=MSIZE, markeredgewidth=0.0)#, linestyle='-')
             axe[2].semilogx(phinum, 8*np.ones(phinum.shape), linestyle='--', c='k',
                             label=r'$8$')
             axe[2].set_ylim(ymin=7)
-            axe[2].legend(loc='upper left', fontsize=FTSZ)
+            axe[2].legend(loc='upper left', fontsize=FTSZ-2, frameon=False)
             axe[2].set_ylabel(r'$W_{max}$', fontsize=FTSZ)
-            axe[3].loglog(phinum, 24*phinum-ram, marker='.', linestyle='-')
+            # axe[2].set_yticks(np.arange(7, 15, 2))
+            axe[2].yaxis.set_major_locator(ticker.MultipleLocator(2))
+            axe[2].yaxis.set_minor_locator(ticker.MultipleLocator(1))
+            axe[3].loglog(phinum, 24*phinum-ram, 'o', markersize=MSIZE, markeredgewidth=0.0)#, linestyle='-')
             axe[3].loglog(phinum, 81*phinum**2/256,  linestyle='--', c='k',
                             label=r'$81\Phi^2/256$')
             axe[3].set_ylabel(r'$24\Phi-Ra$', fontsize=FTSZ)
-            axe[3].legend(loc='upper left', fontsize=FTSZ)
+            axe[3].legend(loc='upper left', fontsize=FTSZ-2, frameon=False)
             axe[3].set_xlabel(r'$\Phi$', fontsize=FTSZ)
+            # axe[3].set_yticks(np.power(10, np.arange(-5, 8, 2)))
+            axe[3].yaxis.set_major_locator(ticker.LogLocator(base=1000))
             # axe[3].set_ylim([1.e-6, 1.e2])
             plt.savefig('Phi_ModeMax.pdf', format='PDF')
             plt.close(fig)
@@ -291,7 +321,8 @@ if EXPLORE_PHASE:
                 ana.phys.phi_bot = phi
                 ra_c, kx_c = ana.critical_ra()
                 _, modes = ana.eigvec(kx_c, ra_c)
-                _, mode_max = normalize_modes(modes)
+                (p_mode, u_mode, w_mode, t_mode) = ana.split_mode(modes, kx_c, apply_bc=True)
+                _, mode_max = normalize_modes((p_mode, u_mode, w_mode, t_mode))
                 print(i, phi, ra_c, kx_c)
                 ram[i] = ra_c
                 kwn[i] = kx_c
@@ -314,22 +345,22 @@ if EXPLORE_PHASE:
             axe[0].semilogx([phinum[0], phinum[-1]], [rac, rac], '-.', c='k',
                             label=r'$\frac{27\pi^4}{4}$')
             # general case
-            p1, = axe[0].semilogx(phinum, ram, 'o', markersize=MSIZE, label=r'$\Phi^+=\infty$, varying $\Phi^-$')
+            p1, = axe[0].semilogx(phinum, ram, 'o', markersize=MSIZE, markeredgewidth=0.0, label=r'$\Phi^+=\infty$, varying $\Phi^-$')
             col1 = p1.get_color()
             # axe[0].semilogx(phinum, ram2, 'o', markersize=MSIZE, label='Second fastest mode')
             axe[0].tick_params(axis='both', which='major', labelsize=FTSZ-1)
             axe[0].set_ylabel(r'$\mathrm{Ra}_c$', fontsize=FTSZ)
             axe[0].set_ylim([0, 700])
-            axe[0].legend(loc=7, fontsize=FTSZ)
+            axe[0].legend(loc=7, fontsize=FTSZ-2, frameon=False)
             # kx
             # classical RB case
             axe[1].semilogx([phinum[0], phinum[-1]], [kxc, kxc], '-.', c='k',
                         label=r'$\frac{\pi}{\sqrt{2}}$')
             # Free top, phase change at bottom
-            axe[1].semilogx(phinum, kwn, 'o', markersize=MSIZE, c=col1,
+            axe[1].semilogx(phinum, kwn, 'o', markersize=MSIZE, markeredgewidth=0.0, c=col1,
                         label=r'$\Phi^+=\infty$, varying $\Phi^-$')
             # axe[1].loglog(phinum, kwn2, 'o', markersize=MSIZE, label='Second fastest mode')
-            axe[1].legend(loc=4, fontsize=FTSZ)
+            axe[1].legend(loc=4, fontsize=FTSZ-2, frameon=False)
             axe[1].set_ylabel(r'$k_c$', fontsize=FTSZ)
             axe[1].set_xlabel(r'$\Phi^-$', fontsize=FTSZ)
             plt.tick_params(axis='both', which='major', labelsize=FTSZ-1)
@@ -338,13 +369,13 @@ if EXPLORE_PHASE:
             # plot Pmax, Umax, Wmax and (24phi - Ra) as function of phi
             fig, axe = plt.subplots(3, 1, sharex=True)
             axe[0].semilogx(phinum, np.abs(pmax), marker='.', linestyle='-')
-            axe[0].legend(loc='upper left', fontsize=FTSZ)
+            axe[0].legend(loc='upper left', fontsize=FTSZ-2)
             axe[0].set_ylabel(r'$P_{max}$', fontsize=FTSZ)
             axe[1].semilogx(phinum, np.abs(umax), marker='.', linestyle='-')
-            axe[1].legend(loc='upper left', fontsize=FTSZ)
+            axe[1].legend(loc='upper left', fontsize=FTSZ-2)
             axe[1].set_ylabel(r'$U_{max}$', fontsize=FTSZ)
             axe[2].semilogx(phinum, np.abs(wmax), marker='.', linestyle='-')
-            axe[2].legend(loc='upper left', fontsize=FTSZ)
+            axe[2].legend(loc='upper left', fontsize=FTSZ-2)
             axe[2].set_ylabel(r'$W_{max}$', fontsize=FTSZ)
             axe[2].set_xlabel(r'$\Phi$', fontsize=FTSZ)
             # axe[3].set_ylim([1.e-6, 1.e2])
@@ -385,29 +416,31 @@ if EXPLORE_PHASE:
         # Theoretical prediction for translation
         axe[0].semilogx(phinum, 24*phinum, '--', c='k', label='Translation mode')
         # classical RB case
-        axe[0].semilogx([phinum[0], phinum[-1]], [rac, rac], '-.', c='k',
-                               label=r'$\frac{27\pi^4}{4}$')
+        axe[0].semilogx([phinum[0], phinum[-1]], [rac, rac], '-.', c='k')
+                               # label=r'$\frac{27\pi^4}{4}$')
         # general case
-        p1, = axe[0].semilogx(phinum, ram, 'o', markersize=MSIZE, label=r'$\Phi^-=\infty$, varying $\Phi^+$')
-        p2, = axe[0].semilogx(phinum, ram2[1:], 'o', markersize=MSIZE, label='Varying $\Phi^-$, $\Phi^+=10^{-2}$')
+        p1, = axe[0].semilogx(phinum, ram, 'o', markersize=MSIZE, markeredgewidth=0.0)
+        # , label=r'$\Phi^-=\infty$, varying $\Phi^+$')
+        p2, = axe[0].semilogx(phinum, ram2[1:], 'o', markersize=MSIZE, markeredgewidth=0.0)
+        # , label='Varying $\Phi^-$, $\Phi^+=10^{-2}$')
         col1 = p1.get_color()
         col2 = p2.get_color()
         # axe[0].semilogx(phinum, ram2, 'o', markersize=MSIZE, label='Second fastest mode')
         axe[0].set_ylabel(r'$Ra$', fontsize=FTSZ)
-        axe[0].set_ylim([0, 700])
-        axe[0].legend(loc=7)
+        axe[0].set_ylim([-20, 700])
+        axe[0].legend(loc=7, frameon=False, fontsize=FTSZ-2)
         # kx
         # classical RB case
         axe[1].semilogx([phinum[0], phinum[-1]], [kxc, kxc], '-.', c='k',
-                    label=r'$\frac{\pi}{\sqrt{2}}$')
+                    label=r'$\mathrm{R}_c=\frac{27\pi^4}{4}, k_c=\frac{\pi}{\sqrt{2}}$')
         # Free bottom, phase change at top
-        axe[1].semilogx(phinum, kwn, 'o', markersize=MSIZE, c=col1,
+        axe[1].semilogx(phinum, kwn, 'o', markersize=MSIZE, markeredgewidth=0.0, c=col1,
                     label=r'$\Phi^-=\infty$, varying $\Phi^+$')
         # Gradually openning bottom
-        axe[1].semilogx(phinum, kwn2[1:], 'o', markersize=MSIZE, c=col2,
+        axe[1].semilogx(phinum, kwn2[1:], 'o', markersize=MSIZE, markeredgewidth=0.0, c=col2,
                     label='Varying $\Phi^-$, $\Phi^+=10^{-2}$')
         # axe[1].loglog(phinum, kwn2, 'o', markersize=MSIZE, label='Second fastest mode')
-        axe[1].legend(loc=4)
+        axe[1].legend(loc=4, frameon=False, fontsize=FTSZ-2)
         axe[1].set_ylabel(r'$k$', fontsize=FTSZ)
         axe[1].set_xlabel(r'$\Phi^-,\quad \Phi^+$', fontsize=FTSZ)
         plt.savefig("Phi-Ra-kx_VaryingPhiBotTop.pdf", format='PDF')

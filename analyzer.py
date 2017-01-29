@@ -4,7 +4,7 @@ import numpy.ma as ma
 from scipy import linalg
 from numpy.linalg import solve
 import matplotlib.pyplot as plt
-import seaborn as sns
+# import seaborn as sns
 from physics import PhysicalProblem, wtran
 from misc import build_slices, normalize_modes
 
@@ -919,6 +919,7 @@ class NonLinearAnalyzer(Analyser):
         # coefficients for the velocity RMS. More complex. To be done.
 
         (p_c, u_c, w_c, t_c) = modec
+         # devide by 2 to get the same value as for a sin, cos representation.
         p_c /= 2
         u_c /= 2
         w_c /= 2

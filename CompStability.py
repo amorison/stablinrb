@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Calculation of stability from an initial compostion and temperature profile.
+Calculation of stability from an initial composition and temperature profile.
 """
 import numpy as np
 import matplotlib.pyplot as plt
