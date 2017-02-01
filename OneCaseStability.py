@@ -11,16 +11,16 @@ from misc import normalize_modes
 import plotting
 
 # Font and markers size
-FTSZ = 14
-MSIZE = 5
+FTSZ = 11
+MSIZE = 3
 # gamma = 0.7
 eta_c = None
 pblm = PhysicalProblem(
-    # gamma=0.8,
-    phi_top=None,
-    phi_bot=1e-2,
+    gamma=None,
+    phi_top=1e1,
+    phi_bot=1e1,
     freeslip_top=True,
-    freeslip_bot=True,
+    freeslip_bot=False,
     eta_r = visco_Arrhenius(eta_c, gamma) if eta_c is not None else None,
     ref_state_translation=False)
 
@@ -51,6 +51,6 @@ else:
     ana = LinearAnalyzer(pblm, ncheb=20)
     ra_c, harm_c = ana.critical_ra(ra_comp=ra_comp)
     print('Rac, kc = ', ra_c, harm_c)
-    plotting.plot_fastest_mode(ana, harm_c, ra_c, ra_comp)
+    plotting.plot_fastest_mode(ana, harm_c, ra_c, ra_comp, plot_theory=True)
     plotting.plot_ran_harm(ana, harm_c, ra_comp)
     plotting.plot_viscosity(pblm)

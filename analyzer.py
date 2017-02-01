@@ -126,8 +126,8 @@ def cartesian_matrices(self, wnk, ra_num, ra_comp=None):
     # the same as that of d2w and depends on bcsw.
 
     if translation:
-        rtr = 12*(phitop+phibot)
-        wtrans = wtran((ranum-rtr)/rtr)[0]
+        rtr = 12*(phi_top+phi_bot)
+        wtrans = wtran((ra_num-rtr)/rtr)[0]
 
     lmat = np.zeros((igf[-1](i_ns[-1]) + 1, igf[-1](i_ns[-1]) + 1)) + 0j
     rmat = np.zeros((igf[-1](i_ns[-1]) + 1, igf[-1](i_ns[-1]) + 1))
@@ -212,7 +212,6 @@ def cartesian_matrices(self, wnk, ra_num, ra_comp=None):
         lmat[cgint, cgall] = lapl[cint, call] / lewis
     if comp_terms:
         rmat[cgint, cgall] = one[cint, call]
-
     return lmat, rmat
 
 

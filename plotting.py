@@ -11,11 +11,9 @@ from mpl_toolkits.axisartist.grid_finder import FixedLocator, \
 
 
 # Font and markers size
-FTSZ = 12
+FTSZ = 11
 MSIZE = 3
 
-plt.rcParams['xtick.labelsize'] = FTSZ - 3
-plt.rcParams['ytick.labelsize'] = FTSZ - 3
 
 def plot_fastest_mode(analyzer, harm, ra_num, ra_comp=None,
                       name=None, plot_theory=False):
@@ -66,28 +64,28 @@ def plot_fastest_mode(analyzer, harm, ra_num, ra_comp=None,
         plt.setp(axis, xlim=[-1.1, 1.1], ylim=[-1/2, 1/2],
                  xticks=[-1, -0.5, 0., 0.5, 1])
     if plot_theory:
-        axis[0].plot(rad*4/(13*np.sqrt(13))*(39-64*rad**2), rad)
+        axis[0].plot(-rad*4/(13*np.sqrt(13))*(39-64*rad**2), rad)
     else:
         axis[0].plot(p_interp / t_max / p_max, rad)
-    axis[0].plot(p_norm, rad_cheb, 'o', markersize=MSIZE, markeredgewidth=0.0)
+    axis[0].plot(p_norm, rad_cheb, 'o')
     axis[0].set_xlabel(r'$P/(%.3f)$' %(np.real(p_max)), fontsize=FTSZ)
     if plot_theory:
         axis[1].plot(-2 * rad, rad)
     else:
         axis[1].plot(u_interp / t_max / u_max, rad)
-    axis[1].plot(u_norm, rad_cheb, 'o', markersize=MSIZE, markeredgewidth=0.0)
+    axis[1].plot(u_norm, rad_cheb, 'o')
     axis[1].set_xlabel(r'$U/(%.3fi)$' %(np.imag(u_max)), fontsize=FTSZ)
     if plot_theory:
         axis[2].plot(np.ones(rad.shape), rad)
     else:
         axis[2].plot(w_interp / t_max / w_max, rad)
-    axis[2].plot(w_norm, rad_cheb, 'o', markersize=MSIZE, markeredgewidth=0.0)
+    axis[2].plot(w_norm, rad_cheb, 'o')
     axis[2].set_xlabel(r'$W/(%.3f)$' %(np.real(w_max)), fontsize=FTSZ)
     if plot_theory:
         axis[3].plot(1-4*rad**2, rad)
     else:
         axis[3].plot(t_interp / t_max, rad)
-    axis[3].plot(t_norm, rad_cheb, 'o', markersize=MSIZE, markeredgewidth=0.0)
+    axis[3].plot(t_norm, rad_cheb, 'o')
     axis[3].set_xlabel(r'$T$', fontsize=FTSZ)
     filename = '_'.join((name, 'mode_prof.pdf'))
     plt.savefig(filename, format='PDF')
