@@ -182,9 +182,9 @@ def cartesian_matrices(self, wnk, ra_num, ra_comp=None):
     # need to take heat flux into account in T conductive
     if translation:
         # only written for Dirichlet BCs on T and without internal heating
+        lmat[tgint, tgall] -= wtrans * dz1[tint, tall]
         lmat[tgint, wgall] = \
             np.diag(np.exp(wtrans * self.rad[wall]))[tint, wall]
-        lmat[tgint, tgall] -= wtrans * dz1[tint, tall]
         if np.abs(wtrans)>1.e-3:
             lmat[tgint, wgall] *= wtrans/(2*np.sinh(wtrans/2))
         else:
@@ -654,9 +654,10 @@ class LinearAnalyzer(Analyser):
         if self.phys.spherical:
             harms = range(max(1, harm - 10), harm + 10)
         else:
-            return None
-        sigma = [self.eigval(harm, ra_num, ra_comp) for harm in harms]
+            eps = [0.1, 0.01]
+            harms = np.linspace(harm * (1 - 2 * eps[0]), harm * (1 + eps[0]), 3)
 
+        sigma = [self.eigval(harm, ra_num, ra_comp) for harm in harms]
         if self.phys.spherical:
             max_found = False
             while not max_found:
@@ -679,7 +680,16 @@ class LinearAnalyzer(Analyser):
             smax = sigma[imax]
             hmax = harms[imax]
         else:
-            pass
+            pol = np.polyfit(harms, sigma, 2)
+            # maximum value
+            hmax = -0.5*pol[1]/pol[0]
+            for i, err in enumerate([0.03, 1.e-3]):
+                while np.abs(hmax-harms[1]) > err*hmax:
+                    harms = np.linspace(hmax * (1 - eps[i]), hmax * (1 + eps[i]), 3)
+                    sigma  = [self.eigval(h, ra_num, ra_comp) for h in harms]
+                    pol = np.polyfit(harms, sigma, 2)
+                    hmax = -0.5*pol[1]/pol[0]
+                    smax = sigma[1]
 
         return smax, hmax
 
