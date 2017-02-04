@@ -720,6 +720,66 @@ class LinearAnalyzer(Analyser):
         ran_mod2 = ranlast
         return ((1, ran_mod1), (l_mod2, ran_mod2))
 
+    def critical_harm(self, ranum, hguess, eps=1e-4):
+        """Find the wavenumbers giving a zero growth rate for a given Ra
+
+        ranum is the Rayleigh number
+        hguess is an optional inital guess for the wavenumber giving the maximum growth rate
+        """
+        # First find the maximum growth rate
+        sigmax, hmax = self.fastest_mode(ranum, harm=hguess)
+        if np.real(sigmax) < 0:
+            # no need point in looking for zeros
+            return sigmax, hmax, hmax, hmax
+
+        # search zero on the plus side
+        kmin = hmax
+        kmax = 2 * hmax
+        smin = self.eigval(kmin, ranum)
+        smax = self.eigval(kmax, ranum)
+        while np.real(smax) > 0 or np.real(smin) < 0:
+            if np.real(smax) > 0:
+                kmin = kmax
+                kmax *= 2
+            if np.real(smin) < 0:
+                kmax = kmin
+                kmin /= 2
+            smin = self.eigval(kmin, ranum)
+            smax = self.eigval(kmax, ranum)
+
+        while (kmax - kmin) / kmax > eps:
+            kplus = (kmin + kmax) / 2
+            splus = self.eigval(kplus, ranum)
+            if np.real(splus) < 0:
+                kmax = kplus
+            else:
+                kmin = kplus
+
+        # search zero on the minus side
+        kmin = hmax / 2
+        kmax = hmax
+        smin = self.eigval(kmin, ranum)
+        smax = self.eigval(kmax, ranum)
+        while np.real(smax) < 0 or np.real(smin) > 0:
+            if np.real(smax) < 0:
+                kmin = kmax
+                kmax *= 2
+            if np.real(smin) > 0:
+                kmax = kmin
+                kmin /= 2
+            smin = self.eigval(kmin, ranum)
+            smax = self.eigval(kmax, ranum)
+
+        while (kmax - kmin) / kmax > eps:
+            kminus = (kmin + kmax) / 2
+            sminus = self.eigval(kminus, ranum)
+            if np.real(sminus) < 0:
+                kmin = kminus
+            else:
+                kmax = kminus
+
+        return sigmax, hmax, kminus, kplus
+
     def critical_ra(self, harm=2, ra_guess=600, ra_comp=None):
         """Find the harmonic with the lower neutral Ra
 

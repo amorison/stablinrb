@@ -14,6 +14,7 @@ from analyzer import LinearAnalyzer, NonLinearAnalyzer
 from physics import PhysicalProblem, compo_smo
 from plotting import plot_fastest_mode, plot_ran_harm
 from misc import normalize_modes
+import numpy.ma as ma
 
 # Font and markers size
 FTSZ = 14
@@ -43,40 +44,24 @@ ana.phys.ref_state_translation = True
 axe = plt.subplot()
 kmax = np.zeros(epsilon.shape)
 sigmax = np.zeros(epsilon.shape)
-kmax1 = np.zeros(epsilon.shape)
-sigmax1 = np.zeros(epsilon.shape)
-
-def find_max_k(ran, guess=1):
-    """Find the maximum growth rate"""
-    eps = [0.1, 0.01]
-    harms = np.linspace(guess * (1 - 2 * eps[0]), guess * (1 + eps[0]), 3)
-    sig  = [ana.eigval(h, ran) for h in harms]
-    # fit a degree 2 polynomial
-    pol = np.polyfit(harms, sig, 2)
-    # minimum value
-    exitloop = False
-    kmax = -0.5*pol[1]/pol[0]
-    for i, err in enumerate([0.03, 1.e-3]):
-        while np.abs(kmax-harms[1]) > err*kmax and not exitloop:
-            harms = np.linspace(kmax * (1 - eps[i]), kmax * (1 + eps[i]), 3)
-            sig  = [ana.eigval(h, ran) for h in harms]
-            pol = np.polyfit(harms, sig, 2)
-            kmax = -0.5*pol[1]/pol[0]
-            sigmax = sig[1]
-
-    return kmax, sigmax
-
+kplus = np.zeros(epsilon.shape)
+kminus = np.zeros(epsilon.shape)
 
 for j, eps in enumerate(epsilon):
     rtr = 12*(phib+phit)
     ran = rtr*(1+eps)
-    sigmax[j], kmax[j] = ana.fastest_mode(ran, harm=kguess)
+    sigmax[j], kmax[j], kminus[j], kplus[j] = ana.critical_harm(ran, kguess)
+    # sigmax[j], kmax[j] = ana.fastest_mode(ran, harm=kguess)
     for i, kxn in enumerate(wkn):
         sigma[i] = ana.eigval(kxn, ran)
 
     axe.semilogx(wkn, np.real(sigma), label=r'$\varepsilon = %.2e$' %(eps))
 
-axe.semilogx(kmax, np.real(sigmax), 'o')
+axe.semilogx(kmax, np.real(sigmax), 'o', c='k')
+kpma = ma.array(kplus, mask=np.real(sigmax)<0)
+axe.semilogx(kpma, np.zeros(kpma.shape), 'o', c='r')
+kmma = ma.array(kminus, mask=np.real(sigmax)<0)
+axe.semilogx(kmma, np.zeros(kmma.shape), 'o', c='b')
 
 axe.set_ylim(-0.05, 0.05)
 
