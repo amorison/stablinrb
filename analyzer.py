@@ -651,6 +651,7 @@ class LinearAnalyzer(Analyser):
 
     def fastest_mode(self, ra_num, ra_comp=None, harm=2):
         """Find the fastest growing mode at a given Ra"""
+
         if self.phys.spherical:
             harms = range(max(1, harm - 10), harm + 10)
         else:
@@ -752,8 +753,11 @@ class LinearAnalyzer(Analyser):
             splus = self.eigval(kplus, ranum)
             if np.real(splus) < 0:
                 kmax = kplus
+                smax = splus
             else:
                 kmin = kplus
+                smin = splus
+        kplus = (kmin * smax - kmax * smin) / (smax - smin)
 
         # search zero on the minus side
         kmin = hmax / 2
@@ -775,13 +779,57 @@ class LinearAnalyzer(Analyser):
             sminus = self.eigval(kminus, ranum)
             if np.real(sminus) < 0:
                 kmin = kminus
+                smin = sminus
             else:
                 kmax = kminus
+                smax = sminus
+        kminus = (kmin * smax - kmax * smin) / (smax - smin)
 
         return sigmax, hmax, kminus, kplus
 
+    def max_ra_trans_instab(self, hguess=2, eps=1e-5):
+        """find maximum Ra that allows instability of the translation mode
+
+        hguess: initial guess for the wavenumber of fastest growing mode
+        eps: precision of the zero finding
+        """
+        # minimum value: the critcal one for translation
+        ramin = 12 * (self.phys.phi_top  + self.phys.phi_bot)
+        ramax = 2 * ramin
+        smin, hmin = self.fastest_mode(ramin, harm=hguess)
+        smax, hmax = self.fastest_mode(ramax, harm=hmin)
+        # keep the minimum values for further use
+        sig0 = smin
+        harm0 = hmin
+        ra0 = ramin
+        # make sure sigma changes sign between ramin and ramax
+        while np.real(smin) < 0 or np.real(smax) > 0:
+            if np.real(smin) < 0:
+                ramax = ramin
+                ramin /= 2
+            if np.real(smax) > 0:
+                ramin = ramax
+                ramax *= 2
+            smin, hmin = self.fastest_mode(ramin, harm=hguess)
+            smax, hmax = self.fastest_mode(ramax, harm=hmin)
+        # refine the ra that makes sigma change sign
+        while (ramax - ramin) / ramax > eps:
+            ramean = (ramin + ramax) / 2
+            smean, hmean = self.fastest_mode(ramean, harm=hmin)
+            if np.real(smean) < 0:
+                ramax = ramean
+                smax = smean
+                hmax = hmean
+            else:
+                ramin = ramean
+                smin = smean
+                hmin = hmean
+        rastab = (ramin*smax - ramax*smin) / (smax - smin)
+        hstab = self.fastest_mode(rastab, harm=hmin)[1]
+        return rastab, hstab, ra0, harm0, sig0
+
     def critical_ra(self, harm=2, ra_guess=600, ra_comp=None):
-        """Find the harmonic with the lower neutral Ra
+        """Find the harmonic with the lowest neutral Ra
 
         harm is an optional initial guess
         ra_guess is a guess for Ra_c
