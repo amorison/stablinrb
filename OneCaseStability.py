@@ -48,7 +48,7 @@ if NON_LINEAR:
     axe[1].set_ylabel('Mean T', fontsize=FTSZ)
     plt.savefig('Ra-Nu-Tmean.pdf', format='PDF')
 else:
-    ana = LinearAnalyzer(pblm, ncheb=20)
+    ana = LinearAnalyzer(pblm, ncheb=50)
     ra_c, harm_c = ana.critical_ra(ra_comp=ra_comp)
     print('Rac, kc = ', ra_c, harm_c)
     plotting.plot_fastest_mode(ana, harm_c, ra_c, ra_comp, plot_theory=True)

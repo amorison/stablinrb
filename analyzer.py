@@ -684,6 +684,7 @@ class LinearAnalyzer(Analyser):
             pol = np.polyfit(harms, sigma, 2)
             # maximum value
             hmax = -0.5*pol[1]/pol[0]
+            smax = self.eigval(hmax, ra_num, ra_comp)
             for i, err in enumerate([0.03, 1.e-3]):
                 while np.abs(hmax-harms[1]) > err*hmax:
                     harms = np.linspace(hmax * (1 - eps[i]), hmax * (1 + eps[i]), 3)

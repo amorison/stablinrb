@@ -1,5 +1,5 @@
 import numpy as np
-from scipy.optimize import brentq
+from scipy.optimize import brentq, newton
 
 class PhysicalProblem:
 
@@ -140,17 +140,25 @@ def wtran(eps):
         func = lambda wtra, eps: \
             wtra**2 * np.sinh(wtra / 2) - 6 * (1 + eps) * \
                 (wtra * np.cosh(wtra / 2) - 2 * np.sinh(wtra / 2))
+        dfunc = lambda wtra, eps: \
+            0.5 * wtra * (wtra * np.cosh(wtra / 2) - 2 * (1 + 3 * eps) * np.sinh(wtra / 2))
         # value in the large Ra limit
-        wtrl = 6*(eps+1)
+        wtrl = 6 * (eps + 1)
         ful = func(wtrl, eps)
         # small Ra limit
-        wtrs = 2*np.sqrt(15*eps)
+        wtrs = 2 * np.sqrt(15 * eps)
         fus = func(wtrs, eps)
-        if fus*ful > 0:
-            print('warning in wtran: ',eps, wtrs, fus, wtrl, ful)
-            if eps < 1.e-2:
-                wtr = wtrs
-                print('setting wtr = wtrs= ', wtrs)
+        if fus * ful > 0:
+            # print('warning in wtran: ',eps, wtrs, fus, wtrl, ful)
+            if np.abs(fus) < np.abs(ful):
+                wguess = wtrs
+            else:
+                wguess = wtrl
+            wtr = wguess
+            # wtr = newton(func, wguess, fprime=dfunc, args=(eps))
+            # if eps < 1.e-2:
+                # wtr = wtrs
+                # print('setting wtr = wtrs= ', wtrs)
         # complete solution
         else:
             wtr = brentq(func, wtrs, wtrl, args=(eps))
