@@ -14,13 +14,14 @@ from analyzer import LinearAnalyzer, NonLinearAnalyzer
 from physics import PhysicalProblem
 
 # Font and markers size
-FTSZ = 14
-MSIZE = 5
+FTSZ = 8
+MSIZE = 3
 
 # range of exploration in phi
 PLOT_K_RA = False
-phitot = np.power(10, np.flipud(np.linspace(-2, 2, 20)))
-# phitot = np.array([1, .1])
+GREYSCALE = False
+nphi = 50
+phitot = np.power(10, np.flipud(np.linspace(-2, 2, nphi)))
 phimax = np.max(phitot)
 phimin = np.min(phitot)
 cmax = 0.5
@@ -32,7 +33,6 @@ def gscale(ppp):
     ccc += (np.log10(ppp) - np.log10(phimin)) / (np.log10(phimax) - np.log10(phimin)) * (cmax - cmin)
     return np.str(ccc)
 
-nphi = phitot.shape[0]
 kplus0 = np.zeros(phitot.shape)
 kminus0 = np.zeros(phitot.shape)
 kmax0 = np.zeros(phitot.shape)
@@ -52,7 +52,7 @@ ana = LinearAnalyzer(pblm, ncheb=20)
 
 
 PLOT_KSIGMA = False
-neps = 10
+neps = 100
 nwkn = 200
 
 # figure kx - epsilon
@@ -67,18 +67,18 @@ for n, phi in enumerate(phitot):
     # min is the critical Ra for translation
     # max is Ra beyond which translation is always stable
     
-    # turn off the translation mode
-    ana.phys.ref_state_translation = False
-    # first determine the linear stability without translation
-    ra_def, kguess = ana.critical_ra()
-    # turn on the translation mode
-    ana.phys.ref_state_translation = True
-
     print('phi =', phi)
     phit = phi
     phib = phi
     ana.phys.phi_top = phit
     ana.phys.phi_bot = phib
+
+    # turn off the translation mode to find initial guess
+    ana.phys.ref_state_translation = False
+    # first determine the linear stability without translation
+    ra_def, kguess = ana.critical_ra()
+    # turn on the translation mode
+    ana.phys.ref_state_translation = True
 
     rtr = 12 * (phit + phib)
     smax0[n], kmax0[n], kminus0[n], kplus0[n] = ana.critical_harm(rtr, kguess)
@@ -150,14 +150,16 @@ for n, phi in enumerate(phitot):
         eptot = np.concatenate((epsilon, np.flipud(epsilon)))
 
         axe2.semilogx(kmax, epsilon, '--', c='k')
-        # axe2.fill_between(ktot, 0, eptot, color=gscale(phi), alpha=0.5, label='Unstable translation, $\phi=%.2f$' %phi)
-        axe2.fill_between(ktot, 0, eptot, alpha=0.5, label='Unstable translation, $\phi=%.2f$' %phi)
+        if GREYSCALE:
+            axe2.fill_between(ktot, 0, eptot, color=gscale(phi), alpha=0.5, label='Unstable translation, $\phi=%.2f$' %phi)
+        else:
+            axe2.fill_between(ktot, 0, eptot, alpha=0.5, label='Unstable translation, $\phi=%.2f$' %phi)
 
     # axe3.semilogx(kmax, ran, c='k')
     # axe3.fill_between(ktot, rtr, ratot, alpha=0.5, label='Unstable translation, $\phi=%.1e$' %phi)
 
 if PLOT_K_RA:
-    axe2.set_xlim([1e-4, 1e0])
+    axe2.set_xlim([1e-2, 4e0])
     axe2.set_xlabel(r'$k_x$', fontsize=FTSZ)
     axe2.set_ylabel(r'$(Ra-Ra_c)/Ra_c$', fontsize=FTSZ)
     axe2.legend(loc='upper left', fontsize=FTSZ)
@@ -178,15 +180,15 @@ with open('Phi_sigma_Ra.dat', 'w') as fich:
 
 fig, axe = plt.subplots(3, 1, sharex=True)
 axe[0].loglog(phitot, kmax0, 'o', label=r'Fastest growing mode at $\varepsilon=0$')
-axe[0].loglog(phitot, hmax, 'o', label=r'$k_x$ for maximum $\varepsilon$')
+# axe[0].loglog(phitot, hmax, 'o', label=r'$k_x$ for maximum $\varepsilon$')
 # axe[0].loglog(phitot, kminus0, 'o', label=r'Minimum $k_x$ for instability at $\varepsilon=0$')
-axe[0].loglog(phitot, kplus0, 'o', label=r'Maximum $k_x$ for instability at $\varepsilon=0$')
-# plt.legend(loc='upper center', fontsize=FTSZ)
+axe[0].loglog(phitot, kplus0, 'o', markersize=MSIZE, label=r'Maximum $k_x$ for instability at $\varepsilon=0$')
+axe[0].legend(loc='upper left', fontsize=FTSZ)
 axe[0].set_ylabel(r'$k_x$', fontsize=FTSZ)
-axe[1].loglog(phitot, smax0, 'o', label=r'Maximum growth rate at $\varepsilon=0$')
-# plt.legend(loc='upper center', fontsize=FTSZ)
+axe[1].loglog(phitot, smax0, 'o', markersize=MSIZE, label=r'Maximum growth rate at $\varepsilon=0$')
+axe[1].legend(loc='upper left', fontsize=FTSZ)
 axe[1].set_ylabel('$Re(\sigma)$', fontsize=FTSZ)
-axe[2].loglog(phitot, ramax, 'o', label=r'Maximum $Ra$ for instability')
+axe[2].loglog(phitot, ramax, 'o', markersize=MSIZE, label=r'Maximum $Ra$ for instability')
 axe[2].set_ylabel(r'$Ra_{max}$', fontsize=FTSZ)
 axe[2].set_xlabel(r'$\Phi^+=\Phi^-$', fontsize=FTSZ)
 plt.savefig('Phi_kx_smax_RamaxN' + np.str(ana._ncheb) + '.pdf')
