@@ -179,7 +179,7 @@ with open('Phi_sigma_Ra.dat', 'w') as fich:
         fich.write(fmt.format(phitot[i], kmax0[i], smax0[i], kminus0[i], kplus0[i], hmax[i], ramax[i]))
 
 fig, axe = plt.subplots(3, 1, sharex=True)
-axe[0].loglog(phitot, kmax0, 'o', label=r'Fastest growing mode at $\varepsilon=0$')
+axe[0].loglog(phitot, kmax0, 'o', markersize=MSIZE, label=r'Fastest growing mode at $\varepsilon=0$')
 # axe[0].loglog(phitot, hmax, 'o', label=r'$k_x$ for maximum $\varepsilon$')
 # axe[0].loglog(phitot, kminus0, 'o', label=r'Minimum $k_x$ for instability at $\varepsilon=0$')
 axe[0].loglog(phitot, kplus0, 'o', markersize=MSIZE, label=r'Maximum $k_x$ for instability at $\varepsilon=0$')

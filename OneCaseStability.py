@@ -15,26 +15,32 @@ FTSZ = 11
 MSIZE = 3
 # gamma = 0.7
 eta_c = None
+
+PHI = 1e-1
+
 pblm = PhysicalProblem(
     gamma=None,
-    phi_top=1e1,
-    phi_bot=1e1,
+    phi_top=PHI,
+    phi_bot=PHI,
     freeslip_top=True,
-    freeslip_bot=False,
+    freeslip_bot=True,
     eta_r = visco_Arrhenius(eta_c, gamma) if eta_c is not None else None,
     ref_state_translation=False)
 
-NON_LINEAR = False
+NON_LINEAR = True
 ra_comp = None
 
 if NON_LINEAR:
-    ana = NonLinearAnalyzer(pblm, ncheb=20, nnonlin=4)
+    ana = NonLinearAnalyzer(pblm, ncheb=30, nnonlin=2)
     harm_c, ray, mode, moyt, qtop = ana.nonlinana()
+    print('kc = ', harm_c, np.pi / np.sqrt(2))
     print('Rayleigh = ', ray)
     print('moyt = ', moyt)
     print('qtop = ', qtop)
+    print('qtop2 =', qtop[2], 0.25 / (np.pi ** 2 + harm_c ** 2))
+    print('coef qtop2 = ', ray[0] * qtop[2] / ray[2], 81 / 128 * np.pi ** 4)
     nterms = qtop.shape[0]
-    eps = np.linspace(0, 1, num=10)
+    eps = np.linspace(0, 10, num=30)
     vdm = np.vander(eps, nterms, increasing=True)
     rayl = np.dot(vdm, ray)
     nuss = np.dot(vdm, qtop)
