@@ -373,7 +373,7 @@ def spherical_matrices(self, l_harm, ra_num, ra_comp=None):
 
 
 class Analyser:
-    """Define various elements common to both linear analysers"""
+    """Define various elements common to both analysers"""
 
     def __init__(self, phys, ncheb=15, nnonlin=2):
         """Create a generic analyzer
@@ -1050,11 +1050,8 @@ class NonLinearAnalyzer(Analyser):
         # global indices and slices
         i0n, igf, slall, slint, slgall, slgint = self._slices()
         i_0s, i_ns = zip(*i0n)
-        ip0, iu0, iw0, it0 = i_0s
-        ipn, iun, iwn, itn = i_ns
-        ipg, iug, iwg, itg = igf
-        pall, uall, wall, tall = slall
-        pint, uint, wint, tint = slint
+        it0 = i_0s[3]
+        itn = i_ns[3]
         pgall, ugall, wgall, tgall = slgall
         pgint, ugint, wgint, tgint = slgint
 
@@ -1190,13 +1187,5 @@ class NonLinearAnalyzer(Analyser):
                     if harmjj == 1:
                         dp1 = self.dotprod(1, ii,1)
                         self.full_sol[ind] -= dp1 / norm_x1 * self.full_sol[0]
-
-        # part proportional to epsilon^2
-        # moyv2 = 2 * self.integz(np.imag(u_c)**2)
-        # moyv2 += 2 * self.integz(np.imag(w_c)**2)
-        # part proportional to epsilon^4
-        # moyv4 = 2 * self.integz(np.imag(u22)**2)
-        # moyv4 += w20**2 # a constant
-        # moyv4 += 2 * self.integz(np.real(w22)**2)
 
         return harm_c, self.ratot, self.full_sol, meant, qtop

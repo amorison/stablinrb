@@ -16,7 +16,7 @@ MSIZE = 3
 # gamma = 0.7
 eta_c = None
 
-PHI = 1e-1
+PHI = None
 
 pblm = PhysicalProblem(
     gamma=None,
@@ -38,7 +38,7 @@ if NON_LINEAR:
     print('moyt = ', moyt)
     print('qtop = ', qtop)
     print('qtop2 =', qtop[2], 0.25 / (np.pi ** 2 + harm_c ** 2))
-    print('coef qtop2 = ', ray[0] * qtop[2] / ray[2], 81 / 128 * np.pi ** 4)
+    print('coef qtop2 = ', ray[0] * qtop[2] / ray[2])
     nterms = qtop.shape[0]
     eps = np.linspace(0, 10, num=30)
     vdm = np.vander(eps, nterms, increasing=True)
