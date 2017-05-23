@@ -50,7 +50,8 @@ delta_temp = lambda h: -integ.quad(
     lambda r: grad_temp(r, h), r_int, r_ext(h))[0]
 
 eta_vals = np.array(range(15, 17))  # 19
-h_crystal_vals = np.linspace(100e3, 1300e3, 10)  # 50
+h_crystal_vals = np.linspace(100e3, 1300e3, 50)  # 50
+phi_vals = [(None, None), (None, 1e-2), (1e-2, 1e-2)]
 
 # non-dimensional variables
 gamma = lambda h: r_int / r_ext(h)
@@ -58,8 +59,6 @@ rayleigh = lambda h, eta: \
     rho * g * alpha * delta_temp(h) * r_ext(h)**3 / (eta * kappa)
 ra_comp = lambda h, eta: \
     rho * g * beta * r_ext(h)**3 / (eta * kappa)
-phi_top = None
-phi_bot = None
 
 # compute time to crystallize given thickness of solid mantle
 def surf_temp(h):
@@ -106,33 +105,48 @@ def surf_temp(h):
 #        (rho * heat_capacity * (r_earth**3 - r_ext(h)**3)
 #         * (t_crystal - delta_temp(h))))
 
-ana = LinearAnalyzer(PhysicalProblem(phi_top=phi_top,
-                                     phi_bot=phi_bot),
-                     ncheb=50)
-
 fig, axis = plt.subplots(1, 1)
-tau_vals = {}
-harm_vals = {}
-for eta in eta_vals:
-    tau_vals[eta] = []
-    harm_vals[eta] = []
-    for h_crystal in h_crystal_vals:
-        ana.phys.gamma = gamma(h_crystal)
-        ana.phys.composition = lambda r: composition(r * r_ext(h_crystal),
-                                                     h_crystal)
-        ana.phys.grad_ref_temperature = \
-            lambda r: grad_temp(r * r_ext(h_crystal), h_crystal) * \
-                r_ext(h_crystal) / delta_temp(h_crystal)
-        sigma, harm = ana.fastest_mode(rayleigh(h_crystal, 10**eta),
-                                       ra_comp(h_crystal, 10**eta))
-        tau_vals[eta].append(np.real(tau(sigma, h_crystal)))
-        harm_vals[eta].append(harm)
-    axis.semilogy(h_crystal_vals/1e3, np.array(tau_vals[eta])/(86400),
-                     label=r'$\eta=10^{%d}$, $l=%d$' %(eta, harm_vals[eta][0]))
+
+for phi_bot, phi_top in phi_vals:
+    ana = LinearAnalyzer(PhysicalProblem(phi_top=phi_top,
+                                         phi_bot=phi_bot),
+                         ncheb=100)
+    if phi_bot is None:
+        phi_str = r'$\Phi^-=10^{-2}$' if phi_top else 'closed'
+        col = 'g' if phi_top else 'b'
+    else:
+        phi_str = r'$\Phi^+=\Phi^-=10^{-2}$'
+        col = 'r'
+
+    tau_vals = {}
+    for eta in eta_vals:
+        style = '-' if eta == 16 else '--'
+        tau_vals[eta] = []
+        for h_crystal in h_crystal_vals:
+            ana.phys.gamma = gamma(h_crystal)
+            ana.phys.composition = lambda r: composition(r * r_ext(h_crystal),
+                                                         h_crystal)
+            ana.phys.grad_ref_temperature = \
+                lambda r: grad_temp(r * r_ext(h_crystal), h_crystal) * \
+                    r_ext(h_crystal) / delta_temp(h_crystal)
+            sigma, harm = ana.fastest_mode(rayleigh(h_crystal, 10**eta),
+                                           ra_comp(h_crystal, 10**eta))
+            tau_vals[eta].append(np.real(tau(sigma, h_crystal)))
+        axis.semilogy(h_crystal_vals/1e3, np.array(tau_vals[eta])/(86400),
+                      label=r'$\eta=10^{%d}$, %s' %(eta, phi_str),
+                      color=col, linestyle=style)
 #axis.semilogy(h_crystal_vals/1e3, 1/np.array(crystal_time)/86400)
 axis.set_xlabel(r'Crystallized mantle thickness $h$ (km)', fontsize=FTSZ)
 axis.set_ylabel(r'Destabilization time scale $\tau$ (days)', fontsize=FTSZ)
-axis.legend(loc='upper right', fontsize=FTSZ)
+axis.legend(
+    [plt.Line2D((0,1),(0,0), color='k', linestyle='--'),
+     plt.Line2D((0,1),(0,0), color='k', linestyle='-'),
+     plt.Line2D((0,1),(0,0), color='b'),
+     plt.Line2D((0,1),(0,0), color='g'),
+     plt.Line2D((0,1),(0,0), color='r')],
+    ['$\eta=10^{15}$', '$\eta=10^{16}$',
+     'closed', r'$\Phi^-=10^{-2}$', r'$\Phi^+=\Phi^-=10^{-2}$'],
+    loc='upper right', fontsize=FTSZ)
 axis.tick_params(labelsize=FTSZ)
 plt.tight_layout()
 plt.savefig('DestabilizationTime.pdf', format='PDF')
