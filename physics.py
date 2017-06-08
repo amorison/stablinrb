@@ -10,6 +10,7 @@ class PhysicalProblem:
                  freeslip_top=True, freeslip_bot=True,
                  heat_flux_top=None, heat_flux_bot=None,
                  lewis=None, composition=None,
+                 grad_ref_temperature=None,
                  eta_r=None,
                  ref_state_translation=False):
         """Create a physical problem instance
@@ -35,6 +36,7 @@ class PhysicalProblem:
         self.heat_flux_bot = heat_flux_bot
         self.lewis = lewis
         self.composition = composition
+        self.grad_ref_temperature = grad_ref_temperature
         self.eta_r = eta_r
         self.ref_state_translation = ref_state_translation
 

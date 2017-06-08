@@ -244,6 +244,7 @@ def spherical_matrices(self, l_harm, ra_num, ra_comp=None):
         eta_r = one
     lewis = self.phys.lewis
     composition = self.phys.composition
+    grad_ref_temperature = self.phys.grad_ref_temperature
     comp_terms = lewis is not None or composition is not None
     translation = self.phys.ref_state_translation
 
@@ -342,19 +343,23 @@ def spherical_matrices(self, l_harm, ra_num, ra_comp=None):
 
     lmat[tgint, tgall] = lapl[tint, tall]
 
-    # advection of conductive profile
+    # advection of reference profile
     # using u_r = l(l+1)/r P
     # first compute 1/r * nabla T
     # then multiply by l(l+1)
-    grad_tcond = - h_int / 3
-    if heat_flux_bot is not None:
-        grad_tcond += (gamma**2 * heat_flux_bot +
-                       h_int * gamma**3 / 3) * np.diag(orad3)
-    elif heat_flux_top is not None:
-        grad_tcond += (heat_flux_top + h_int / 3) * np.diag(orad3)
+    if grad_ref_temperature is None:
+        # reference is conductive profile
+        grad_tcond = - h_int / 3
+        if heat_flux_bot is not None:
+            grad_tcond += (gamma**2 * heat_flux_bot +
+                           h_int * gamma**3 / 3) * np.diag(orad3)
+        elif heat_flux_top is not None:
+            grad_tcond += (heat_flux_top + h_int / 3) * np.diag(orad3)
+        else:
+            grad_tcond += (1 + (1 - gamma**2) * h_int / 6) * gamma / (1 - gamma) \
+                * np.diag(orad3)
     else:
-        grad_tcond += (1 + (1 - gamma**2) * h_int / 6) * gamma / (1 - gamma) \
-            * np.diag(orad3)
+        grad_tcond = np.dot(orad1, -grad_ref_temperature(np.diag(rad)))
     lmat[tgint, pgall] = np.diag(lh2 * grad_tcond)[tint, pall]
 
     rmat[tgint, tgall] = one[tint, tall]
