@@ -15,12 +15,13 @@ from analyzer import LinearAnalyzer, NonLinearAnalyzer
 from physics import PhysicalProblem, compo_smo
 from plotting import plot_fastest_mode, plot_ran_harm
 from misc import normalize_modes
+from os.path import isfile
 
 # import os.path.isfile as isfile
 
 # Font and markers size
 FTSZ = 11
-MSIZE = 3
+MSIZE = 5
 
 pblm = PhysicalProblem(
     gamma=None,
@@ -178,12 +179,12 @@ if EXPLORE_PHASE:
         kxc = np.pi/np.sqrt(2)
         # NCHEB = 30
 
-        EQUAL_PHI = False
+        EQUAL_PHI = True
         # Computes properties as function of phi, equal for both boundaries
         if EQUAL_PHI:
-            if True:
-            # if not isfile(('EqualTopBotPhi.dat', 'w'):
-            # First unstable mode
+            # if True:
+            if not isfile('EqualTopBotPhi.dat'):
+                # First unstable mode
                 ana.phys.phi_top = phinum[0]
                 ana.phys.phi_bot = phinum[0]
                 ra_c, kx_c = ana.critical_ra()
@@ -227,13 +228,16 @@ if EXPLORE_PHASE:
                 #         fich.write(fmt.format(phinum[i], kwn[i], ram[i], pmax[i],
                 #                             umax[i], tmax[i], wmax[i]))
             else:
-                with open('EqualTopBotPhi.dat', 'r') as fich:
+                print('reading from file: EqualTopBotPhi.dat')
+                phinum, kwn, ram, pmax, umax, tmax, wmax =\
+                  np.loadtxt('EqualTopBotPhi.dat', unpack=True, skiprows=1)
+                # with open('EqualTopBotPhi.dat', 'r') as fich:
                     # fmt = '{:13}'*7 + '\n'
                     # fich.write(fmt.format(' phi', 'kx', 'Ra', 'Pmax', 'Umax', 'Tmax', 'Wmax'))
-                    next(fich)
-                    for line in fich:
-                        fich.read(fmt.format(phinum[i], kwn[i], ram[i], pmax[i],
-                                            umax[i], tmax[i], wmax[i]))
+                    # next(fich)
+                    # for line in fich:
+                        # fich.read(fmt.format(phinum[i], kwn[i], ram[i], pmax[i],
+                                            # umax[i], tmax[i], wmax[i]))
     
             # plot kx and ra as function of phi
             fig, axe = plt.subplots(2, 1, sharex=True)
@@ -253,10 +257,10 @@ if EXPLORE_PHASE:
                                 # label=r'Fastest growing mode')
             col1 = p1.get_color()
             # General case
-            axe[0].tick_params(axis='both', which='major', labelsize=FTSZ-1)
-            axe[0].set_ylabel(r'$\mathrm{Ra}_c$', fontsize=FTSZ)
+            axe[0].tick_params(axis='both', which='major', labelsize=FTSZ)
+            axe[0].set_ylabel(r'$\mathrm{Ra}_c$', fontsize=FTSZ+1)
             # axe[0].set_ylim([0, 800])
-            axe[0].legend(loc=4, frameon=False, fontsize=FTSZ-2)
+            axe[0].legend(loc=4, frameon=False, fontsize=FTSZ)
             # plt.tick_params(labelsize=FTSZ-1)
             axe[1].loglog([phinum[0], phinum[-1]], [kxc, kxc], '-.', c='k',
                         label=r'$\mathrm{R}_c=\frac{27\pi^4}{4}, k_c=\frac{\pi}{\sqrt{2}}$')
@@ -265,10 +269,11 @@ if EXPLORE_PHASE:
                         label=r'Small $\Phi$ prediction')
             axe[1].loglog(phinum, kwn, 'o', markersize=MSIZE, markeredgewidth=0.0, c=col1,
                         label=r'Fastest growing mode')
-            axe[1].legend(loc=4, frameon=False, fontsize=FTSZ-2)
-            axe[1].set_ylabel(r'$k_c$', fontsize=FTSZ)
-            axe[1].set_xlabel(r'$\Phi^+=\Phi^-$', fontsize=FTSZ)
-            plt.tick_params(axis='both', which='major', labelsize=FTSZ-1)
+            axe[1].legend(loc=4, frameon=False, fontsize=FTSZ)
+            axe[1].set_ylabel(r'$k_c$', fontsize=FTSZ+1)
+            axe[1].set_xlabel(r'$\Phi^+=\Phi^-$', fontsize=FTSZ+1)
+            plt.tick_params(axis='both', which='major', labelsize=FTSZ)
+            plt.tight_layout(pad=0, w_pad=0, h_pad=0)
             plt.savefig("Phi-Ra-kx_EqualPhi.pdf", format='PDF')
             plt.close(fig)
 
@@ -284,13 +289,13 @@ if EXPLORE_PHASE:
             axe[1].loglog(phinum, np.abs(umax), 'o', markersize=MSIZE, markeredgewidth=0.0)#, linestyle='-')
             axe[1].loglog(phinum, 3*np.sqrt(phinum/2), linestyle='--', c='k',
                             label=r'$3\sqrt{\Phi/2}$')
-            axe[1].legend(loc='upper left', fontsize=FTSZ-2, frameon=False)
+            axe[1].legend(loc='upper left', fontsize=FTSZ, frameon=False)
             axe[1].set_ylabel(r'$U_{max}$', fontsize=FTSZ)
             axe[2].semilogx(phinum, np.abs(wmax), 'o', markersize=MSIZE, markeredgewidth=0.0)#, linestyle='-')
             axe[2].semilogx(phinum, 8*np.ones(phinum.shape), linestyle='--', c='k',
                             label=r'$8$')
             axe[2].set_ylim(ymin=7)
-            axe[2].legend(loc='upper left', fontsize=FTSZ-2, frameon=False)
+            axe[2].legend(loc='upper left', fontsize=FTSZ, frameon=False)
             axe[2].set_ylabel(r'$W_{max}$', fontsize=FTSZ)
             # axe[2].set_yticks(np.arange(7, 15, 2))
             axe[2].yaxis.set_major_locator(ticker.MultipleLocator(2))
@@ -299,7 +304,7 @@ if EXPLORE_PHASE:
             axe[3].loglog(phinum, 81*phinum**2/256,  linestyle='--', c='k',
                             label=r'$81\Phi^2/256$')
             axe[3].set_ylabel(r'$24\Phi-Ra$', fontsize=FTSZ)
-            axe[3].legend(loc='upper left', fontsize=FTSZ-2, frameon=False)
+            axe[3].legend(loc='upper left', fontsize=FTSZ, frameon=False)
             axe[3].set_xlabel(r'$\Phi$', fontsize=FTSZ)
             # axe[3].set_yticks(np.power(10, np.arange(-5, 8, 2)))
             axe[3].yaxis.set_major_locator(ticker.LogLocator(base=1000))
@@ -317,27 +322,35 @@ if EXPLORE_PHASE:
             wmax = np.zeros(phinum.shape)
             tmax = np.zeros(phinum.shape)
             # print(ram, kwn)
-            for i, phi in enumerate(phinum):
-                ana.phys.phi_bot = phi
-                ra_c, kx_c = ana.critical_ra()
-                _, modes = ana.eigvec(kx_c, ra_c)
-                (p_mode, u_mode, w_mode, t_mode) = ana.split_mode(modes, kx_c, apply_bc=True)
-                _, mode_max = normalize_modes((p_mode, u_mode, w_mode, t_mode))
-                print(i, phi, ra_c, kx_c)
-                ram[i] = ra_c
-                kwn[i] = kx_c
-                pmax[i] = mode_max[0]
-                umax[i] = np.imag(mode_max[1])
-                wmax[i] = mode_max[2]
-                tmax[i] = mode_max[3]
+            if not isfile('FreeTopBotPhase.dat'):
+            # compute values 
+                for i, phi in enumerate(phinum):
+                    ana.phys.phi_bot = phi
+                    ra_c, kx_c = ana.critical_ra()
+                    modes = ana.eigvec(kx_c, ra_c)[1]
+                    (p_mode, u_mode, w_mode, t_mode) = ana.split_mode(modes, kx_c, apply_bc=True)
+                    mode_max = normalize_modes((p_mode, u_mode, w_mode, t_mode))[1]
+                    print(i, phi, ra_c, kx_c)
+                    ram[i] = ra_c
+                    kwn[i] = kx_c
+                    pmax[i] = mode_max[0]
+                    umax[i] = np.imag(mode_max[1])
+                    wmax[i] = mode_max[2]
+                    tmax[i] = mode_max[3]
             # save in file
-            with open('FreeTopBotPhase.dat', 'w') as fich:
-                fmt = '{:15}'*7 + '\n'
-                fich.write(fmt.format(' phi', 'kx', 'Ra', 'Pmax', 'Umax', 'Tmax', 'Wmax'))
-                fmt = '{:15.3e}'*6 + '{:15.3}' + '\n'
-                for i in range(nphi):
-                    fich.write(fmt.format(phinum[i], kwn[i], ram[i], pmax[i],
+                with open('FreeTopBotPhase.dat', 'w') as fich:
+                    fmt = '{:15}'*7 + '\n'
+                    fich.write(fmt.format(' phi', 'kx', 'Ra', 'Pmax', 'Umax', 'Tmax', 'Wmax'))
+                    fmt = '{:15.3e}'*6 + '{:15.3}' + '\n'
+                    for i in range(nphi):
+                        fich.write(fmt.format(phinum[i], kwn[i], ram[i], pmax[i],
                                         umax[i], tmax[i], wmax[i]))
+            else:
+                # read file
+                print('reading results from FreeTopBotPhase.dat')
+                phinum, kwn, ram, pmax, umax, tmax, wmax =\
+                  np.loadtxt('FreeTopBotPhase.dat', unpack=True, skiprows=1)
+                
             # Now plot
             fig, axe = plt.subplots(2, 1, sharex=True)
             # Ra
@@ -348,10 +361,10 @@ if EXPLORE_PHASE:
             p1, = axe[0].semilogx(phinum, ram, 'o', markersize=MSIZE, markeredgewidth=0.0, label=r'$\Phi^+=\infty$, varying $\Phi^-$')
             col1 = p1.get_color()
             # axe[0].semilogx(phinum, ram2, 'o', markersize=MSIZE, label='Second fastest mode')
-            axe[0].tick_params(axis='both', which='major', labelsize=FTSZ-1)
-            axe[0].set_ylabel(r'$\mathrm{Ra}_c$', fontsize=FTSZ)
+            axe[0].tick_params(axis='both', which='major', labelsize=FTSZ)
+            axe[0].set_ylabel(r'$\mathrm{Ra}_c$', fontsize=FTSZ+1)
             axe[0].set_ylim([0, 700])
-            axe[0].legend(loc=7, fontsize=FTSZ-2, frameon=False)
+            axe[0].legend(loc=7, fontsize=FTSZ, frameon=False)
             # kx
             # classical RB case
             axe[1].semilogx([phinum[0], phinum[-1]], [kxc, kxc], '-.', c='k',
@@ -360,22 +373,24 @@ if EXPLORE_PHASE:
             axe[1].semilogx(phinum, kwn, 'o', markersize=MSIZE, markeredgewidth=0.0, c=col1,
                         label=r'$\Phi^+=\infty$, varying $\Phi^-$')
             # axe[1].loglog(phinum, kwn2, 'o', markersize=MSIZE, label='Second fastest mode')
-            axe[1].legend(loc=4, fontsize=FTSZ-2, frameon=False)
-            axe[1].set_ylabel(r'$k_c$', fontsize=FTSZ)
-            axe[1].set_xlabel(r'$\Phi^-$', fontsize=FTSZ)
-            plt.tick_params(axis='both', which='major', labelsize=FTSZ-1)
+            axe[1].legend(loc=4, fontsize=FTSZ, frameon=False)
+            axe[1].set_ylabel(r'$k_c$', fontsize=FTSZ+1)
+            axe[1].set_xlabel(r'$\Phi^-$', fontsize=FTSZ+1)
+            plt.tick_params(axis='both', which='major', labelsize=FTSZ)
+            plt.tight_layout(pad=0, w_pad=0, h_pad=0)
             plt.savefig("Phi-Ra-kx_VaryingPhiBotFreeTop.pdf", format='PDF')
             plt.close(fig)
-            # plot Pmax, Umax, Wmax and (24phi - Ra) as function of phi
+
+            print('plot Pmax, Umax, Wmax and (24phi - Ra) as function of phi')
             fig, axe = plt.subplots(3, 1, sharex=True)
             axe[0].semilogx(phinum, np.abs(pmax), marker='.', linestyle='-')
-            axe[0].legend(loc='upper left', fontsize=FTSZ-2)
+            axe[0].legend(loc='upper left', fontsize=FTSZ)
             axe[0].set_ylabel(r'$P_{max}$', fontsize=FTSZ)
             axe[1].semilogx(phinum, np.abs(umax), marker='.', linestyle='-')
-            axe[1].legend(loc='upper left', fontsize=FTSZ-2)
+            axe[1].legend(loc='upper left', fontsize=FTSZ)
             axe[1].set_ylabel(r'$U_{max}$', fontsize=FTSZ)
             axe[2].semilogx(phinum, np.abs(wmax), marker='.', linestyle='-')
-            axe[2].legend(loc='upper left', fontsize=FTSZ-2)
+            axe[2].legend(loc='upper left', fontsize=FTSZ)
             axe[2].set_ylabel(r'$W_{max}$', fontsize=FTSZ)
             axe[2].set_xlabel(r'$\Phi$', fontsize=FTSZ)
             # axe[3].set_ylim([1.e-6, 1.e2])

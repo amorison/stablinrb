@@ -7,11 +7,17 @@ import mpl_toolkits.axisartist.floating_axes as floating_axes
 from matplotlib.projections import PolarAxes
 from mpl_toolkits.axisartist.grid_finder import FixedLocator, \
     MaxNLocator, DictFormatter
-# import seaborn as sns
+import seaborn as sns
+import matplotlib as mpl
+
+mpl.rc('font',**{'family':'sans-serif','sans-serif':['Helvetica']})
+mpl.rc('text', usetex=True)
+
+mpl.rcParams['pdf.fonttype'] = 42
 
 
 # Font and markers size
-FTSZ = 11
+FTSZ = 10
 MSIZE = 3
 
 
@@ -54,7 +60,6 @@ def plot_fastest_mode(analyzer, harm, ra_num, ra_comp=None,
     norms, maxs = normalize_modes((p_mode, u_mode, w_mode, t_mode))
     p_norm, u_norm, w_norm, t_norm = norms
     p_max, u_max, w_max, t_max = maxs
-
     # profiles
     fig, axis = plt.subplots(1, 4, sharey=True)
     if spherical:
@@ -63,29 +68,33 @@ def plot_fastest_mode(analyzer, harm, ra_num, ra_comp=None,
     else:
         plt.setp(axis, xlim=[-1.1, 1.1], ylim=[-1/2, 1/2],
                  xticks=[-1, -0.5, 0., 0.5, 1])
+    # pressure
     if plot_theory:
         axis[0].plot(-rad*4/(13*np.sqrt(13))*(39-64*rad**2), rad)
     else:
-        axis[0].plot(p_interp / t_max / p_max, rad)
-    axis[0].plot(p_norm, rad_cheb, 'o')
+        axis[0].plot(p_interp / t_max / np.real(p_max), rad)
+    axis[0].plot(np.real(p_norm), rad_cheb, 'o')
     axis[0].set_xlabel(r'$P/(%.3f)$' %(np.real(p_max)), fontsize=FTSZ)
+    # horizontal velocity
     if plot_theory:
         axis[1].plot(-2 * rad, rad)
     else:
         axis[1].plot(u_interp / t_max / u_max, rad)
-    axis[1].plot(u_norm, rad_cheb, 'o')
+    axis[1].plot(np.imag(u_norm), rad_cheb, 'o')
     axis[1].set_xlabel(r'$U/(%.3fi)$' %(np.imag(u_max)), fontsize=FTSZ)
+    # vertical velocity
     if plot_theory:
         axis[2].plot(np.ones(rad.shape), rad)
     else:
         axis[2].plot(w_interp / t_max / w_max, rad)
-    axis[2].plot(w_norm, rad_cheb, 'o')
+    axis[2].plot(np.real(w_norm), rad_cheb, 'o')
     axis[2].set_xlabel(r'$W/(%.3f)$' %(np.real(w_max)), fontsize=FTSZ)
+    # temperature
     if plot_theory:
         axis[3].plot(1-4*rad**2, rad)
     else:
         axis[3].plot(t_interp / t_max, rad)
-    axis[3].plot(t_norm, rad_cheb, 'o')
+    axis[3].plot(np.real(t_norm), rad_cheb, 'o')
     axis[3].set_xlabel(r'$T$', fontsize=FTSZ)
     filename = '_'.join((name, 'mode_prof.pdf'))
     plt.savefig(filename, format='PDF')
@@ -146,11 +155,10 @@ def plot_fastest_mode(analyzer, harm, ra_num, ra_comp=None,
         t2d1, t2d2 = np.meshgrid(modx, t_interp / t_max)
         t2d = np.real(t2d1 * t2d2)
         plt.rcParams['contour.negative_linestyle'] = 'solid'
-        if harm > 0.2:
-            fig = plt.figure(figsize=(6*np.pi/harm, 3), dpi=300)
-        else:
-            fig = plt.figure(figsize=(6, 3), dpi=300)
+        dpi = 300
+        fig = plt.figure(dpi=dpi)
         axis = fig.add_subplot(111)
+        # plot temperature
         surf = plt.pcolormesh(xgr, zgr, t2d, cmap='RdBu_r', linewidth=0,)
         plt.axis([xgr.min(), xgr.max(), zgr.min(), zgr.max()])
         # stream function
@@ -161,16 +169,18 @@ def plot_fastest_mode(analyzer, harm, ra_num, ra_comp=None,
         speed = np.sqrt(u2d**2+w2d**2)
         lw = 2 * speed / speed.max()
         plt.streamplot(xgr, zgr, u2d, w2d, linewidth=lw, density=0.7)
-        axis.tick_params(axis='both', which='major', labelsize=FTSZ-2)
-        axis.set_xlabel(r'$x$', fontsize=2*FTSZ)
-        axis.set_ylabel(r'$z$', fontsize=2*FTSZ)
+        # labels etc.
+        axis.tick_params(axis='both', which='major', labelsize=FTSZ)
+        axis.set_xlabel(r'$x$', fontsize=FTSZ+2)
+        axis.set_ylabel(r'$z$', fontsize=FTSZ+2)
+        if harm > 0.6:
+            fig.set_figwidth(9)
+            axis.set_aspect('equal')
+        else:
+            fig.set_size_inches(9, 2)
 
-    cbar = plt.colorbar(surf, shrink=0.8, ticks=[-0.5, 0, 0.5])
-    cbar.ax.tick_params(labelsize=FTSZ-1)
-    cbar.set_label(r'Temperature $\Theta$', fontsize=FTSZ)
-    plt.tight_layout()
     filename = '_'.join((name, 'mode.pdf'))
-    plt.savefig(filename, format='PDF')
+    plt.savefig(filename, bbox_inches='tight', format='PDF')
     plt.close(fig)
 
 

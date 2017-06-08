@@ -12,11 +12,11 @@ import plotting
 
 # Font and markers size
 FTSZ = 11
-MSIZE = 3
+MSIZE = 2
 # gamma = 0.7
 eta_c = None
 
-PHI = None
+PHI = 1e-2
 
 pblm = PhysicalProblem(
     gamma=None,
@@ -27,7 +27,7 @@ pblm = PhysicalProblem(
     eta_r = visco_Arrhenius(eta_c, gamma) if eta_c is not None else None,
     ref_state_translation=False)
 
-NON_LINEAR = True
+NON_LINEAR = False
 ra_comp = None
 
 if NON_LINEAR:
@@ -54,9 +54,12 @@ if NON_LINEAR:
     axe[1].set_ylabel('Mean T', fontsize=FTSZ)
     plt.savefig('Ra-Nu-Tmean.pdf', format='PDF')
 else:
-    ana = LinearAnalyzer(pblm, ncheb=50)
+    ana = LinearAnalyzer(pblm, ncheb=20)
     ra_c, harm_c = ana.critical_ra(ra_comp=ra_comp)
     print('Rac, kc = ', ra_c, harm_c)
     plotting.plot_fastest_mode(ana, harm_c, ra_c, ra_comp, plot_theory=True)
     plotting.plot_ran_harm(ana, harm_c, ra_comp)
-    plotting.plot_viscosity(pblm)
+    if eta_c is not None:
+        plotting.plot_viscosity(pblm)
+
+ 
