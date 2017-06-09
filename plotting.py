@@ -80,7 +80,7 @@ def plot_fastest_mode(analyzer, harm, ra_num, ra_comp=None,
         axis[1].plot(-2 * rad, rad)
     else:
         axis[1].plot(u_interp / t_max / u_max, rad)
-    axis[1].plot(np.imag(u_norm), rad_cheb, 'o')
+    axis[1].plot(np.real(u_norm), rad_cheb, 'o')
     axis[1].set_xlabel(r'$U/(%.3fi)$' %(np.imag(u_max)), fontsize=FTSZ)
     # vertical velocity
     if plot_theory:
