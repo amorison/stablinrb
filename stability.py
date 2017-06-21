@@ -8,6 +8,7 @@ Can do both the no-slip and free-slip BCs, applying to both boundaries.
 Also treats the phase change boundary conditions.
 """
 import numpy as np
+import matplotlib as mpl
 import matplotlib.pyplot as plt
 import matplotlib.ticker as ticker
 # import seaborn as sns
@@ -17,11 +18,18 @@ from plotting import plot_fastest_mode, plot_ran_harm
 from misc import normalize_modes
 from os.path import isfile
 
+mpl.rc('font',**{'family':'sans-serif','sans-serif':['Helvetica']})
+## for Palatino and other serif fonts use:
+#rc('font',**{'family':'serif','serif':['Palatino']})
+mpl.rc('text', usetex=True)
+
+mpl.rcParams['pdf.fonttype'] = 42
+
 # import os.path.isfile as isfile
 
 # Font and markers size
 FTSZ = 11
-MSIZE = 5
+MSIZE = 4
 
 pblm = PhysicalProblem(
     gamma=None,
@@ -258,12 +266,12 @@ if EXPLORE_PHASE:
             col1 = p1.get_color()
             # General case
             axe[0].tick_params(axis='both', which='major', labelsize=FTSZ)
-            axe[0].set_ylabel(r'$\mathrm{Ra}_c$', fontsize=FTSZ+1)
+            axe[0].set_ylabel(r'$\mbox{\textit{Ra}}_c$', fontsize=FTSZ+1)
             # axe[0].set_ylim([0, 800])
             axe[0].legend(loc=4, frameon=False, fontsize=FTSZ)
             # plt.tick_params(labelsize=FTSZ-1)
             axe[1].loglog([phinum[0], phinum[-1]], [kxc, kxc], '-.', c='k',
-                        label=r'$\mathrm{R}_c=\frac{27\pi^4}{4}, k_c=\frac{\pi}{\sqrt{2}}$')
+                        label=r'$\mbox{\textit{Ra}}_c=\frac{27\pi^4}{4}, k_c=\frac{\pi}{\sqrt{2}}$')
             # Small phi prediction
             axe[1].loglog(phinum2, np.sqrt(9*phinum2/32), '-', c='k',
                         label=r'Small $\Phi$ prediction')
@@ -279,30 +287,30 @@ if EXPLORE_PHASE:
 
             # plot Pmax, Umax, Wmax and (24phi - Ra) as function of phi
             fig, axe = plt.subplots(4, 1, sharex=True)
-            axe[0].loglog(phinum, np.abs(pmax), 'o', markersize=MSIZE, markeredgewidth=0.0)#, linestyle='-')
             axe[0].loglog(phinum, 13*np.sqrt(13)/8*phinum, linestyle='--', c='k',
                             label=r'$13\sqrt{13}\Phi/8$')
+            axe[0].loglog(phinum, np.abs(pmax), 'o', markersize=MSIZE, markeredgewidth=0.0)#, linestyle='-')
             axe[0].legend(loc='upper left', fontsize=FTSZ-2, frameon=False)
             axe[0].set_ylabel(r'$P_{max}$', fontsize=FTSZ)
             # axe[0].set_yticks(np.power(10, np.arange(-2, 5, 2)))
             axe[0].yaxis.set_major_locator(ticker.LogLocator(base=100))
-            axe[1].loglog(phinum, np.abs(umax), 'o', markersize=MSIZE, markeredgewidth=0.0)#, linestyle='-')
             axe[1].loglog(phinum, 3*np.sqrt(phinum/2), linestyle='--', c='k',
                             label=r'$3\sqrt{\Phi/2}$')
+            axe[1].loglog(phinum, np.abs(umax), 'o', markersize=MSIZE, markeredgewidth=0.0)#, linestyle='-')
             axe[1].legend(loc='upper left', fontsize=FTSZ, frameon=False)
             axe[1].set_ylabel(r'$U_{max}$', fontsize=FTSZ)
-            axe[2].semilogx(phinum, np.abs(wmax), 'o', markersize=MSIZE, markeredgewidth=0.0)#, linestyle='-')
             axe[2].semilogx(phinum, 8*np.ones(phinum.shape), linestyle='--', c='k',
                             label=r'$8$')
+            axe[2].semilogx(phinum, np.abs(wmax), 'o', markersize=MSIZE, markeredgewidth=0.0)#, linestyle='-')
             axe[2].set_ylim(ymin=7)
             axe[2].legend(loc='upper left', fontsize=FTSZ, frameon=False)
             axe[2].set_ylabel(r'$W_{max}$', fontsize=FTSZ)
             # axe[2].set_yticks(np.arange(7, 15, 2))
             axe[2].yaxis.set_major_locator(ticker.MultipleLocator(2))
             axe[2].yaxis.set_minor_locator(ticker.MultipleLocator(1))
-            axe[3].loglog(phinum, 24*phinum-ram, 'o', markersize=MSIZE, markeredgewidth=0.0)#, linestyle='-')
             axe[3].loglog(phinum, 81*phinum**2/256,  linestyle='--', c='k',
                             label=r'$81\Phi^2/256$')
+            axe[3].loglog(phinum, 24*phinum-ram, 'o', markersize=MSIZE, markeredgewidth=0.0)#, linestyle='-')
             axe[3].set_ylabel(r'$24\Phi-Ra$', fontsize=FTSZ)
             axe[3].legend(loc='upper left', fontsize=FTSZ, frameon=False)
             axe[3].set_xlabel(r'$\Phi$', fontsize=FTSZ)

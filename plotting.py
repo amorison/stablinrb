@@ -7,7 +7,7 @@ import mpl_toolkits.axisartist.floating_axes as floating_axes
 from matplotlib.projections import PolarAxes
 from mpl_toolkits.axisartist.grid_finder import FixedLocator, \
     MaxNLocator, DictFormatter
-import seaborn as sns
+# import seaborn as sns
 import matplotlib as mpl
 
 mpl.rc('font',**{'family':'sans-serif','sans-serif':['Helvetica']})

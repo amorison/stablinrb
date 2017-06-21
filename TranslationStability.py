@@ -8,20 +8,45 @@ Can do both the no-slip and free-slip BCs, applying to both boundaries.
 Also treats the phase change boundary conditions.
 """
 import numpy as np
+import matplotlib as mpl
 import matplotlib.pyplot as plt
 # import seaborn as sns
 from analyzer import LinearAnalyzer, NonLinearAnalyzer
 from physics import PhysicalProblem
 
+mpl.rc('font',**{'family':'sans-serif','sans-serif':['Helvetica']})
+## for Palatino and other serif fonts use:
+#rc('font',**{'family':'serif','serif':['Palatino']})
+mpl.rc('text', usetex=True)
+
+mpl.rcParams['pdf.fonttype'] = 42
+
 # Font and markers size
-FTSZ = 8
+FTSZ = 12
 MSIZE = 3
 
 # range of exploration in phi
-PLOT_K_RA = False
+PLOT_K_RA = True
+PLOT_KSIGMA = False
+PLOT_RAMAX = False
+# type of colorscale
 GREYSCALE = False
-nphi = 50
-phitot = np.power(10, np.flipud(np.linspace(-2, 2, nphi)))
+
+# scientific format for text
+def fmt(x):
+    a, b = '{:.2e}'.format(x).split('e')
+    b = int(b)
+    if b != 0:
+        return r'${} \times 10^{{{}}}$'.format(a, b)
+    else:
+        return r'${}$'.format(a)
+
+nphi = 3
+if nphi == 1:
+    phitot = np.array([1])
+else:
+    phitot = np.power(10, np.flipud(np.linspace(-2, 0, nphi)))
+
 phimax = np.max(phitot)
 phimin = np.min(phitot)
 cmax = 0.5
@@ -38,6 +63,7 @@ kminus0 = np.zeros(phitot.shape)
 kmax0 = np.zeros(phitot.shape)
 smax0 = np.zeros(phitot.shape)
 ramax = np.zeros(phitot.shape)
+epsm = np.zeros(phitot.shape)
 hmax = np.zeros(phitot.shape)
 
 pblm = PhysicalProblem(
@@ -50,16 +76,13 @@ pblm = PhysicalProblem(
 
 ana = LinearAnalyzer(pblm, ncheb=20)
 
-
-PLOT_KSIGMA = False
+# number epsilon values to plot
 neps = 100
+# number of wavenumber values for the plot
 nwkn = 200
 
 # figure kx - epsilon
 fig2, axe2 = plt.subplots(1, 1)
-
-# figure kx - Ra
-# fig3, axe3 = plt.subplots(1, 1)
 
 
 for n, phi in enumerate(phitot):
@@ -83,12 +106,16 @@ for n, phi in enumerate(phitot):
     rtr = 12 * (phit + phib)
     smax0[n], kmax0[n], kminus0[n], kplus0[n] = ana.critical_harm(rtr, kguess)
     ramax[n], hmax[n], ramin, hmin, smin = ana.max_ra_trans_instab(hguess=kguess, eps=1e-3)
+    epsm[n] = (ramax[n] - 24 * phi) / (24 * phi)
 
-    if PLOT_K_RA:
+    if PLOT_K_RA or PLOT_KSIGMA:
         # range of exploration in Ra
         epsmax = (ramax[n] - ramin) / ramin
-        epsilon = np.concatenate((np.linspace(0, epsmax/10, neps/2),\
-                                  np.linspace(epsmax/10, epsmax, neps/2)))
+        if neps > 5:
+            epsilon = np.concatenate((np.linspace(0, epsmax/10, neps/2),\
+                                    np.linspace(epsmax/10, epsmax, neps/2)))
+        else:
+            epsilon = np.linspace(0, epsmax, neps)
         kmax = np.zeros(epsilon.shape)
         sigmax = np.zeros(epsilon.shape) - 1
         kplus = np.zeros(epsilon.shape)
@@ -111,30 +138,24 @@ for n, phi in enumerate(phitot):
         for j, eps in enumerate(epsilon):
             print('j, eps =', j, eps)
             ran[j] = rtr*(1+eps)
-            if PLOT_K_RA:
-                if ran[j] != ramax[n]:
-                    sigmax[j], kmax[j], kminus[j], kplus[j] = ana.critical_harm(ran[j], kguess)
-                else:
-                    sigmax[j] = 0
-                    kmax[j] = hmax[n]
-                    kminus[j] = hmax[n]
-                    kplus[j] = hmax[n]
+            if ran[j] != ramax[n]:
+                sigmax[j], kmax[j], kminus[j], kplus[j] = ana.critical_harm(ran[j], kguess)
+            else:
+                sigmax[j] = 0
+                kmax[j] = hmax[n]
+                kminus[j] = hmax[n]
+                kplus[j] = hmax[n]
             if PLOT_KSIGMA:
                 for i, kxn in enumerate(wkn):
                     sigma[i] = ana.eigval(kxn, ran[j])
-                axe.semilogx(wkn, np.real(sigma), label=r'$\varepsilon = %.2e$' %(eps))
+                axe.semilogx(wkn, np.real(sigma), label=r'$\varepsilon = $'+fmt(eps))
             if np.real(sigmax[j]) < 0:
                 break
 
     if PLOT_KSIGMA:
-        # axe.semilogx(kmax, np.real(sigmax), 'o', c='k')
-        # axe.semilogx(kplus, np.zeros(kplus.shape), 'o', c='r')
-        # axe.semilogx(kminus, np.zeros(kminus.shape), 'o', c='b')
 
-        # axe.set_ylim(-0.05, 0.05)
-
-        axe.set_xlabel(r'$k_x$', fontsize=FTSZ)
-        axe.set_ylabel(r'$Re(\sigma)$', fontsize=FTSZ)
+        axe.set_xlabel(r'$k_x$', fontsize=FTSZ+2)
+        axe.set_ylabel(r'$Re(\sigma)$', fontsize=FTSZ+2)
         plt.legend(loc='upper center', ncol=2, fontsize=FTSZ)
         axe.xaxis.grid(True, 'major')
         axe.yaxis.grid(True, 'major')
@@ -148,6 +169,10 @@ for n, phi in enumerate(phitot):
         ktot = np.concatenate((kminus, np.flipud(kplus)))
         ratot = np.concatenate((ran, np.flipud(ran)))
         eptot = np.concatenate((epsilon, np.flipud(epsilon)))
+        with open('kx_epsmax_phi'+np.str(phi).replace('.', '-')+'.dat', 'w') as fich:
+            fmt = '{:15.6e}'*2 + '\n'
+            for i in range(nphi):
+                fich.write(fmt.format(ktot[i], eptot[i]))
 
         axe2.semilogx(kmax, epsilon, '--', c='k')
         if GREYSCALE:
@@ -155,43 +180,32 @@ for n, phi in enumerate(phitot):
         else:
             axe2.fill_between(ktot, 0, eptot, alpha=0.5, label='Unstable translation, $\phi=%.2f$' %phi)
 
-    # axe3.semilogx(kmax, ran, c='k')
-    # axe3.fill_between(ktot, rtr, ratot, alpha=0.5, label='Unstable translation, $\phi=%.1e$' %phi)
-
 if PLOT_K_RA:
-    axe2.set_xlim([1e-2, 4e0])
-    axe2.set_xlabel(r'$k_x$', fontsize=FTSZ)
-    axe2.set_ylabel(r'$(Ra-Ra_c)/Ra_c$', fontsize=FTSZ)
+    axe2.set_xlim([1e-2, 1e0])
+    axe2.set_xlabel(r'$k_x$', fontsize=FTSZ+2)
+    axe2.set_ylabel(r'$(Ra-Ra_c)/Ra_c$', fontsize=FTSZ+2)
     axe2.legend(loc='upper left', fontsize=FTSZ)
     plt.savefig('kxEpsilonTransN' + np.str(ana._ncheb) + '.pdf')
     plt.close(fig2)
 
-# axe3.set_xlabel(r'$k_x$', fontsize=FTSZ)
-# axe3.set_ylabel(r'$Ra$', fontsize=FTSZ)
-# axe3.legend(loc='upper left', fontsize=FTSZ)
-# plt.savefig('kxRaTransN' + np.str(ana._ncheb) + '.pdf')
+if PLOT_RAMAX:
+    with open('Phi_sigma_Ra.dat', 'w') as fich:
+        fmt = '{:15.6e}'*8 + '\n'
+        for i in range(nphi):
+            fich.write(fmt.format(phitot[i], kmax0[i], smax0[i], kminus0[i], kplus0[i], hmax[i], ramax[i], epsm[i]))
 
-# plt.close(fig3)
-
-with open('Phi_sigma_Ra.dat', 'w') as fich:
-    fmt = '{:15.3e}'*7 + '\n'
-    for i in range(nphi):
-        fich.write(fmt.format(phitot[i], kmax0[i], smax0[i], kminus0[i], kplus0[i], hmax[i], ramax[i]))
-
-fig, axe = plt.subplots(3, 1, sharex=True)
-axe[0].loglog(phitot, kmax0, 'o', markersize=MSIZE, label=r'Fastest growing mode at $\varepsilon=0$')
-# axe[0].loglog(phitot, hmax, 'o', label=r'$k_x$ for maximum $\varepsilon$')
-# axe[0].loglog(phitot, kminus0, 'o', label=r'Minimum $k_x$ for instability at $\varepsilon=0$')
-axe[0].loglog(phitot, kplus0, 'o', markersize=MSIZE, label=r'Maximum $k_x$ for instability at $\varepsilon=0$')
-axe[0].legend(loc='upper left', fontsize=FTSZ)
-axe[0].set_ylabel(r'$k_x$', fontsize=FTSZ)
-axe[1].loglog(phitot, smax0, 'o', markersize=MSIZE, label=r'Maximum growth rate at $\varepsilon=0$')
-axe[1].legend(loc='upper left', fontsize=FTSZ)
-axe[1].set_ylabel('$Re(\sigma)$', fontsize=FTSZ)
-axe[2].loglog(phitot, ramax, 'o', markersize=MSIZE, label=r'Maximum $Ra$ for instability')
-axe[2].set_ylabel(r'$Ra_{max}$', fontsize=FTSZ)
-axe[2].set_xlabel(r'$\Phi^+=\Phi^-$', fontsize=FTSZ)
-plt.savefig('Phi_kx_smax_RamaxN' + np.str(ana._ncheb) + '.pdf')
-plt.close(fig)
+    fig, axe = plt.subplots(3, 1, sharex=True)
+    axe[0].loglog(phitot, kmax0, 'o', markersize=MSIZE, label=r'Fastest growing mode at $\varepsilon=0$')
+    axe[0].loglog(phitot, kplus0, 'o', markersize=MSIZE, label=r'Maximum $k_x$ for instability at $\varepsilon=0$')
+    axe[0].legend(loc='upper left', fontsize=FTSZ)
+    axe[0].set_ylabel(r'$k_x$', fontsize=FTSZ)
+    axe[1].loglog(phitot, smax0, 'o', markersize=MSIZE, label=r'Maximum growth rate at $\varepsilon=0$')
+    axe[1].legend(loc='upper left', fontsize=FTSZ)
+    axe[1].set_ylabel('$Re(\sigma)$', fontsize=FTSZ)
+    axe[2].loglog(phitot, ramax, 'o', markersize=MSIZE, label=r'Maximum $Ra$ for instability')
+    axe[2].set_ylabel(r'$Ra_{max}$', fontsize=FTSZ)
+    axe[2].set_xlabel(r'$\Phi^+=\Phi^-$', fontsize=FTSZ)
+    plt.savefig('Phi_kx_smax_RamaxN' + np.str(ana._ncheb) + '.pdf')
+    plt.close(fig)
 
 
