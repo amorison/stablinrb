@@ -13,13 +13,13 @@ import plotting
 # Font and markers size
 FTSZ = 11
 MSIZE = 2
-# gamma = 0.7
+gamma = 0.7
 eta_c = None
 
 PHI = 1e-2
 
 pblm = PhysicalProblem(
-    gamma=None,
+    gamma=gamma,
     phi_top=PHI,
     phi_bot=PHI,
     freeslip_top=True,
@@ -57,9 +57,8 @@ else:
     ana = LinearAnalyzer(pblm, ncheb=20)
     ra_c, harm_c = ana.critical_ra(ra_comp=ra_comp)
     print('Rac, kc = ', ra_c, harm_c)
-    plotting.plot_fastest_mode(ana, harm_c, ra_c, ra_comp, plot_theory=True)
+    plotting.plot_fastest_mode(ana, harm_c, ra_c, ra_comp, plot_theory=False)
     plotting.plot_ran_harm(ana, harm_c, ra_comp)
     if eta_c is not None:
         plotting.plot_viscosity(pblm)
 
- 
