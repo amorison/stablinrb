@@ -200,7 +200,8 @@ def plot_ran_harm(analyzer, harm, ra_comp=None, name=None):
         harms = range(lmin, lmax + 1)
         for idx, l_harm in enumerate(harms):
             rac_l.append(analyzer.neutral_ra(
-                l_harm, ra_guess=(rac_l[idx-1] if idx else 600)))
+                l_harm, ra_guess=(rac_l[idx-1] if idx else 600),
+                ra_comp=ra_comp))
 
         l_c, ra_c = min(enumerate(rac_l), key=lambda tpl: tpl[1])
         l_c += lmin

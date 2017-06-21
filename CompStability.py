@@ -27,8 +27,9 @@ g = 10
 alpha = 1e-5  # dV/dT /V
 beta = (3.58 - 5.74) / 3.58  # dV/dc /V
 heat_capacity = 1e3  # in SMO
+isen = alpha * g / heat_capacity  # in SMO
 latent_heat = 4e5  # J/kg
-emissivity = 0.8
+emissivity = 1.0  # black body
 stefan_boltzmann = 5.67e-8
 temp_inf = 255
 kappa = 1e-6
@@ -50,7 +51,7 @@ delta_temp = lambda h: -integ.quad(
     lambda r: grad_temp(r, h), r_int, r_ext(h))[0]
 
 eta_vals = np.array(range(15, 17))  # 19
-h_crystal_vals = np.linspace(100e3, 1300e3, 50)  # 50
+h_crystal_vals = np.linspace(100e3, 1300e3, 30)
 phi_vals = [(None, None), (None, 1e-2), (1e-2, 1e-2)]
 
 # non-dimensional variables
@@ -65,8 +66,7 @@ def surf_temp(h):
     """Surface temperature determined by fixing
     the boundary layer Ra# at top of the SMO"""
     temp_bot_smo = t_crystal - delta_temp(h)
-    temp_surf_pot = temp_bot_smo * np.exp(- alpha * g * (r_earth - r_ext(h))
-                                          / heat_capacity)
+    temp_surf_pot = temp_bot_smo * np.exp(- isen * (r_earth - r_ext(h)))
     ra_bnd = 1e3
     eta_smo = 1e-1
     tsurf_func = lambda ts: ((temp_surf_pot - ts)**(4/3) -
@@ -79,47 +79,47 @@ def surf_temp(h):
 #for h_crystal in h_crystal_vals:
 #    print(t_crystal - delta_temp(h_crystal), surf_temp(h_crystal))
 
-#crystallized = [0]
-#time = [0]
-#dtime = 1e3
-#temp_top = t_crystal
-#while crystallized[-1] < 1300e3:
-#    h = crystallized[-1]
-#    dtop = ((rho * latent_heat * (r_ext(h)**3 - r_int**3)/3 -
-#             emissivity * stefan_boltzmann * r_earth**2 *
-#             (surf_temp(h)**4 - temp_inf**4)) * dtime /
-#            (rho * heat_capacity * (r_earth**3 - r_ext(h)**3)))
-#    temp_top += dtop
-#    print(temp_top)
-#    crystallized.append(opt.fsolve(lambda h:delta_temp(h) - (t_crystal - temp_top), h)[0])
-#    temp_top = t_crystal - delta_temp(crystallized[-1])
-#    print(temp_top, crystallized[-1])
-#    time.append(time[-1] + dtime)
-
-#crystal_time = []
-#for h in h_crystal_vals:
-#    crystal_time.append(
-#      (rho * latent_heat * (r_ext(h)**3 - r_int**3)/3 -
-#         emissivity * stefan_boltzmann * r_earth**2 *
-#         (surf_temp(h)**4 - temp_inf**4)) /
-#        (rho * heat_capacity * (r_earth**3 - r_ext(h)**3)
-#         * (t_crystal - delta_temp(h))))
+crystallized = [0]
+time = [0]
+dtime = 3e8
+while crystallized[-1] < 1300e3:
+    h = crystallized[-1]
+    temp_top = t_crystal - delta_temp(h)
+    gtemp_top = grad_temp(r_ext(h), h)
+    heat_to_extract = rho * heat_capacity * (gtemp_top + temp_top * isen)
+    expis = np.exp(isen * (r_ext(h) - r_earth))
+    heat_to_extract *= (r_earth**2 * expis - r_ext(h)**2) / isen + \
+        2 * (r_earth * expis - r_ext(h)) / isen**2 + \
+        2 * (expis - 1) / isen**3
+    heat_to_extract += rho * latent_heat * r_ext(h)**2 + \
+        rho * heat_capacity * temp_top * r_ext(h)**2
+    gray_body = emissivity * stefan_boltzmann * r_earth**2 * \
+        (surf_temp(h)**4 - temp_inf**4)
+    drad = gray_body * dtime / heat_to_extract
+    crystallized.append(h + drad)
+    time.append(time[-1] + dtime)
+    if len(crystallized) % 1000 == 0:
+        print(surf_temp(h), temp_top, crystallized[-1]/1e3, time[-1]/3.15e7)
 
 fig, axis = plt.subplots(1, 1)
+
+#harms = range(1, 15)
 
 for phi_bot, phi_top in phi_vals:
     ana = LinearAnalyzer(PhysicalProblem(phi_top=phi_top,
                                          phi_bot=phi_bot),
-                         ncheb=100)
+                         ncheb=30)
     if phi_bot is None:
-        phi_str = r'$\Phi^-=10^{-2}$' if phi_top else 'closed'
+        phi_str = r'$\Phi^+=10^{-2}$' if phi_top else 'closed'
         col = 'g' if phi_top else 'b'
     else:
         phi_str = r'$\Phi^+=\Phi^-=10^{-2}$'
         col = 'r'
 
+    #for harm in harms:
     tau_vals = {}
     for eta in eta_vals:
+        harm = 2
         style = '-' if eta == 16 else '--'
         tau_vals[eta] = []
         for h_crystal in h_crystal_vals:
@@ -130,23 +130,32 @@ for phi_bot, phi_top in phi_vals:
                 lambda r: grad_temp(r * r_ext(h_crystal), h_crystal) * \
                     r_ext(h_crystal) / delta_temp(h_crystal)
             sigma, harm = ana.fastest_mode(rayleigh(h_crystal, 10**eta),
-                                           ra_comp(h_crystal, 10**eta))
+                                           ra_comp(h_crystal, 10**eta),
+                                           harm)
+            #sigma = ana.eigval(harm, rayleigh(h_crystal, 10**eta),
+            #                   ra_comp(h_crystal, 10**eta))
+            print(phi_top, phi_bot, eta, sigma, harm)
             tau_vals[eta].append(np.real(tau(sigma, h_crystal)))
-        axis.semilogy(h_crystal_vals/1e3, np.array(tau_vals[eta])/(86400),
+        axis.semilogy(h_crystal_vals/1e3, np.array(tau_vals[eta]),
                       label=r'$\eta=10^{%d}$, %s' %(eta, phi_str),
                       color=col, linestyle=style)
-#axis.semilogy(h_crystal_vals/1e3, 1/np.array(crystal_time)/86400)
+axis.semilogy(np.array(crystallized) / 1e3, np.array(time), color='k')
+for duration, name in [(3600, '1h'), (86400, '1d'), (3.15e7, '1y'),
+                       (3.15e10, '1ky'), (3.15e13, '1My')]:
+    axis.semilogy([0, 1300], [duration]*2, color='k', linestyle=':', linewidth=1)
+    axis.text(-60, duration, name, va='center')
 axis.set_xlabel(r'Crystallized mantle thickness $h$ (km)', fontsize=FTSZ)
-axis.set_ylabel(r'Destabilization time scale $\tau$ (days)', fontsize=FTSZ)
+axis.set_ylabel(r'Destabilization time scale $\tau$ (s)', fontsize=FTSZ)
 axis.legend(
-    [plt.Line2D((0,1),(0,0), color='k', linestyle='--'),
-     plt.Line2D((0,1),(0,0), color='k', linestyle='-'),
+    [plt.Line2D((0,1),(0,0), color='k'),
+     plt.Line2D((0,1),(0,0), color='b', linestyle='--'),
+     plt.Line2D((0,1),(0,0), color='b', linestyle='-'),
      plt.Line2D((0,1),(0,0), color='b'),
      plt.Line2D((0,1),(0,0), color='g'),
      plt.Line2D((0,1),(0,0), color='r')],
-    ['$\eta=10^{15}$', '$\eta=10^{16}$',
-     'closed', r'$\Phi^-=10^{-2}$', r'$\Phi^+=\Phi^-=10^{-2}$'],
+    ['Cooling time', '$\eta=10^{15}$', '$\eta=10^{16}$',
+     'closed', r'$\Phi^+=10^{-2}$', r'$\Phi^+=\Phi^-=10^{-2}$'],
     loc='upper right', fontsize=FTSZ)
 axis.tick_params(labelsize=FTSZ)
 plt.tight_layout()
-plt.savefig('DestabilizationTime.pdf', format='PDF')
+plt.savefig('DestabilizationTimeCryst.pdf', format='PDF')
