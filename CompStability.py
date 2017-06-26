@@ -19,7 +19,7 @@ MSIZE = 5
 # all in base units
 r_earth = 6371e3
 d_crystal = 1500e3
-h_crystal_max = 100e3
+h_crystal_max = 200e3
 t_crystal = 3500  # temperature solidus as d_crystal
 r_int = r_earth - d_crystal
 r_ext = lambda h: r_int + h
@@ -115,6 +115,17 @@ def cooling_time():
             print(surf_temp(h), temp_top, crystallized[-1]/1e3, time[-1]/3.15e7)
     return np.array(crystallized), np.array(time)
 
+
+def _phi_col_lbl(phi_top, phi_bot):
+    if phi_bot is None:
+        phi_str = r'$\Phi^+=10^{-2}$' if phi_top else 'closed'
+        col = 'g' if phi_top else 'b'
+    else:
+        phi_str = r'$\Phi^+=\Phi^-=10^{-2}$'
+        col = 'r'
+    return col, phi_str
+
+
 def plot_destab(crystallized, time):
     """Plot destabilization time scale as function of solid thickness"""
     fig, axis = plt.subplots(1, 1)
@@ -123,12 +134,7 @@ def plot_destab(crystallized, time):
         ana = LinearAnalyzer(PhysicalProblem(phi_top=phi_top,
                                              phi_bot=phi_bot),
                              ncheb=15)
-        if phi_bot is None:
-            phi_str = r'$\Phi^+=10^{-2}$' if phi_top else 'closed'
-            col = 'g' if phi_top else 'b'
-        else:
-            phi_str = r'$\Phi^+=\Phi^-=10^{-2}$'
-            col = 'r'
+        col, phi_str = _phi_col_lbl(phi_top, phi_bot)
 
         tau_vals = {}
         for eta in eta_vals:
@@ -171,6 +177,50 @@ def plot_destab(crystallized, time):
     plt.tight_layout()
     plt.savefig('DestabilizationTimeCryst.pdf', format='PDF')
 
+
+def _time_diff(h_cryst, eta, ana, crystallized, time):
+    """Compute time difference between destab and cooling time"""
+    update_ana_thickness(ana, h_cryst)
+    sigma, _ = ana.fastest_mode(rayleigh(h_cryst, 10**eta),
+                                ra_comp(h_cryst, 10**eta))
+    destab = np.real(tau(sigma, h_cryst))
+    cooling = np.interp(h_cryst, crystallized, time)
+    return cooling - destab
+
+
+def plot_min_time(crystallized, time, eps=1e-3):
+    """Research of time at which destab = cooling time"""
+    fig, axis = plt.subplots(1, 1)
+    eta_logs = np.linspace(15, 18, 10)
+    for phi_bot, phi_top in phi_vals:
+        col, phi_str = _phi_col_lbl(phi_top, phi_bot)
+        ana = LinearAnalyzer(PhysicalProblem(phi_top=phi_top,
+                                             phi_bot=phi_bot),
+                             ncheb=15)
+        tau_vals = []
+        for eta in eta_logs:
+            h_min = 20e3
+            while _time_diff(h_min, eta, ana, crystallized, time) > 0:
+                h_min /= 2
+            h_max = h_min * 2
+            while _time_diff(h_max, eta, ana, crystallized, time) < 0:
+                h_max *= 2
+            while (h_max - h_min) / h_max > eps:
+                h_cryst = np.sqrt(h_min * h_max)
+                if _time_diff(h_cryst, eta, ana, crystallized, time) < 0:
+                    h_min = h_cryst
+                else:
+                    h_max = h_cryst
+            tau_vals.append(np.interp(h_cryst, crystallized, time))
+            print(eta, tau_vals[-1])
+        axis.loglog(10**eta_logs, tau_vals, color=col, label=phi_str)
+    axis.set_xlabel(r'Viscosity $\eta$')
+    axis.set_ylabel(r'Time (s)')
+    axis.legend()
+    fig.savefig('CoolingDestab.pdf', format='PDF', bbox_inches='tight')
+
+
 if __name__ == '__main__':
     crystallized, time = cooling_time()
-    plot_destab(crystallized, time)
+    #plot_destab(crystallized, time)
+    plot_min_time(crystallized, time)
