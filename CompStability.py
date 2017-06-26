@@ -77,6 +77,14 @@ def surf_temp(h):
                              (ts**4 - temp_inf**4))
     return opt.fsolve(tsurf_func, (temp_surf_pot - temp_inf) / 2)[0]
 
+def update_ana_thickness(ana, h_crystal):
+    """Update analyzer with new thickness"""
+    ana.phys.gamma = gamma(h_crystal)
+    ana.phys.composition = lambda r: composition(r * h_crystal,
+                                                 h_crystal)
+    ana.phys.grad_ref_temperature = \
+        lambda r: grad_temp(r * h_crystal, h_crystal) * \
+            h_crystal / delta_temp(h_crystal)
 
 def cooling_time():
     """Compute time to evacuate latent heat and cool down SMO
@@ -128,12 +136,7 @@ def plot_destab(crystallized, time):
             style = '-' if eta == 17 else '--'
             tau_vals[eta] = []
             for h_crystal in h_crystal_vals:
-                ana.phys.gamma = gamma(h_crystal)
-                ana.phys.composition = lambda r: composition(r * h_crystal,
-                                                             h_crystal)
-                ana.phys.grad_ref_temperature = \
-                    lambda r: grad_temp(r * h_crystal, h_crystal) * \
-                        h_crystal / delta_temp(h_crystal)
+                update_ana_thickness(ana, h_crystal)
                 sigma, harm = ana.fastest_mode(rayleigh(h_crystal, 10**eta),
                                                ra_comp(h_crystal, 10**eta),
                                                harm)
