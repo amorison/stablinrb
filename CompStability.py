@@ -100,61 +100,65 @@ while crystallized[-1] < h_crystal_max:
     if len(crystallized) % 1000 == 0:
         print(surf_temp(h), temp_top, crystallized[-1]/1e3, time[-1]/3.15e7)
 
-fig, axis = plt.subplots(1, 1)
+def plot_destab():
+    fig, axis = plt.subplots(1, 1)
 
-for phi_bot, phi_top in phi_vals:
-    ana = LinearAnalyzer(PhysicalProblem(phi_top=phi_top,
-                                         phi_bot=phi_bot),
-                         ncheb=15)
-    if phi_bot is None:
-        phi_str = r'$\Phi^+=10^{-2}$' if phi_top else 'closed'
-        col = 'g' if phi_top else 'b'
-    else:
-        phi_str = r'$\Phi^+=\Phi^-=10^{-2}$'
-        col = 'r'
+    for phi_bot, phi_top in phi_vals:
+        ana = LinearAnalyzer(PhysicalProblem(phi_top=phi_top,
+                                             phi_bot=phi_bot),
+                             ncheb=15)
+        if phi_bot is None:
+            phi_str = r'$\Phi^+=10^{-2}$' if phi_top else 'closed'
+            col = 'g' if phi_top else 'b'
+        else:
+            phi_str = r'$\Phi^+=\Phi^-=10^{-2}$'
+            col = 'r'
 
-    tau_vals = {}
-    for eta in eta_vals:
-        harm = 1
-        style = '-' if eta == 17 else '--'
-        tau_vals[eta] = []
-        for h_crystal in h_crystal_vals:
-            ana.phys.gamma = gamma(h_crystal)
-            ana.phys.composition = lambda r: composition(r * h_crystal,
-                                                         h_crystal)
-            ana.phys.grad_ref_temperature = \
-                lambda r: grad_temp(r * h_crystal, h_crystal) * \
-                    h_crystal / delta_temp(h_crystal)
-            sigma, harm = ana.fastest_mode(rayleigh(h_crystal, 10**eta),
-                                           ra_comp(h_crystal, 10**eta),
-                                           harm)
-            #plot_fastest_mode(ana, harm, rayleigh(h_crystal, 10**eta),
-            #                  ra_comp(h_crystal, 10**eta), name='N150')
-            #sigma = ana.eigval(harm, rayleigh(h_crystal, 10**eta),
-            #                   ra_comp(h_crystal, 10**eta))
-            print(phi_top, phi_bot, eta, sigma, harm, rayleigh(h_crystal, 10**eta))
-            tau_vals[eta].append(np.real(tau(sigma, h_crystal)))
-        axis.semilogy(h_crystal_vals/1e3, np.array(tau_vals[eta]),
-                      label=r'$\eta=10^{%d}$, %s' %(eta, phi_str),
-                      color=col, linestyle=style)
-axis.semilogy(np.array(crystallized) / 1e3, np.array(time), color='k')
-for duration, name in [(86400, '1d'), (3.15e7, '1y'),
-                       (3.15e10, '1ky'), (3.15e13, '1My')]:
-    axis.semilogy([0, h_crystal_max/1e3], [duration]*2,
-                  color='k', linestyle=':', linewidth=1)
-    axis.text(-h_crystal_max/2e4, duration, name, va='center')
-axis.set_xlabel(r'Crystallized mantle thickness $h$ (km)', fontsize=FTSZ)
-axis.set_ylabel(r'Destabilization time scale $\tau$ (s)', fontsize=FTSZ)
-axis.legend(
-    [plt.Line2D((0,1),(0,0), color='k'),
-     plt.Line2D((0,1),(0,0), color='b', linestyle='--'),
-     plt.Line2D((0,1),(0,0), color='b', linestyle='-'),
-     plt.Line2D((0,1),(0,0), color='b'),
-     plt.Line2D((0,1),(0,0), color='g'),
-     plt.Line2D((0,1),(0,0), color='r')],
-    ['Cooling time', '$\eta=10^{16}$', '$\eta=10^{17}$',
-     'closed', r'$\Phi^+=10^{-2}$', r'$\Phi^+=\Phi^-=10^{-2}$'],
-    loc='upper right', fontsize=FTSZ)
-axis.tick_params(labelsize=FTSZ)
-plt.tight_layout()
-plt.savefig('DestabilizationTimeCryst.pdf', format='PDF')
+        tau_vals = {}
+        for eta in eta_vals:
+            harm = 1
+            style = '-' if eta == 17 else '--'
+            tau_vals[eta] = []
+            for h_crystal in h_crystal_vals:
+                ana.phys.gamma = gamma(h_crystal)
+                ana.phys.composition = lambda r: composition(r * h_crystal,
+                                                             h_crystal)
+                ana.phys.grad_ref_temperature = \
+                    lambda r: grad_temp(r * h_crystal, h_crystal) * \
+                        h_crystal / delta_temp(h_crystal)
+                sigma, harm = ana.fastest_mode(rayleigh(h_crystal, 10**eta),
+                                               ra_comp(h_crystal, 10**eta),
+                                               harm)
+                #plot_fastest_mode(ana, harm, rayleigh(h_crystal, 10**eta),
+                #                  ra_comp(h_crystal, 10**eta), name='N150')
+                #sigma = ana.eigval(harm, rayleigh(h_crystal, 10**eta),
+                #                   ra_comp(h_crystal, 10**eta))
+                print(phi_top, phi_bot, eta, sigma, harm, rayleigh(h_crystal, 10**eta))
+                tau_vals[eta].append(np.real(tau(sigma, h_crystal)))
+            axis.semilogy(h_crystal_vals/1e3, np.array(tau_vals[eta]),
+                          label=r'$\eta=10^{%d}$, %s' %(eta, phi_str),
+                          color=col, linestyle=style)
+    axis.semilogy(np.array(crystallized) / 1e3, np.array(time), color='k')
+    for duration, name in [(86400, '1d'), (3.15e7, '1y'),
+                           (3.15e10, '1ky'), (3.15e13, '1My')]:
+        axis.semilogy([0, h_crystal_max/1e3], [duration]*2,
+                      color='k', linestyle=':', linewidth=1)
+        axis.text(-h_crystal_max/2e4, duration, name, va='center')
+    axis.set_xlabel(r'Crystallized mantle thickness $h$ (km)', fontsize=FTSZ)
+    axis.set_ylabel(r'Destabilization time scale $\tau$ (s)', fontsize=FTSZ)
+    axis.legend(
+        [plt.Line2D((0,1),(0,0), color='k'),
+         plt.Line2D((0,1),(0,0), color='b', linestyle='--'),
+         plt.Line2D((0,1),(0,0), color='b', linestyle='-'),
+         plt.Line2D((0,1),(0,0), color='b'),
+         plt.Line2D((0,1),(0,0), color='g'),
+         plt.Line2D((0,1),(0,0), color='r')],
+        ['Cooling time', '$\eta=10^{16}$', '$\eta=10^{17}$',
+         'closed', r'$\Phi^+=10^{-2}$', r'$\Phi^+=\Phi^-=10^{-2}$'],
+        loc='upper right', fontsize=FTSZ)
+    axis.tick_params(labelsize=FTSZ)
+    plt.tight_layout()
+    plt.savefig('DestabilizationTimeCryst.pdf', format='PDF')
+
+if __name__ == '__main__':
+    plot_destab()
