@@ -77,30 +77,38 @@ def surf_temp(h):
                              (ts**4 - temp_inf**4))
     return opt.fsolve(tsurf_func, (temp_surf_pot - temp_inf) / 2)[0]
 
-crystallized = [0]
-time = [0]
-dtime = None
-while crystallized[-1] < h_crystal_max:
-    dtime = 1e5 if dtime is None else 3e8  # to have first point earlier
-    h = crystallized[-1]
-    temp_top = t_crystal - delta_temp(h)
-    gtemp_top = grad_temp(r_ext(h), h)
-    heat_to_extract = rho * heat_capacity * (gtemp_top + temp_top * isen)
-    expis = np.exp(isen * (r_ext(h) - r_earth))
-    heat_to_extract *= (r_earth**2 * expis - r_ext(h)**2) / isen + \
-        2 * (r_earth * expis - r_ext(h)) / isen**2 + \
-        2 * (expis - 1) / isen**3
-    heat_to_extract += rho * latent_heat * r_ext(h)**2 + \
-        rho * heat_capacity * temp_top * r_ext(h)**2
-    gray_body = emissivity * stefan_boltzmann * r_earth**2 * \
-        (surf_temp(h)**4 - temp_inf**4)
-    drad = gray_body * dtime / heat_to_extract
-    crystallized.append(h + drad)
-    time.append(time[-1] + dtime)
-    if len(crystallized) % 1000 == 0:
-        print(surf_temp(h), temp_top, crystallized[-1]/1e3, time[-1]/3.15e7)
 
-def plot_destab():
+def cooling_time():
+    """Compute time to evacuate latent heat and cool down SMO
+
+    Based on grey body radiation and fixed boundary layer Ra
+    """
+    crystallized = [0]
+    time = [0]
+    dtime = None
+    while crystallized[-1] < h_crystal_max:
+        dtime = 1e5 if dtime is None else 3e8  # to have first point earlier
+        h = crystallized[-1]
+        temp_top = t_crystal - delta_temp(h)
+        gtemp_top = grad_temp(r_ext(h), h)
+        heat_to_extract = rho * heat_capacity * (gtemp_top + temp_top * isen)
+        expis = np.exp(isen * (r_ext(h) - r_earth))
+        heat_to_extract *= (r_earth**2 * expis - r_ext(h)**2) / isen + \
+            2 * (r_earth * expis - r_ext(h)) / isen**2 + \
+            2 * (expis - 1) / isen**3
+        heat_to_extract += rho * latent_heat * r_ext(h)**2 + \
+            rho * heat_capacity * temp_top * r_ext(h)**2
+        gray_body = emissivity * stefan_boltzmann * r_earth**2 * \
+            (surf_temp(h)**4 - temp_inf**4)
+        drad = gray_body * dtime / heat_to_extract
+        crystallized.append(h + drad)
+        time.append(time[-1] + dtime)
+        if len(crystallized) % 1000 == 0:
+            print(surf_temp(h), temp_top, crystallized[-1]/1e3, time[-1]/3.15e7)
+    return np.array(crystallized), np.array(time)
+
+def plot_destab(crystallized, time):
+    """Plot destabilization time scale as function of solid thickness"""
     fig, axis = plt.subplots(1, 1)
 
     for phi_bot, phi_top in phi_vals:
@@ -138,7 +146,7 @@ def plot_destab():
             axis.semilogy(h_crystal_vals/1e3, np.array(tau_vals[eta]),
                           label=r'$\eta=10^{%d}$, %s' %(eta, phi_str),
                           color=col, linestyle=style)
-    axis.semilogy(np.array(crystallized) / 1e3, np.array(time), color='k')
+    axis.semilogy(crystallized / 1e3, time, color='k')
     for duration, name in [(86400, '1d'), (3.15e7, '1y'),
                            (3.15e10, '1ky'), (3.15e13, '1My')]:
         axis.semilogy([0, h_crystal_max/1e3], [duration]*2,
@@ -161,4 +169,5 @@ def plot_destab():
     plt.savefig('DestabilizationTimeCryst.pdf', format='PDF')
 
 if __name__ == '__main__':
-    plot_destab()
+    crystallized, time = cooling_time()
+    plot_destab(crystallized, time)
