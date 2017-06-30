@@ -6,7 +6,6 @@ import numpy as np
 import scipy.integrate as integ
 import scipy.optimize as opt
 import matplotlib.pyplot as plt
-import seaborn as sns
 from analyzer import LinearAnalyzer, NonLinearAnalyzer
 from physics import PhysicalProblem, compo_smo
 from plotting import plot_fastest_mode, plot_ran_harm
@@ -190,7 +189,7 @@ def _time_diff(h_cryst, eta, ana, crystallized, time):
 
 def plot_min_time(crystallized, time, eps=1e-3):
     """Research of time at which destab = cooling time"""
-    fig, axis = plt.subplots(1, 1)
+    fig, axt = plt.subplots(1, 1)
     eta_logs = np.linspace(15, 18, 10)
     for phi_bot, phi_top in phi_vals:
         col, phi_str = _phi_col_lbl(phi_top, phi_bot)
@@ -211,12 +210,21 @@ def plot_min_time(crystallized, time, eps=1e-3):
                     h_min = h_cryst
                 else:
                     h_max = h_cryst
-            tau_vals.append(np.interp(h_cryst, crystallized, time))
-            print(eta, tau_vals[-1])
-        axis.loglog(10**eta_logs, tau_vals, color=col, label=phi_str)
-    axis.set_xlabel(r'Viscosity $\eta$')
-    axis.set_ylabel(r'Time (s)')
-    axis.legend()
+            tau_val = np.interp(h_cryst, crystallized, time)
+            tau_vals.append(tau_val)
+            print(eta, tau_val)
+        axt.loglog(10**eta_logs, np.array(tau_vals) / 3.15e10,
+                   color=col, label=phi_str)
+    axt.set_xlabel(r'Viscosity $\eta$')
+    axt.set_ylabel(r'Time (kyr)')
+    axt.legend()
+    tmin, tmax = axt.get_ylim()
+    hmin = np.interp(tmin*3.15e10, time, crystallized)
+    hmax = np.interp(tmax*3.15e10, time, crystallized)
+    axh = axt.twinx()
+    axh.set_yscale('log')
+    axh.set_ylim(hmin * 1e-3, hmax * 1e-3)
+    axh.set_ylabel(r'Crystallized thickness (km)')
     fig.savefig('CoolingDestab.pdf', format='PDF', bbox_inches='tight')
 
 
