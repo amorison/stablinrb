@@ -20,14 +20,14 @@ PHI = 1e-2
 
 pblm = PhysicalProblem(
     gamma=None,
-    phi_top=PHI,
+    phi_top=None,
     phi_bot=PHI,
     freeslip_top=True,
     freeslip_bot=True,
     eta_r = visco_Arrhenius(eta_c, gamma) if eta_c is not None else None,
     ref_state_translation=False)
 
-NON_LINEAR = False
+NON_LINEAR = True
 ra_comp = None
 
 if NON_LINEAR:
@@ -39,6 +39,11 @@ if NON_LINEAR:
     print('qtop = ', qtop)
     print('qtop2 =', qtop[2], 0.25 / (np.pi ** 2 + harm_c ** 2))
     print('coef qtop2 = ', ray[0] * qtop[2] / ray[2])
+
+    plotting.plot_mode_image(ana, mode, harm_c, eps=5)
+
+    plotting.plot_mode_profiles(ana, mode, harm_c)
+
     nterms = qtop.shape[0]
     eps = np.linspace(0, 10, num=30)
     vdm = np.vander(eps, nterms, increasing=True)

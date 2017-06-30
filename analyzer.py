@@ -4,7 +4,6 @@ import numpy.ma as ma
 from scipy import linalg
 from numpy.linalg import solve
 import matplotlib.pyplot as plt
-# import seaborn as sns
 from physics import PhysicalProblem, wtran
 from misc import build_slices, normalize_modes
 
@@ -587,28 +586,22 @@ class Analyser:
     def _join_mode_cartesian(self, mode):
         """concatenate (p, u, w, t) mode into 1D cartesian eigvec"""
         # global indices and slices
-        i0n, igf, _, slint, slgall, slgint = self._slices()
+        i0n, igf, slall, slint, slgall, slgint = self._slices()
         i_0s, i_ns = zip(*i0n)
         if self.phys.composition is None and self.phys.lewis is None:
-            ip0, iu0, iw0, it0 = i_0s
-            ipn, iun, iwn, itn = i_ns
-            pint, uint, wint, tint = slint
+            pall, uall, wall, tall = slall
             pgall, ugall, wgall, tgall = slgall
-            pgint, ugint, wgint, tgint = slgint
         else:
-            ip0, iu0, iw0, it0, ic0 = i_0s
-            ipn, iun, iwn, itn, icn = i_ns
-            pint, uint, wint, tint, cint = slint
+            pall, uall, wall, tall = slall
             pgall, ugall, wgall, tgall, cgall = slgall
-            pgint, ugint, wgint, tgint, cgint = slgint
 
         (pmod, umod, wmod, tmod) = mode
 
         eigvec = np.zeros(igf[-1](i_ns[-1]) + 1) + 0j
-        eigvec[pgint] = pmod[pint]
-        eigvec[ugint] = umod[uint]
-        eigvec[wgint] = wmod[wint]
-        eigvec[tgint] = tmod[tint]
+        eigvec[pgall] = pmod[pall]
+        eigvec[ugall] = umod[uall]
+        eigvec[wgall] = wmod[wall]
+        eigvec[tgall] = tmod[tall]
 
             # c_mode should be added in case of composition
         return eigvec
@@ -921,18 +914,24 @@ class NonLinearAnalyzer(Analyser):
         nmax = 0
         ordn = 0
         harm = 0
+        harms = np.array([], dtype=np.int)
+        ordns = np.array([], dtype=np.int)
         index = 0
         for n in range(1, order+1):
             if n % 2 == 0:
                 jj = np.int(n/2)
-                indices = [i for i in range(0, n+1, 2)]
+                indices = np.array([i for i in range(0, n+1, 2)])
+                harms = np.concatenate((harms, indices))
+                ordns = np.concatenate((ordns, n * np.ones(indices.shape, dtype=np.int)))
             else:
                 jj = np.int((n-1)/2)
-                indices = [i for i in range(1, n+1, 2)]
+                indices = np.array([i for i in range(1, n+1, 2)])
+                harms = np.concatenate((harms, indices))
+                ordns = np.concatenate((ordns, n * np.ones(indices.shape, dtype=np.int)))
             nmax += jj + 1
-            if ordn ==0 and nmax >= ind:
-                ordn = n
-                harm = indices[ind - nmax + jj]
+            if ordn ==0 and ordns.shape[0] >= ind + 1:
+                ordn = ordns[ind]
+                harm = harms[ind]
             if harmm is not None:
                 if n == order:
                     index += np.where(np.array(indices)==harmm)[0][0]
@@ -1033,9 +1032,8 @@ class NonLinearAnalyzer(Analyser):
                     self.ntermt[iind] += -1j * harm * (2 * lr + yri) * \
                         uloc[tall] * np.conj(tloc[tall]) + wloc[tall] * np.conj(dtr[tall])
                 elif nharmm == 0:
-                    # add complex conjugate -> times 2. No! Otherwise it is counted twice later!
-                    self.ntermt[iind] += np.real(-1j * harm * (2 * lr + yri) * \
-                        uloc[tall] * np.conj(tloc[tall]) + wloc[tall] * np.conj(dtr[tall]))
+                    self.ntermt[iind] += -1j * harm * (2 * lr + yri) * \
+                        uloc[tall] * np.conj(tloc[tall]) + wloc[tall] * np.conj(dtr[tall])
                 else:
                     self.ntermt[iind] += 1j * harm * (2 * lr + yri) * \
                         np.conj(uloc[tall]) * tloc[tall] + np.conj(wloc[tall]) * dtr[tall]
@@ -1055,8 +1053,8 @@ class NonLinearAnalyzer(Analyser):
         # global indices and slices
         i0n, igf, slall, slint, slgall, slgint = self._slices()
         i_0s, i_ns = zip(*i0n)
-        it0 = i_0s[3]
-        itn = i_ns[3]
+        iw0, it0 = i_0s[2: 4]
+        iwn, itn = i_ns[2: 4]
         pgall, ugall, wgall, tgall = slgall
         pgint, ugint, wgint, tgint = slgint
 
@@ -1070,7 +1068,7 @@ class NonLinearAnalyzer(Analyser):
 
         # setup matrices for the non linear solution
         nmodez = np.shape(mode_c)
-        nkmax = self.indexmat(nnonlin+1)[0]
+        nkmax = self.indexmat(nnonlin + 1)[0]
         self.full_sol = np.zeros((nkmax, nmodez[0])) * (1+1j)
         self.full_p = self.full_sol[:, pgall]
         self.full_u = self.full_sol[:, ugall]
@@ -1094,7 +1092,7 @@ class NonLinearAnalyzer(Analyser):
         # coefficients for the velocity RMS. More complex. To be done.
 
         (p_c, u_c, w_c, t_c) = modec
-         # devide by 2 to get the same value as for a sin, cos representation.
+        # devide by 2 to get the same value as for a sin, cos representation.
         p_c /= 2
         u_c /= 2
         w_c /= 2
@@ -1144,8 +1142,11 @@ class NonLinearAnalyzer(Analyser):
                     # only the ones in harm_c can contribute for each degree
                     ind = self.indexmat(2 * (lii - jj) + 1, harmm=1)[3]
                     # + sign because denominator takes the minus.
-                    prof = self._insert_boundaries(np.real(self.full_w[0] *\
-                                                           self.full_t[ind]), it0, itn)
+                    wwloc = self._insert_boundaries(self.full_w[0], iw0, iwn)
+                    ttloc = self._insert_boundaries(self.full_t[ind], it0, itn)
+                    print('iw0, iwn =', iw0, iwn, wwloc.shape)
+                    print('it0, itn =', it0, itn, ttloc.shape)
+                    prof = np.real(wwloc * ttloc)
                     self.ratot[ii-1] += self.ratot[2 * jj] * self.integz(prof)
                 # ratot[ii-1] *= ratot[0] / xcmxc ? why ratot[0] ?
                 self.ratot[ii-1] /= xcmxc
@@ -1187,10 +1188,21 @@ class NonLinearAnalyzer(Analyser):
                     else:
                         self.full_w0[ind] = 0
                 else:
+                    # Multiply by 0.5 to keep only the positive exp(1j k x) ?
                     self.full_sol[ind] = solve(lmat[harmjj - 1], self.rhs[ind])
                     # remove the contribution proportional to X1, if it exists
                     if harmjj == 1:
                         dp1 = self.dotprod(1, ii,1)
                         self.full_sol[ind] -= dp1 / norm_x1 * self.full_sol[0]
+
+        # fig, axe = plt.subplots(1, 2, sharey=True)
+        # axe[0].plot(self.ntermt[1, :], rr[1:-1], 'o')
+        # axe[0].plot(-np.pi / 4 / (np.pi ** 2 + harm_c ** 2) * np.sin(2 * np.pi * rr), rr)
+        # axe[0].set_xlabel('nx1x1')
+        # axe[1].plot(self.ntermt[3,:], rr[1:-1], 'o')
+        # axe[1].plot(np.cos(np.pi * rr) * np.cos(2 * np.pi * rr) / 8 / (np.pi ** 2 + harm_c ** 2), rr)
+        # axe[1].set_xlabel('nx1x2')
+        # plt.savefig('nx1x1-nx1x2.pdf')
+        # plt.close(fig)
 
         return harm_c, self.ratot, self.full_sol, meant, qtop

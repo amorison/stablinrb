@@ -20,6 +20,135 @@ mpl.rcParams['pdf.fonttype'] = 42
 FTSZ = 10
 MSIZE = 3
 
+def plot_mode_image(analyzer, mode, harm, eps=1, name=None):
+    """Plot velocity and temperature image of a mode given on input
+
+    Generic function for any mode, not necessarily the fastest growing one.
+    Used also for non-linear solutions, only in cartesian for now
+    inputs:
+    analyser: holding all numerical and physical parameters
+    harm: wavenumber of the mode
+    eps: epsilon value for the non-linear mode
+    """
+    if analyzer.phys.spherical:
+        raise ValueError('plot_mode_image not yet implemented in spherical')
+    if name is None:
+        name = analyzer.phys.name()
+
+    rad_cheb = analyzer.rad
+
+    # Define plot space
+    n_rad = 100
+    n_phi = 400  # could depends on wavelength
+    # initialize fields
+    t2d = np.zeros((n_rad , n_phi))
+    u2d = np.zeros((n_rad , n_phi))
+    w2d = np.zeros((n_rad , n_phi))
+    cheb_space = np.linspace(-1, 1, n_rad)
+    rad = np.linspace(-1/2, 1/2, n_rad)
+
+    # 2D cartesian box
+    # make a version with the total temperature
+    xvar = np.linspace(0, 2*np.pi/harm, n_phi)
+    xgr, zgr = np.meshgrid(xvar, rad)
+
+    rad_cheb = analyzer.rad
+
+    nmodes = mode.shape[0]
+
+    for i in range(nmodes):
+        nord, nharm = analyzer.indexmat(nmodes, ind=i)[1: 3]
+
+        (p_mode, u_mode, w_mode, t_mode) = analyzer.split_mode(mode[i, :], harm, apply_bc=True)
+ 
+        # interpolate and normalize according to vertical velocity
+        p_interp = dm.chebint(p_mode, cheb_space)
+        u_interp = dm.chebint(u_mode, cheb_space)
+        w_interp = dm.chebint(w_mode, cheb_space)
+        t_interp = dm.chebint(t_mode, cheb_space)
+
+        # horizontal dependence
+        modx = np.exp(1j * harm * nharm * xvar)
+        # temperature
+        t2d1, t2d2 = np.meshgrid(modx, t_interp)
+        t2d += eps ** nord * np.real(t2d1 * t2d2)
+        # velocity
+        u2d1, u2d2 = np.meshgrid(modx, u_interp)
+        u2d += eps ** nord * 2 * np.real(u2d1 * u2d2)
+        w2d1, w2d2 = np.meshgrid(modx, w_interp)
+        w2d += eps ** nord * 2 * np.real(w2d1 * w2d2)
+
+    # prepare plot
+    plt.rcParams['contour.negative_linestyle'] = 'solid'
+    dpi = 300
+    fig = plt.figure(dpi=dpi)
+    axis = fig.add_subplot(111)
+    # plot temperature
+    surf = plt.pcolormesh(xgr, zgr, t2d, cmap='RdBu_r', linewidth=0,)
+    plt.axis([xgr.min(), xgr.max(), zgr.min(), zgr.max()])
+    # stream function
+    speed = np.sqrt(u2d**2+w2d**2)
+    lw = 2 * speed / speed.max()
+    plt.streamplot(xgr, zgr, u2d, w2d, linewidth=lw, density=0.7)
+    # labels etc.
+    axis.tick_params(axis='both', which='major', labelsize=FTSZ)
+    axis.set_xlabel(r'$x$', fontsize=FTSZ+2)
+    axis.set_ylabel(r'$z$', fontsize=FTSZ+2)
+    if harm > 0.6:
+        fig.set_figwidth(9)
+        axis.set_aspect('equal')
+    else:
+        fig.set_size_inches(9, 2)
+    cbar = plt.colorbar(surf)
+    cbar.set_label(r'$\theta$')
+    filename = '_'.join((name, 'mode_eps-' + np.str(eps) + '_ord-' + np.str(nord) + '.pdf'))
+    plt.savefig(filename, bbox_inches='tight', format='PDF')
+    plt.close(fig)
+
+    return
+
+def plot_mode_profiles(analyzer, mode, harm, name=None, plot_theory=False):
+    """Plot all mode profiles"""
+    if name is None:
+        name = analyzer.phys.name()
+    phitop = analyzer.phys.phi_top
+    phibot = analyzer.phys.phi_bot
+
+    rad_cheb = analyzer.rad
+    nmodes = mode.shape[0]
+
+    for i in range(nmodes):
+        nord, nharm = analyzer.indexmat(nmodes, ind=i)[1: 3]
+        (p_mode, u_mode, w_mode, t_mode) = analyzer.split_mode(mode[i, :], harm, apply_bc=True)
+
+        fig, axe = plt.subplots(1, 3, sharey=True)
+
+        pik2 = np.pi **2 + harm ** 2
+        axe[0].plot(np.real(w_mode), rad_cheb, 'o')
+        axe[0].set_ylabel(r'$z$', fontsize=FTSZ)
+        axe[0].set_xlabel(r'$W$', fontsize=FTSZ)
+        axe[1].plot(np.imag(u_mode), rad_cheb, 'o')
+        axe[1].set_xlabel(r'$U$', fontsize=FTSZ)
+        axe[2].plot(np.real(t_mode), rad_cheb, 'o')
+        axe[2].set_xlabel(r'$\Theta$', fontsize=FTSZ)
+        if plot_theory:
+            if (phitop is None or phitop >= 1e2) and (phibot is None or phibot >= 1e2):
+                if nord ==1 and nharm == 1:
+                    axe[0].plot(0.5 * np.cos(np.pi * rad_cheb), rad_cheb)
+                    axe[1].plot( - 0.5 * np.sin(np.pi * rad_cheb) * np.pi / harm, rad_cheb)
+                    axe[2].plot(0.5 * np.cos(np.pi * rad_cheb) / pik2, rad_cheb)
+                if nord == 2 and nharm == 0:
+                    axe[2].plot(np.sin(2 * np.pi * rad_cheb) / pik2 / (16 * np.pi), rad_cheb)
+                if nord == 3 and nharm == 1:
+                    axe[0].plot(pik2 ** 2 * np.cos(3 * np.pi * rad_cheb)\
+                                    / 16 / (pik2 ** 3 - (9 * np.pi ** 2 + harm ** 2) ** 3), rad_cheb)
+                    axe[1].plot( - pik2 ** 2 * 3 / harm * np.pi * np.sin(3 * np.pi * rad_cheb)\
+                                    / 16 / (pik2 ** 3 - (9 * np.pi ** 2 + harm ** 2) ** 3), rad_cheb)
+
+        plt.savefig(name + '_n-' + np.str(nord) + '_l-' + np.str(nharm) + '.pdf', format='PDF')
+        plt.close(fig)
+
+    return
 
 def plot_fastest_mode(analyzer, harm, ra_num, ra_comp=None,
                       name=None, plot_theory=False):
@@ -28,6 +157,8 @@ def plot_fastest_mode(analyzer, harm, ra_num, ra_comp=None,
     plot_theory: theory in case of transition, cartesian geometry
     """
     spherical = analyzer.phys.spherical
+    print('in fastest spherical =', spherical)
+
     gamma = analyzer.phys.gamma
     if name is None:
         name = analyzer.phys.name()
@@ -36,6 +167,7 @@ def plot_fastest_mode(analyzer, harm, ra_num, ra_comp=None,
     # p is pressure in cartesian geometry and
     # poloidal potential in spherical geometry
     (p_mode, u_mode, w_mode, t_mode) = analyzer.split_mode(modes, harm, apply_bc=True)
+
     rad_cheb = analyzer.rad
     if spherical:
         # stream function
