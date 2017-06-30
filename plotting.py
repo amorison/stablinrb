@@ -178,7 +178,7 @@ def plot_fastest_mode(analyzer, harm, ra_num, ra_comp=None,
     n_phi = 400  # could depends on wavelength
     cheb_space = np.linspace(-1, 1, n_rad)
     if spherical:
-        rad = np.linspace(analyzer.phys.gamma, 1, n_rad)
+        rad = np.linspace(gamma / (1-gamma), 1 / (1-gamma), n_rad)
         psi_interp = dm.chebint(psi_mode, cheb_space)
     else:
         rad = np.linspace(-1/2, 1/2, n_rad)
@@ -195,7 +195,8 @@ def plot_fastest_mode(analyzer, harm, ra_num, ra_comp=None,
     # profiles
     fig, axis = plt.subplots(1, 4, sharey=True)
     if spherical:
-        plt.setp(axis, xlim=[-1.1, 1.1], ylim=[gamma, 1],
+        plt.setp(axis, xlim=[-1.1, 1.1],
+                 ylim=[gamma / (1-gamma), 1 / (1-gamma)],
                  xticks=[-1, -0.5, 0., 0.5, 1])
     else:
         plt.setp(axis, xlim=[-1.1, 1.1], ylim=[-1/2, 1/2],
@@ -263,7 +264,7 @@ def plot_fastest_mode(analyzer, harm, ra_num, ra_comp=None,
         tick_formatter2 = DictFormatter(dict(radius_ticks))
 
         grid_helper = floating_axes.GridHelperCurveLinear(
-            tr, extremes=(2.*np.pi, 0, 1, gamma),
+            tr, extremes=(2.*np.pi, 0, 1 / (1-gamma), gamma / (1-gamma)),
             grid_locator1=grid_locator1, tick_formatter1=tick_formatter1,
             grid_locator2=grid_locator2, tick_formatter2=tick_formatter2)
 
@@ -379,8 +380,9 @@ def plot_viscosity(pblm):
     if pblm.eta_r is None:
         return
     nrad = 100
+    gamma = pblm.gamma
     if pblm.spherical:
-        rad = np.linspace(pblm.gamma, 1, nrad)
+        rad = np.linspace(gamma / (1-gamma), 1 / (1-gamma), nrad)
     else:
         rad = np.linspace(-1/2, 1/2, nrad)
     eta_r = np.vectorize(pblm.eta_r)(rad)
@@ -388,7 +390,7 @@ def plot_viscosity(pblm):
     axis[0].plot(eta_r, rad)
     axis[1].semilogx(eta_r, rad)
     if pblm.spherical:
-        plt.setp(axis, ylim=[pblm.gamma, 1])
+        plt.setp(axis, ylim=[gamma / (1-gamma), 1 / (1-gamma)])
     else:
         plt.setp(axis, ylim=[-1/2, 1/2])
     filename = '_'.join((pblm.name(), 'visco.pdf'))

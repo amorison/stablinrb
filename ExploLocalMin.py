@@ -47,7 +47,7 @@ for l_harm in l_vals:
         if eta_c is not None:
             ana.phys.eta_r = visco_Arrhenius(eta_c, gamma)
         ran_p = ana.neutral_ra(l_harm, ra_guess=ran_p)
-        rans_l[l_harm-1, igam] = ran_p * (1 - gamma)**3
+        rans_l[l_harm-1, igam] = ran_p
 
 # define discrete colormap
 cmap = plt.cm.jet
@@ -74,7 +74,7 @@ cbar = mpl.colorbar.ColorbarBase(axis[1], cmap=cmap, norm=norm, ticks=l_vals)
 cbar.set_label(r'   $l$', rotation=0, fontsize=FTSZ)
 
 axis[0].set_xlabel(r'$\gamma$', fontsize=FTSZ)
-axis[0].set_ylabel(r'$\mathrm{Ra}_n(1-\gamma)^3$', fontsize=FTSZ)
+axis[0].set_ylabel(r'$\mathrm{Ra}_n$', fontsize=FTSZ)
 
 axis[0].set_xlim([gamma_min, gamma_max])
 ra_min = np.min(rans_l, 0)

@@ -344,19 +344,20 @@ def spherical_matrices(self, l_harm, ra_num, ra_comp=None):
 
     # advection of reference profile
     # using u_r = l(l+1)/r P
-    # first compute 1/r * nabla T
+    # first compute - 1/r * nabla T
     # then multiply by l(l+1)
     if grad_ref_temperature is None:
         # reference is conductive profile
-        grad_tcond = - h_int / 3
+        grad_tcond = h_int / 3
         if heat_flux_bot is not None:
-            grad_tcond += (gamma**2 * heat_flux_bot +
-                           h_int * gamma**3 / 3) * np.diag(orad3)
+            grad_tcond -= ((gamma / (1-gamma))**2 * heat_flux_bot +
+                           h_int * (gamma/(1-gamma))**3 / 3) * np.diag(orad3)
         elif heat_flux_top is not None:
-            grad_tcond += (heat_flux_top + h_int / 3) * np.diag(orad3)
+            grad_tcond -= (heat_flux_top / ((1-gamma)**2) +
+                           h_int / (3 * (1-gamma)**3)) * np.diag(orad3)
         else:
-            grad_tcond += (1 + (1 - gamma**2) * h_int / 6) * gamma / (1 - gamma) \
-                * np.diag(orad3)
+            grad_tcond += (h_int * (gamma**3 - gamma) / (6*(1-gamma)**4)
+                           + gamma / ((1-gamma)**2)) * np.diag(orad3)
     else:
         grad_tcond = np.dot(orad1, -grad_ref_temperature(np.diag(rad)))
     lmat[tgint, pgall] = np.diag(lh2 * grad_tcond)[tint, pall]
@@ -391,6 +392,9 @@ class Analyser:
         self._nnonlin = nnonlin
         # dm should be modified to go from 0 to ncheb
         self._zcheb, self._ddm = dm.chebdif(self._ncheb+1, 2)
+        # rescaling to thickness 1 (cheb space is of thickness 2)
+        self.dr1 = self._ddm[0,:,:] * 2  # first r-derivative
+        self.dr2 = self._ddm[1,:,:] * 4  # second r-derivative
 
         # weights
         self._invcp = np.ones(ncheb+1)
@@ -427,16 +431,12 @@ class Analyser:
         """Change analyzed physical problem"""
         # Chebyshev polynomials are -1 < z < 1
         if phys_obj.spherical:
-            # physical space is gamma < r < 1
-            shrink_geom = (1 - phys_obj.gamma) / 2
-            self.rad = self._zcheb * shrink_geom + (1 + phys_obj.gamma) / 2
-            self.dr1 = self._ddm[0,:,:] / shrink_geom  # first r-derivative
-            self.dr2 = self._ddm[1,:,:] / shrink_geom**2  # second r-derivative
+            # physical space is gamma/(1-gamma) < r < 1/(1-gamma)
+            gamma = phys_obj.gamma
+            self.rad = (self._zcheb + (1 + gamma) / (1 - gamma)) / 2
         else:
             # physical space is -1/2 < z < 1/2
             self.rad = self._zcheb / 2
-            self.dr1 = self._ddm[0,:,:] * 2  # first r-derivative
-            self.dr2 = self._ddm[1,:,:] * 4  # second r-derivative
         self._phys = phys_obj
 
     def _slices(self):
