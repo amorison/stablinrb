@@ -19,7 +19,7 @@ MSIZE = 5
 # all in base units
 r_earth = 6371e3
 d_crystal = 1500e3
-h_crystal_max = 200e3
+h_crystal_max = 1500e3
 t_crystal = 3500  # temperature solidus as d_crystal
 r_int = r_earth - d_crystal
 r_ext = lambda h: r_int + h
@@ -220,7 +220,25 @@ def plot_min_time(crystallized, time, eps=1e-3):
     fig.savefig('CoolingDestab.pdf', format='PDF', bbox_inches='tight')
 
 
+def plot_cooling_time(crystallized, time):
+    """Plot cooling time"""
+    crt = crystallized / 1000
+    tim = time / 3.15e10
+    fig, axis = plt.subplots(1, 1)
+    axis.plot(crt, tim)
+    axis.plot([crt[0], crt[-1]], [tim[0], tim[-1]],
+              linestyle='--', lw=0.5, color='k')
+    slope_init = (tim[1] - tim[0]) / (crt[1] - crt[0])
+    t_final = slope_init * (crt[-1] - crt[0]) + tim[0]
+    axis.plot([crt[0], crt[-1]], [tim[0], t_final],
+              linestyle='--', lw=0.5, color='k')
+    axis.set_xlabel('Crystallized thickness (km)')
+    axis.set_ylabel('Time (kyr)')
+    fig.savefig('CoolingTime.pdf', format='PDF', bbox_inches='tight')
+
+
 if __name__ == '__main__':
     crystallized, time = cooling_time()
+    #plot_cooling_time(crystallized, time)
     #plot_destab(crystallized, time)
     plot_min_time(crystallized, time)
