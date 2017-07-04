@@ -18,7 +18,6 @@ MSIZE = 5
 # all in base units
 r_earth = 6371e3
 d_crystal = 1500e3
-h_crystal_max = 1500e3
 t_crystal = 3500  # temperature solidus as d_crystal
 r_int = r_earth - d_crystal
 r_ext = lambda h: r_int + h
@@ -35,20 +34,26 @@ temp_inf = 255
 kappa = 1e-6
 tau = lambda s, h: h**2 / (kappa * s)
 # composition
-part = 0.8  # partitioning coefficient
-lam = 0.999  # R_eutectic / R_earth
-c_0 = ((1 - lam**3) * r_earth**3 / (r_earth**3 - r_int**3))**(1 - part)
-# always in case r<R_eutectic
-composition = lambda r, h, c_0=c_0: \
-    c_0 * ((r_earth**3 - r_int**3)
-           / (r_earth**3 - r**3))**(1-part)
+part = 0.6  # partitioning coefficient
+c_feo_liq0 = 0.0848  # part & c_feo_liq0 from Andrault et al, 2011
+c_0 = part * c_feo_liq0
+# r at which c = 1
+r_eut = (r_int**3 * c_0**(1 / (1-part)) +
+         r_earth**3 * (1 - c_0**(1 / (1-part))))**(1/3)
+composition = lambda r: \
+    (c_0 * ((r_earth**3 - r_int**3)
+            / (r_earth**3 - r**3))**(1-part)
+     if r < r_eut else 1)
 dtmelt_dp = 2e-8
 dtmelt_dc = -1e2
-grad_temp = lambda r, h: -rho * g * dtmelt_dp + \
-    dtmelt_dc * (composition(r, h) * 3 * (1 - part) *
-                 r**2 / (r_earth**3 - r**3))
+grad_temp = lambda r: -rho * g * dtmelt_dp + \
+    dtmelt_dc * (composition(r) * 3 * (1 - part) *
+                 r**2 / (r_earth**3 - r**3)
+                 if r < r_eut else 0)
 delta_temp = lambda h: -integ.quad(
-    lambda r: grad_temp(r, h), r_int, r_ext(h))[0]
+    lambda r: grad_temp(r), r_int, r_ext(h))[0]
+
+h_crystal_max = r_eut - r_int - 150e3
 
 eta_vals = np.array(range(16, 18))
 h_crystal_vals = np.logspace(np.log10(5) + 3, np.log10(h_crystal_max), 50)
@@ -79,11 +84,11 @@ def surf_temp(h):
 def update_ana_thickness(ana, h_crystal):
     """Update analyzer with new thickness"""
     ana.phys.gamma = gamma(h_crystal)
-    ana.phys.composition = lambda r: composition(r * h_crystal,
-                                                 h_crystal)
-    ana.phys.grad_ref_temperature = \
-        lambda r: grad_temp(r * h_crystal, h_crystal) * \
-            h_crystal / delta_temp(h_crystal)
+    ana.phys.composition = np.vectorize(
+        lambda r: composition(r * h_crystal))
+    ana.phys.grad_ref_temperature = np.vectorize(
+        lambda r: grad_temp(r * h_crystal) *
+            h_crystal / delta_temp(h_crystal))
 
 def cooling_time():
     """Compute time to evacuate latent heat and cool down SMO
@@ -97,7 +102,7 @@ def cooling_time():
         dtime = 1e5 if dtime is None else 3e8  # to have first point earlier
         h = crystallized[-1]
         temp_top = t_crystal - delta_temp(h)
-        gtemp_top = grad_temp(r_ext(h), h)
+        gtemp_top = grad_temp(r_ext(h))
         heat_to_extract = rho * heat_capacity * (gtemp_top + temp_top * isen)
         expis = np.exp(isen * (r_ext(h) - r_earth))
         heat_to_extract *= (r_earth**2 * expis - r_ext(h)**2) / isen + \
@@ -247,6 +252,6 @@ def plot_cooling_time(crystallized, time):
 
 if __name__ == '__main__':
     crystallized, time = cooling_time()
-    #plot_cooling_time(crystallized, time)
-    #plot_destab(crystallized, time)
+    plot_cooling_time(crystallized, time)
     plot_min_time(crystallized, time)
+    plot_destab(crystallized, time)
