@@ -12,6 +12,7 @@ import matplotlib as mpl
 
 mpl.rc('font',**{'family':'sans-serif','sans-serif':['Helvetica']})
 mpl.rc('text', usetex=True)
+plt.rcParams['contour.negative_linestyle'] = 'solid'
 
 mpl.rcParams['pdf.fonttype'] = 42
 
@@ -51,8 +52,10 @@ def plot_mode_image(analyzer, mode, harm, eps=1, name=None):
     # make a version with the total temperature
     xvar = np.linspace(0, 2*np.pi/harm, n_phi)
     xgr, zgr = np.meshgrid(xvar, rad)
-
     rad_cheb = analyzer.rad
+
+    # conduction solution
+    tcond = 0.5 - zgr
 
     nmodes = mode.shape[0]
 
@@ -78,9 +81,8 @@ def plot_mode_image(analyzer, mode, harm, eps=1, name=None):
         w2d1, w2d2 = np.meshgrid(modx, w_interp)
         w2d += eps ** nord * 2 * np.real(w2d1 * w2d2)
 
-    # prepare plot
-    plt.rcParams['contour.negative_linestyle'] = 'solid'
     dpi = 300
+    # prepare plot. 1 temperature anomaly
     fig = plt.figure(dpi=dpi)
     axis = fig.add_subplot(111)
     # plot temperature
@@ -99,9 +101,34 @@ def plot_mode_image(analyzer, mode, harm, eps=1, name=None):
         axis.set_aspect('equal')
     else:
         fig.set_size_inches(9, 2)
-    cbar = plt.colorbar(surf)
+    cbar = plt.colorbar(surf, shrink=0.3, aspect=10)
     cbar.set_label(r'$\theta$')
-    filename = '_'.join((name, 'mode_eps-' + np.str(eps) + '_ord-' + np.str(nord) + '.pdf'))
+    filename = '_'.join((name, 'mode_theta_eps-' + np.str(eps) + '_ord-' + np.str(nord) + '.pdf'))
+    plt.savefig(filename, bbox_inches='tight', format='PDF')
+    plt.close(fig)
+
+    # prepare plot. 2 total temperature
+    fig = plt.figure(dpi=dpi)
+    axis = fig.add_subplot(111)
+    # plot temperature
+    surf = plt.pcolormesh(xgr, zgr, tcond + t2d, cmap='RdBu_r', linewidth=0,)
+    plt.axis([xgr.min(), xgr.max(), zgr.min(), zgr.max()])
+    # stream function
+    speed = np.sqrt(u2d**2+w2d**2)
+    lw = speed / speed.max()
+    plt.streamplot(xgr, zgr, u2d, w2d, linewidth=lw, density=0.7)
+    # labels etc.
+    axis.tick_params(axis='both', which='major', labelsize=FTSZ)
+    axis.set_xlabel(r'$x$', fontsize=FTSZ+2)
+    axis.set_ylabel(r'$z$', fontsize=FTSZ+2)
+    if harm > 0.6:
+        fig.set_figwidth(9)
+        axis.set_aspect('equal')
+    else:
+        fig.set_size_inches(9, 2)
+    cbar = plt.colorbar(surf, shrink=0.3, aspect=10)
+    cbar.set_label(r'$T$')
+    filename = '_'.join((name, 'mode_T_eps-' + np.str(eps) + '_ord-' + np.str(nord) + '.pdf'))
     plt.savefig(filename, bbox_inches='tight', format='PDF')
     plt.close(fig)
 
