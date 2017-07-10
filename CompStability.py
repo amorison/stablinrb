@@ -46,12 +46,24 @@ composition = lambda r: \
      if r < r_eut else 1)
 dtmelt_dp = 2e-8
 dtmelt_dc = -1e2
-grad_temp = lambda r: -rho * g * dtmelt_dp + \
-    dtmelt_dc * (composition(r) * 3 * (1 - part) *
-                 r**2 / (r_earth**3 - r**3)
-                 if r < r_eut else 0)
-delta_temp = lambda h: -integ.quad(
-    lambda r: grad_temp(r), r_int, r_ext(h))[0]
+
+
+def grad_temp(r, rm_isen=True):
+    """Temperature gradient
+
+    Total if rm_isen is False,
+    superadiabatic otherwise"""
+    total = -rho * g * dtmelt_dp + \
+        dtmelt_dc * (composition(r) * 3 * (1 - part) *
+                     r**2 / (r_earth**3 - r**3)
+                     if r < r_eut else 0)
+    if rm_isen:
+        total += t_crystal * isen * np.exp(- isen * (r - r_int))
+    return total
+
+
+delta_temp = lambda h, rm_isen=True: -integ.quad(
+    lambda r: grad_temp(r, rm_isen), r_int, r_ext(h))[0]
 
 h_crystal_max = r_eut - r_int - 150e3
 
@@ -70,7 +82,7 @@ ra_comp = lambda h, eta: \
 def surf_temp(h):
     """Surface temperature determined by fixing
     the boundary layer Ra# at top of the SMO"""
-    temp_bot_smo = t_crystal - delta_temp(h)
+    temp_bot_smo = t_crystal - delta_temp(h, False)
     temp_surf_pot = temp_bot_smo * np.exp(- isen * (r_earth - r_ext(h)))
     ra_bnd = 1e3
     eta_smo = 1e-1
@@ -101,8 +113,8 @@ def cooling_time():
     while crystallized[-1] < h_crystal_max:
         dtime = 1e5 if dtime is None else 3e8  # to have first point earlier
         h = crystallized[-1]
-        temp_top = t_crystal - delta_temp(h)
-        gtemp_top = grad_temp(r_ext(h))
+        temp_top = t_crystal - delta_temp(h, False)
+        gtemp_top = grad_temp(r_ext(h), False)
         heat_to_extract = rho * heat_capacity * (gtemp_top + temp_top * isen)
         expis = np.exp(isen * (r_ext(h) - r_earth))
         heat_to_extract *= (r_earth**2 * expis - r_ext(h)**2) / isen + \
