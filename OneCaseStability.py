@@ -20,7 +20,7 @@ PHI = 1e-2
 
 pblm = PhysicalProblem(
     gamma=None,
-    phi_top=None,
+    phi_top=PHI,
     phi_bot=PHI,
     freeslip_top=True,
     freeslip_bot=True,
@@ -40,14 +40,14 @@ if NON_LINEAR:
     print('qtop2 =', qtop[2], 0.25 / (np.pi ** 2 + harm_c ** 2))
     print('coef qtop2 = ', ray[0] * qtop[2] / ray[2])
 
-    maxnu = 2
+    maxnu = 1.5
     coef_nu = ray[0] * qtop[2] / ray[2]
     ramax = (1 + (maxnu - 1) / coef_nu) * ray[0]
     epsmax = np.sqrt((ramax - ray[0]) / ray[2])
     print('ramax, epsmax = ', ramax, epsmax)
     plotting.plot_mode_image(ana, mode, harm_c, eps=epsmax)
 
-    plotting.plot_mode_profiles(ana, mode, harm_c)
+    plotting.plot_mode_profiles(ana, mode, harm_c, plot_theory=True)
 
     nterms = qtop.shape[0]
     eps = np.linspace(0, 10, num=30)

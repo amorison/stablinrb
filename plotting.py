@@ -171,6 +171,11 @@ def plot_mode_profiles(analyzer, mode, harm, name=None, plot_theory=False):
                                     / 16 / (pik2 ** 3 - (9 * np.pi ** 2 + harm ** 2) ** 3), rad_cheb)
                     axe[1].plot( - pik2 ** 2 * 3 / harm * np.pi * np.sin(3 * np.pi * rad_cheb)\
                                     / 16 / (pik2 ** 3 - (9 * np.pi ** 2 + harm ** 2) ** 3), rad_cheb)
+            if (phitop <= 1e-1) and (phibot == phitop):
+                if nord ==1 and nharm == 1:
+                    axe[0].plot(0.5 * (1 - 9 /64 * rad_cheb ** 2 * phitop), rad_cheb)
+                    axe[1].plot( - np.sqrt(phitop / 2) * rad_cheb * 3 / 8, rad_cheb)
+                    axe[2].plot((1 - 4 * rad_cheb ** 2) / 16, rad_cheb)
 
         plt.savefig(name + '_n-' + np.str(nord) + '_l-' + np.str(nharm) + '.pdf', format='PDF')
         plt.close(fig)
