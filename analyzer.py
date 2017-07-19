@@ -1107,13 +1107,6 @@ class NonLinearAnalyzer(Analyser):
         # norm of the linear mode
         norm_x1 = self.dotprod(1, 1, 1)
 
-        # replace with the low phi expansion for testing
-        # t_c = (1 - 4 * rr**2) / 16
-        # w_c = np.ones(w_c.shape)/2
-        # u_c = - 3 * 1j / 16 *np.sqrt(2 * phi_top) * rr
-        # harm_c = np.sqrt(phi_top / 2) * 3 / 4
-        # ra_c = 24 * phi_top -81 / 256 * phi_top**2
-
         dt_c = np.dot(self.dr1, t_c)
         lmat = np.zeros((nnonlin+1, lmat_c.shape[0], lmat_c.shape[1])) * (1+1j)
         lmat0, pgint0, tgint0, pgall0, tgall0, igw0 = cartesian_matrices_0(self, ra_c)
@@ -1164,6 +1157,10 @@ class NonLinearAnalyzer(Analyser):
                     indjj = self.indexmat(ii, harmm=2*kk+ymx)[3]
                     self.rhs[indjj, wgint] -= self.ratot[jj] * self.full_t[indjj]
 
+            # note that rhs contains only the positive harmonics of the total rhs
+            # which contains an additional complex conjugate. Therefore, the solution
+            # should also be complemented by its complex conjugate
+
             # invert matrix for each harmonic number
             for jj in range(lii+1):
                 # index to fill in: same parity as ii
@@ -1188,21 +1185,11 @@ class NonLinearAnalyzer(Analyser):
                     else:
                         self.full_w0[ind] = 0
                 else:
-                    # Multiply by 0.5 to keep only the positive exp(1j k x) ?
+                    # Only the positive power of exp(1j k x)
                     self.full_sol[ind] = solve(lmat[harmjj - 1], self.rhs[ind])
                     # remove the contribution proportional to X1, if it exists
                     if harmjj == 1:
                         dp1 = self.dotprod(1, ii,1)
                         self.full_sol[ind] -= dp1 / norm_x1 * self.full_sol[0]
-
-        # fig, axe = plt.subplots(1, 2, sharey=True)
-        # axe[0].plot(self.ntermt[1, :], rr[1:-1], 'o')
-        # axe[0].plot(-np.pi / 4 / (np.pi ** 2 + harm_c ** 2) * np.sin(2 * np.pi * rr), rr)
-        # axe[0].set_xlabel('nx1x1')
-        # axe[1].plot(self.ntermt[3,:], rr[1:-1], 'o')
-        # axe[1].plot(np.cos(np.pi * rr) * np.cos(2 * np.pi * rr) / 8 / (np.pi ** 2 + harm_c ** 2), rr)
-        # axe[1].set_xlabel('nx1x2')
-        # plt.savefig('nx1x1-nx1x2.pdf')
-        # plt.close(fig)
 
         return harm_c, self.ratot, self.full_sol, meant, qtop

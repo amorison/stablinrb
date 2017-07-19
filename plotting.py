@@ -134,6 +134,30 @@ def plot_mode_image(analyzer, mode, harm, eps=1, name=None):
 
     return
 
+def w11(rad, phi):
+    """11 mode for the vertical velocity at low phi for both bc"""
+    ww = 0.5 * (1 - 9 /64 * rad ** 2 * phi)
+    ww += 9 * rad ** 2 * (23 * rad ** 2 - 22) / 16384 * phi ** 2
+    return ww
+
+def u11(rad, phi):
+    """11 mode for the horizontal velocity at low phi for both bc"""
+    uu = - np.sqrt(phi * 2) * rad * 3 / 16
+    uu += 3 * rad * (23 * rad ** 2 - 11) / (512 * np.sqrt(2)) * phi ** 1.5 
+    return uu
+
+def t11(rad, phi):
+    """11 mode for the temperature at low phi for both bc"""
+    tt = (1 - 4 * rad ** 2) * (1 / 16 - 9 / 4096 * phi)
+    tt += 3 * (1 - 216 * rad ** 2 + 848 * rad ** 4) / 2097152 * phi ** 2
+    return tt
+
+def t20(rad, phi):
+    """ mode for the temperature at low phi for both bc"""
+    tt = (1- 4 * rad ** 2) * rad / 48
+    # tt += 3 * (1 - 216 * rad ** 2 + 848 * rad ** 4) / 2097152 * phi ** 2
+    return tt
+
 def plot_mode_profiles(analyzer, mode, harm, name=None, plot_theory=False):
     """Plot all mode profiles"""
     if name is None:
@@ -171,11 +195,16 @@ def plot_mode_profiles(analyzer, mode, harm, name=None, plot_theory=False):
                                     / 16 / (pik2 ** 3 - (9 * np.pi ** 2 + harm ** 2) ** 3), rad_cheb)
                     axe[1].plot( - pik2 ** 2 * 3 / harm * np.pi * np.sin(3 * np.pi * rad_cheb)\
                                     / 16 / (pik2 ** 3 - (9 * np.pi ** 2 + harm ** 2) ** 3), rad_cheb)
-            if (phitop <= 1e-1) and (phibot == phitop):
+            if (phitop <= 10) and (phibot == phitop):
                 if nord ==1 and nharm == 1:
-                    axe[0].plot(0.5 * (1 - 9 /64 * rad_cheb ** 2 * phitop), rad_cheb)
-                    axe[1].plot( - np.sqrt(phitop / 2) * rad_cheb * 3 / 8, rad_cheb)
-                    axe[2].plot((1 - 4 * rad_cheb ** 2) / 16, rad_cheb)
+                    # axe[0].plot(0.5 * (1 - 9 /64 * rad_cheb ** 2 * phitop), rad_cheb)
+                    axe[0].plot(w11(rad_cheb, phitop), rad_cheb)
+                    axe[1].plot(u11(rad_cheb, phitop), rad_cheb)
+                    axe[2].plot(t11(rad_cheb, phitop), rad_cheb)
+                if nord ==2 and nharm == 0:
+                    axe[0].plot(np.zeros(rad_cheb.shape), rad_cheb)
+                    axe[1].plot(np.zeros(rad_cheb.shape), rad_cheb)
+                    axe[2].plot(t20(rad_cheb, phitop), rad_cheb)
 
         plt.savefig(name + '_n-' + np.str(nord) + '_l-' + np.str(nharm) + '.pdf', format='PDF')
         plt.close(fig)
@@ -189,7 +218,6 @@ def plot_fastest_mode(analyzer, harm, ra_num, ra_comp=None,
     plot_theory: theory in case of transition, cartesian geometry
     """
     spherical = analyzer.phys.spherical
-    print('in fastest spherical =', spherical)
 
     gamma = analyzer.phys.gamma
     if name is None:
@@ -237,7 +265,7 @@ def plot_fastest_mode(analyzer, harm, ra_num, ra_comp=None,
     if plot_theory:
         axis[0].plot(-rad*4/(13*np.sqrt(13))*(39-64*rad**2), rad)
     else:
-        axis[0].plot(p_interp / t_max / np.real(p_max), rad)
+        axis[0].plot(np.real(p_interp / t_max / p_max), rad)
     axis[0].plot(np.real(p_norm), rad_cheb, 'o')
     axis[0].set_xlabel(r'$P/(%.3f)$' %(np.real(p_max)), fontsize=FTSZ)
     # horizontal velocity

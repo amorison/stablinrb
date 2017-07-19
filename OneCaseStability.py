@@ -16,7 +16,7 @@ MSIZE = 2
 gamma = 0.7
 eta_c = None
 
-PHI = 1e-2
+PHI = 1
 
 pblm = PhysicalProblem(
     gamma=None,

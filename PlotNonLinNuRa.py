@@ -1,0 +1,197 @@
+#!/usr/bin/env python3
+"""
+Plot Coefs, Nu - Ra etc from NonLin result files.
+
+This script is to make figures for the paper with systematically 
+the coefs as function of phi on the left and Nu or <T> as function
+of Ra on the right.
+More phi values are used for the coef subplot than for the Nu-Ra plots,
+hence the need to read two different files.
+"""
+
+import numpy as np
+import matplotlib as mpl
+import matplotlib.pyplot as plt
+import matplotlib.ticker as ticker
+# import seaborn as sns
+from analyzer import LinearAnalyzer, NonLinearAnalyzer
+from physics import PhysicalProblem, compo_smo
+from plotting import plot_fastest_mode, plot_ran_harm
+from misc import normalize_modes
+
+# plt.rc('font', family='Helvetica')
+mpl.rc('font',**{'family':'sans-serif','sans-serif':['Helvetica']})
+## for Palatino and other serif fonts use:
+#rc('font',**{'family':'serif','serif':['Palatino']})
+mpl.rc('text', usetex=True)
+
+mpl.rcParams['pdf.fonttype'] = 42
+
+# scientific format for text
+def fmt(x):
+    a, b = '{:.0e}'.format(x).split('e')
+    b = int(b)
+    if a=='1':
+        return r'$10^{{{}}}$'.format(b)
+    if b != 0:
+        return r'${} \times 10^{{{}}}$'.format(a, b)
+    else:
+        return r'${}$'.format(a)
+
+
+# Font and markers size
+FTSZ = 12
+MSIZE = 3
+
+# Controls
+PLOT_NURA = True
+PLOT_COEF_NU = False
+PLOT_COEFT = False
+SAVE_DATA = True
+COMPUTE = False
+
+# files to read results to or read from
+fichNuRa = 'NonLin6.dat'
+fichCoef = 'NonLin_SAVE.dat'
+
+# standard case (infinite phi_top and phi_bot)
+rac = 27*np.pi**4/4
+kxc = np.pi/np.sqrt(2)
+coef = 2
+# initialize table
+if COMPUTE:
+    nphi = 25
+else:
+    nphi = sum(1 for line in open(fich))
+phinum = np.flipud(np.power(10, np.linspace(-2, 3, nphi)))
+# both BC open
+kx_c = np.zeros(nphi)
+ray = np.zeros((nphi, NNONLIN+1))
+meant = np.zeros((nphi, NNONLIN+1))
+qtop = np.zeros((nphi, NNONLIN+1))
+coef_nu = np.zeros(nphi)
+# only bottom open
+kx_cb = np.zeros(nphi)
+rayb = np.zeros((nphi, NNONLIN+1))
+meantb = np.zeros((nphi, NNONLIN+1))
+qtopb = np.zeros((nphi, NNONLIN+1))
+coef_nub = np.zeros(nphi)
+
+if COMPUTE:
+    for i, phi in enumerate(phinum):
+        # both boundaries open
+        print('Both open')
+        ana.phys.phi_top = phi
+        ana.phys.phi_bot = phi
+        kx_c[i], ray[i], _, meant[i], qtop[i] = ana.nonlinana()
+        print('ray =', ray[i])
+        print('qtop =', qtop[i])
+        # leading order coefficient: Nu = 1 + A (Ra-Rac)/Rac
+        coef_nu[i] = ray[i, 0] * qtop[i, 2] / ray[i, 2]
+        print('CoefNu = ', coef_nu[i])
+        # only bottom open
+        print('Only bottom')
+        ana.phys.phi_top = None
+        kx_cb[i], rayb[i], _, meantb[i], qtopb[i] = ana.nonlinana()
+        print('ray =', rayb[i])
+        print('qtop =', qtopb[i])
+        # leading order coefficient: Nu = 1 + A (Ra-Rac)/Rac
+        coef_nub[i] = rayb[i, 0] * qtopb[i, 2] / rayb[i, 2]
+        print('CoefNu = ', coef_nub[i])
+
+        # save
+        
+        with open('NonLin'+np.str(nphi)+'.dat', 'w') as fich:
+            fmt = '{:13.4e}' * 17 + '\n'
+            for i in range(nphi):
+                fich.write(fmt.format(phinum[i], kx_c[i], ray[i, 0], ray[i, 2], meant[i, 0], meant[i, 2],
+                                      qtop[i, 0], qtop[i, 2], coef_nu[i], kx_cb[i], rayb[i, 0], rayb[i, 2],
+                                      meantb[i, 0], meantb[i, 2], qtopb[i, 0], qtopb[i, 2], coef_nub[i]))
+else:
+    # read
+    print('reading from file: ' + fich)
+    phinum, kx_c, ray[:, 0], ray[:, 2], meant[:, 0], meant[:, 2], qtop[:, 0],\
+      qtop[:, 2], coef_nu, kx_cb, rayb[:, 0], rayb[:, 2], meantb[:, 0], \
+      meantb[:, 2], qtopb[:, 0], qtopb[:, 2], coef_nub = np.loadtxt(fich, unpack=True)
+    
+
+if PLOT_NURA:
+    # maxnu = 2
+    coef_t = meantb[:, 2] * ray[:, 0] / ray[:, 2]
+    # Ra for <T>=1 at the smallest Phi
+    ramax = rayb[-1, 0] * (1 + 0.5 / coef_t[-1])
+    print('ramax = ', ramax)
+    # corresponding Nu
+    maxnu = 1 + coef_nub[-1] * (ramax - rayb[-1, 0]) / rayb[-1, 0]
+    # first, the case for both boundaries with a phase change
+    fig, axe = plt.subplots(1, 2, sharey=True, dpi=300)
+    fig.set_size_inches(9, 4)
+    print('plotting Nu-Ra - both BC')
+    # also the mean temperature
+    figt, axt = plt.subplots()
+    axt.set_xlabel(r'$\mbox{\textit{Ra}}$', fontsize=FTSZ)
+    axt.set_ylabel(r'$\langle T\rangle$', fontsize=FTSZ)
+
+    leg = []
+    lab = []
+    for i, phi in reversed(list(enumerate(phinum))):
+        rayl = np.array([1, 1 + (maxnu - 1) / coef_nu[i]]) * ray[i, 0]
+        nutab = np.array([1, maxnu])
+        l, = axe[0].plot(rayl, nutab, label=r'$\Phi = $' + fmt(phi))
+        leg.append(l)
+        lab.append(r'$\Phi = $' + fmt(phi))
+    axe[0].set_xlabel(r'$\mbox{\textit{Ra}}$', fontsize=FTSZ)
+    axe[0].set_ylabel(r'$\mbox{\textit{Nu}}$', fontsize=FTSZ)
+    # then, the case for a phase change only at the bottom
+    print('plotting Nu-Ra - bottom only')
+    for i, phi in reversed(list(enumerate(phinum))):
+        raylb = np.array([1, 1 + (maxnu - 1) / coef_nub[i]]) * rayb[i, 0]
+        nutab = np.array([1, maxnu])
+        axe[1].plot(raylb, nutab, label=r'$\Phi = $' + fmt(phi))
+        meant = np.array([0, coef_t[i] * (raylb[1] - rayb[i, 0]) / rayb[i, 0]]) + 0.5
+        axt.plot(raylb, meant, label=r'$\Phi = $' + fmt(phi))
+    axe[1].set_xlabel(r'$\mbox{\textit{Ra}}$', fontsize=FTSZ)
+
+    lgd = fig.legend(handles = leg, labels=lab, loc="upper center",
+                   bbox_to_anchor=(0., 1.02, 1., .102), borderaxespad=0., #mode="expand",
+                   ncol=3, fancybox=True, shadow=False, fontsize=FTSZ-2)  #, borderaxespad=0. 
+
+    fig.savefig('Nu-Ra.pdf', bbox_extra_artists=(lgd,), bbox_inches='tight')
+    plt.close(fig)
+    axt.legend(loc='upper right', fontsize=FTSZ-2)
+    figt.savefig('meanT-Ra.pdf', bbox_inches='tight')
+    plt.close(figt)
+
+
+if PLOT_COEF_NU:
+    lowf = lambda x : 71680 / (21504 - 688 * x + 9 * x ** 2)
+    lowphi = np.power(10, np.linspace(-2, 0, nphi))
+
+    fig, axe = plt.subplots()
+    plt.semilogx([1e2, 1e5], [coef, coef], c='k', label=r'$\Phi^\pm \longrightarrow \infty$')
+    plt.semilogx(lowphi, lowf(lowphi), '--', c='k', label=r'$\Phi^\pm \longrightarrow 0$')
+    axe.tick_params(axis='both', which='major', labelsize=FTSZ)
+    axe.set_ylim([0.9, 3.5])
+    plt.xlabel(r'$\Phi^+, \Phi^-$', fontsize=FTSZ)
+    plt.ylabel(r'Heat flux coefficient', fontsize=FTSZ)
+    axe.semilogx(phinum, coef_nu, 'o', markersize=MSIZE, label=r'varying $\Phi^+=\Phi^-$')
+    plt.legend(loc='lower right', fontsize=FTSZ)
+    plt.tight_layout(pad=0, w_pad=0, h_pad=0)
+    plt.savefig('HF_coeff_BotTop.pdf')
+    axe.semilogx(phinum, coef_nub, 'o', markersize=MSIZE, label=r'$\Phi^+=\infty, \quad \Phi^-$ varying')
+    plt.legend(loc='lower right', fontsize=FTSZ)
+    # plt.tight_layout(pad=0, w_pad=0, h_pad=0)
+    plt.savefig('HF_coeff_both.pdf')
+    plt.close(fig)
+
+if PLOT_COEFT:
+    # plot the coefficient of epsilon in mean T as function of phi
+    coef_t = meantb[:, 2] * ray[:, 0] / ray[:, 2]
+    fig, axe = plt.subplots()
+    axe.tick_params(axis='both', which='major', labelsize=FTSZ)
+    plt.xlabel(r'$\Phi^-$', fontsize=FTSZ)
+    plt.ylabel(r'$\langle T \rangle$ coefficient', fontsize=FTSZ)
+    axe.semilogx(phinum, coef_t, 'o', markersize=MSIZE)
+    plt.savefig('meanT_coeff.pdf')
+    plt.close(fig)
+    
