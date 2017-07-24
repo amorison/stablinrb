@@ -16,7 +16,7 @@ MSIZE = 2
 gamma = 0.7
 eta_c = None
 
-PHI = 1
+PHI = 1e-2
 
 pblm = PhysicalProblem(
     gamma=None,
@@ -31,7 +31,7 @@ NON_LINEAR = True
 ra_comp = None
 
 if NON_LINEAR:
-    ana = NonLinearAnalyzer(pblm, ncheb=30, nnonlin=2)
+    ana = NonLinearAnalyzer(pblm, ncheb=40, nnonlin=2)
     harm_c, ray, mode, moyt, qtop = ana.nonlinana()
     print('kc = ', harm_c, np.pi / np.sqrt(2))
     print('Rayleigh = ', ray)
@@ -45,7 +45,7 @@ if NON_LINEAR:
     ramax = (1 + (maxnu - 1) / coef_nu) * ray[0]
     epsmax = np.sqrt((ramax - ray[0]) / ray[2])
     print('ramax, epsmax = ', ramax, epsmax)
-    plotting.plot_mode_image(ana, mode, harm_c, eps=epsmax)
+    plotting.plot_mode_image(ana, mode, harm_c, eps=epsmax, plot_ords=True)
 
     plotting.plot_mode_profiles(ana, mode, harm_c, plot_theory=True)
 

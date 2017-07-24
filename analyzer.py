@@ -85,7 +85,7 @@ def cartesian_matrices(self, wnk, ra_num, ra_comp=None):
     h_int = self.phys.h_int
     dz1, dz2 = self.dr1, self.dr2
     one = np.identity(ncheb+1)  # identity
-    dh1 = 1.j * wnk * one  # horizontal derivative
+    dh1 = 1j * wnk * one  # horizontal derivative
     lapl = dz2 - wnk**2 * one  # laplacian
     phi_top = self.phys.phi_top
     phi_bot = self.phys.phi_bot
@@ -981,7 +981,8 @@ class NonLinearAnalyzer(Analyser):
             dprod += rac * self.integz(prof)
         else:
             dprod = 0
-        return dprod
+        # Complex conjugate needed to get the full dot product. CHECK!
+        return dprod + np.conj(dprod)
 
     def ntermprod(self, mle, mri, harm):
         """One non-linear term on the RHS
@@ -1049,12 +1050,13 @@ class NonLinearAnalyzer(Analyser):
         freeslip_bot = self.phys.freeslip_bot
         heat_flux_top = self.phys.heat_flux_top
         heat_flux_bot = self.phys.heat_flux_bot
-        zcheb = self._zcheb
+        # zcheb = self._zcheb
         # global indices and slices
         i0n, igf, slall, slint, slgall, slgint = self._slices()
         i_0s, i_ns = zip(*i0n)
         iw0, it0 = i_0s[2: 4]
         iwn, itn = i_ns[2: 4]
+        pall, uall, wall, tall = slall
         pgall, ugall, wgall, tgall = slgall
         pgint, ugint, wgint, tgint = slgint
 
@@ -1102,7 +1104,7 @@ class NonLinearAnalyzer(Analyser):
         # denominator in Ra_i
         xcmxc =  self.integz(np.real(w_c * t_c))
 
-        rr = zcheb/2
+        # rr = zcheb/2
 
         # norm of the linear mode
         norm_x1 = self.dotprod(1, 1, 1)
@@ -1113,12 +1115,45 @@ class NonLinearAnalyzer(Analyser):
         lmat[0] = lmat_c
         # loop on the orders
         for ii in range(2, nnonlin + 2):
+            print('order = ', ii)
             # also need the linear problem for wnk up to nnonlin*harm_c
             lmat[ii - 1] = self.matrices(ii * harm_c, ra_c)[0]
             (lii, yii) = divmod(ii, 2)
+            print('lii, yii = ', lii, yii)
             # compute the N terms
             for ll in range(1, ii):
+                print('l =', ll)
                 self.ntermprod(ll, ii - ll, harm_c)
+
+            # check the shape of nx1x1
+            # if ii == 2:
+            #     rr = self.rad[tall]
+            #     # 20 mode
+            #     fig, axe = plt.subplots(1, 3, sharey=True)
+            #     ord0 = - rr / 4
+            #     axe[0].plot(np.real(self.ntermt[1]), rr, 'o')
+            #     axe[0].plot(ord0, rr)
+            #     ord1 = (9 * rr / 2048 + 27 * rr ** 3 / 512) * phi_top
+            #     axe[1].plot(np.real(self.ntermt[1]) - ord0, rr, 'o')
+            #     axe[1].plot(ord1, rr)
+            #     ord2 = (- rr * 873 / 524288 + rr ** 3 * 2073 / 131072) * phi_top ** 2
+            #     axe[2].plot(np.real(self.ntermt[1]) -ord0 - ord1, rr, 'o')
+            #     axe[2].plot(ord2, rr)
+            #     plt.savefig('nx1x1_20.pdf')
+            #     plt.close(fig)
+            #     # 22 mode
+            #     fig, axe = plt.subplots(1, 3, sharey=True)
+            #     ord0 = - rr / 4
+            #     axe[0].plot(np.real(self.ntermt[2]), rr, 'o')
+            #     axe[0].plot(ord0, rr)
+            #     ord1 = (27 * rr / 2048 + 9 * rr ** 3 / 512) * phi_top
+            #     axe[1].plot(np.real(self.ntermt[2]) - ord0, rr, 'o')
+            #     axe[1].plot(ord1, rr)
+            #     ord2 = (rr * 549 / 524288 - 177 * rr ** 3 / 131072) * phi_top ** 2
+            #     axe[2].plot(np.real(self.ntermt[2]) -ord0 - ord1, rr, 'o')
+            #     axe[2].plot(ord2, rr)
+            #     plt.savefig('nx1x1_22.pdf')
+            #     plt.close(fig)
 
             # compute Ra_{ii-1} if ii is odd (otherwise keep it 0).
             if yii == 1:
@@ -1127,7 +1162,7 @@ class NonLinearAnalyzer(Analyser):
                 ind = self.indexmat(ii, harmm=1)[3]
                 prof = self._insert_boundaries(np.real(self.full_t[0] *\
                                                         np.conj(self.ntermt[ind])), it0, itn)
-                # <X_1|N(X_l,X_2n+1-l)>
+                # <X_1|N(X_l, X_2n+1-l)>
                 # Beware: do not forget to multiply by Rac since this is
                 # the temperature part of the dot product.
                 self.ratot[ii-1] = self.ratot[0] * self.integz(prof)
@@ -1137,13 +1172,18 @@ class NonLinearAnalyzer(Analyser):
                     # + sign because denominator takes the minus.
                     wwloc = self._insert_boundaries(self.full_w[0], iw0, iwn)
                     ttloc = self._insert_boundaries(self.full_t[ind], it0, itn)
-                    print('iw0, iwn =', iw0, iwn, wwloc.shape)
-                    print('it0, itn =', it0, itn, ttloc.shape)
                     prof = np.real(wwloc * ttloc)
                     self.ratot[ii-1] += self.ratot[2 * jj] * self.integz(prof)
-                # ratot[ii-1] *= ratot[0] / xcmxc ? why ratot[0] ?
                 self.ratot[ii-1] /= xcmxc
-
+                # tests
+                wwloc = self._insert_boundaries(self.full_w[3], iw0, iwn)
+                ttloc = self._insert_boundaries(self.full_t[0], it0, itn)
+                uuloc = self._insert_boundaries(self.full_u[3], iw0, iwn)
+                prof = -1j * uuloc * np.conj(ttloc) ** 2
+                print('prod1 = ', self.integz(prof))
+                prof = wwloc * np.conj(ttloc) * dt_c
+                print('prod2 = ', self.integz(prof))
+                
             # add mterm to nterm to get rhs
             imin = self.indexmat(ii, harmm=yii)[3]
             imax = self.indexmat(ii, harmm=ii)[3]
@@ -1189,7 +1229,7 @@ class NonLinearAnalyzer(Analyser):
                     self.full_sol[ind] = solve(lmat[harmjj - 1], self.rhs[ind])
                     # remove the contribution proportional to X1, if it exists
                     if harmjj == 1:
-                        dp1 = self.dotprod(1, ii,1)
+                        dp1 = self.dotprod(1, ii, 1)
                         self.full_sol[ind] -= dp1 / norm_x1 * self.full_sol[0]
 
         return harm_c, self.ratot, self.full_sol, meant, qtop
