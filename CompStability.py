@@ -142,14 +142,13 @@ def _phi_col_lbl(phi_top, phi_bot):
     return col, phi_str
 
 
-def plot_destab(crystallized, time):
+def plot_destab(ana, crystallized, time):
     """Plot destabilization time scale as function of solid thickness"""
     fig, axis = plt.subplots(1, 1)
 
     for phi_bot, phi_top in phi_vals:
-        ana = LinearAnalyzer(PhysicalProblem(phi_top=phi_top,
-                                             phi_bot=phi_bot),
-                             ncheb=15)
+        ana.phys.phi_top = phi_top
+        ana.phys.phi_bot = phi_bot
         col, phi_str = _phi_col_lbl(phi_top, phi_bot)
 
         tau_vals = {}
@@ -204,15 +203,14 @@ def _time_diff(h_cryst, eta, ana, crystallized, time):
     return cooling - destab
 
 
-def plot_min_time(crystallized, time, eps=1e-3):
+def plot_min_time(ana, crystallized, time, eps=1e-3):
     """Research of time at which destab = cooling time"""
     fig, axt = plt.subplots(1, 1)
     eta_logs = np.linspace(15, 18, 10)
     for phi_bot, phi_top in phi_vals:
+        ana.phys.phi_top = phi_top
+        ana.phys.phi_bot = phi_bot
         col, phi_str = _phi_col_lbl(phi_top, phi_bot)
-        ana = LinearAnalyzer(PhysicalProblem(phi_top=phi_top,
-                                             phi_bot=phi_bot),
-                             ncheb=15)
         tau_vals = []
         for eta in eta_logs:
             h_min = 20e3
@@ -265,5 +263,6 @@ def plot_cooling_time(crystallized, time):
 if __name__ == '__main__':
     crystallized, time = cooling_time()
     plot_cooling_time(crystallized, time)
-    plot_min_time(crystallized, time)
-    plot_destab(crystallized, time)
+    ana = LinearAnalyzer(PhysicalProblem(), ncheb=15)
+    plot_min_time(ana, crystallized, time)
+    plot_destab(ana, crystallized, time)
