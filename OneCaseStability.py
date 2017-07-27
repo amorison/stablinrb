@@ -9,6 +9,15 @@ from analyzer import LinearAnalyzer, NonLinearAnalyzer
 from physics import PhysicalProblem, compo_smo, visco_Arrhenius
 from misc import normalize_modes
 import plotting
+import signal
+import sys
+
+def sigint_handler(*_):
+    """SIGINT handler"""
+    print('\nSo long, and thanks for all the fish.')
+    sys.exit()
+
+signal.signal(signal.SIGINT, sigint_handler)
 
 # Font and markers size
 FTSZ = 11
@@ -31,26 +40,27 @@ NON_LINEAR = True
 ra_comp = None
 
 if NON_LINEAR:
-    ana = NonLinearAnalyzer(pblm, ncheb=40, nnonlin=2)
+    ana = NonLinearAnalyzer(pblm, ncheb=20, nnonlin=2)
     harm_c, ray, mode, moyt, qtop = ana.nonlinana()
     print('kc = ', harm_c, np.pi / np.sqrt(2))
     print('Rayleigh = ', ray)
     print('moyt = ', moyt)
     print('qtop = ', qtop)
     print('qtop2 =', qtop[2], 0.25 / (np.pi ** 2 + harm_c ** 2))
-    print('coef qtop2 = ', ray[0] * qtop[2] / ray[2])
-
-    maxnu = 1.5
     coef_nu = ray[0] * qtop[2] / ray[2]
-    ramax = (1 + (maxnu - 1) / coef_nu) * ray[0]
-    epsmax = np.sqrt((ramax - ray[0]) / ray[2])
-    print('ramax, epsmax = ', ramax, epsmax)
+    print('coef qtop2 = ', coef_nu)
+
+    # maxnu = 1.1
+    # ramax = (1 + (maxnu - 1) / coef_nu) * ray[0]
+    # epsmax = np.sqrt((ramax - ray[0]) / ray[2])
+    # print('ramax, epsmax = ', ramax, epsmax)
+    epsmax = 1
     plotting.plot_mode_image(ana, mode, harm_c, eps=epsmax, plot_ords=True)
 
     plotting.plot_mode_profiles(ana, mode, harm_c, plot_theory=True)
 
     nterms = qtop.shape[0]
-    eps = np.linspace(0, 10, num=30)
+    eps = np.linspace(0, epsmax, num=30)
     vdm = np.vander(eps, nterms, increasing=True)
     rayl = np.dot(vdm, ray)
     nuss = np.dot(vdm, qtop)

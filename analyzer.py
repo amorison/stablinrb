@@ -2,7 +2,7 @@ import dmsuite.dmsuite as dm
 import numpy as np
 import numpy.ma as ma
 from scipy import linalg
-from numpy.linalg import solve
+from numpy.linalg import solve, lstsq
 import matplotlib.pyplot as plt
 from physics import PhysicalProblem, wtran
 from misc import build_slices, normalize_modes
@@ -982,7 +982,7 @@ class NonLinearAnalyzer(Analyser):
         else:
             dprod = 0
         # Complex conjugate needed to get the full dot product. CHECK!
-        return dprod + np.conj(dprod)
+        return dprod #+ np.conj(dprod)
 
     def ntermprod(self, mle, mri, harm):
         """One non-linear term on the RHS
@@ -1040,6 +1040,18 @@ class NonLinearAnalyzer(Analyser):
                         np.conj(uloc[tall]) * tloc[tall] + np.conj(wloc[tall]) * dtr[tall]
         return
 
+    def symmetrize(self, ind):
+        """Make the solution symmetric with respect to z -> -z
+
+        ind: index of the mode in the full solution
+        """
+        self.full_p[ind] = 0.5 * (self.full_p[ind] + np.flipud(self.full_p[ind]))
+        self.full_u[ind] = 0.5 * (self.full_u[ind] - np.flipud(self.full_u[ind]))
+        self.full_w[ind] = 0.5 * (self.full_w[ind] + np.flipud(self.full_w[ind]))
+        self.full_t[ind] = 0.5 * (self.full_t[ind] + np.flipud(self.full_t[ind]))
+        
+        return
+
     def nonlinana(self):
         """Ra2 and X2"""
         ncheb = self._ncheb
@@ -1050,12 +1062,11 @@ class NonLinearAnalyzer(Analyser):
         freeslip_bot = self.phys.freeslip_bot
         heat_flux_top = self.phys.heat_flux_top
         heat_flux_bot = self.phys.heat_flux_bot
-        # zcheb = self._zcheb
         # global indices and slices
         i0n, igf, slall, slint, slgall, slgint = self._slices()
         i_0s, i_ns = zip(*i0n)
-        iw0, it0 = i_0s[2: 4]
-        iwn, itn = i_ns[2: 4]
+        iu0, iw0, it0 = i_0s[1:]
+        iun, iwn, itn = i_ns[1:]
         pall, uall, wall, tall = slall
         pgall, ugall, wgall, tgall = slgall
         pgint, ugint, wgint, tgint = slgint
@@ -1104,8 +1115,6 @@ class NonLinearAnalyzer(Analyser):
         # denominator in Ra_i
         xcmxc =  self.integz(np.real(w_c * t_c))
 
-        # rr = zcheb/2
-
         # norm of the linear mode
         norm_x1 = self.dotprod(1, 1, 1)
 
@@ -1115,14 +1124,11 @@ class NonLinearAnalyzer(Analyser):
         lmat[0] = lmat_c
         # loop on the orders
         for ii in range(2, nnonlin + 2):
-            print('order = ', ii)
             # also need the linear problem for wnk up to nnonlin*harm_c
             lmat[ii - 1] = self.matrices(ii * harm_c, ra_c)[0]
             (lii, yii) = divmod(ii, 2)
-            print('lii, yii = ', lii, yii)
             # compute the N terms
             for ll in range(1, ii):
-                print('l =', ll)
                 self.ntermprod(ll, ii - ll, harm_c)
 
             # check the shape of nx1x1
@@ -1176,14 +1182,14 @@ class NonLinearAnalyzer(Analyser):
                     self.ratot[ii-1] += self.ratot[2 * jj] * self.integz(prof)
                 self.ratot[ii-1] /= xcmxc
                 # tests
-                wwloc = self._insert_boundaries(self.full_w[3], iw0, iwn)
-                ttloc = self._insert_boundaries(self.full_t[0], it0, itn)
-                uuloc = self._insert_boundaries(self.full_u[3], iw0, iwn)
-                prof = -1j * uuloc * np.conj(ttloc) ** 2
-                print('prod1 = ', self.integz(prof))
-                prof = wwloc * np.conj(ttloc) * dt_c
-                print('prod2 = ', self.integz(prof))
-                
+                # wwloc = self._insert_boundaries(self.full_w[3], iw0, iwn)
+                # ttloc = self._insert_boundaries(self.full_t[0], it0, itn)
+                # uuloc = self._insert_boundaries(self.full_u[3], iu0, iun)
+                # prof = -1j * uuloc * np.conj(ttloc) ** 2
+                # print('prod1 = ', self.integz(prof))
+                # prof = wwloc * np.conj(ttloc) * dt_c
+                # print('prod2 = ', self.integz(prof))
+
             # add mterm to nterm to get rhs
             imin = self.indexmat(ii, harmm=yii)[3]
             imax = self.indexmat(ii, harmm=ii)[3]
@@ -1210,7 +1216,8 @@ class NonLinearAnalyzer(Analyser):
                     # should be possible to avoid the use of a rhs0
                     rhs0 = np.zeros(lmat0.shape[1]) * (1 + 1j)
                     rhs0[tgall0] = self.rhs[ind, tgall]
-                    sol = solve(lmat0, rhs0)
+                    # sol = solve(lmat0, rhs0)
+                    sol = lstsq(lmat0, rhs0)[0]
                     self.full_sol[ind, pgint] = sol[pgint0]
                     self.full_sol[ind, tgint] = sol[tgint0]
                     # compute coefficient ii in meant
@@ -1226,10 +1233,20 @@ class NonLinearAnalyzer(Analyser):
                         self.full_w0[ind] = 0
                 else:
                     # Only the positive power of exp(1j k x)
-                    self.full_sol[ind] = solve(lmat[harmjj - 1], self.rhs[ind])
+                    # self.full_sol[ind] = solve(lmat[harmjj - 1], self.rhs[ind])
+                    self.full_sol[ind] = lstsq(lmat[harmjj - 1], self.rhs[ind])[0]
                     # remove the contribution proportional to X1, if it exists
                     if harmjj == 1:
-                        dp1 = self.dotprod(1, ii, 1)
-                        self.full_sol[ind] -= dp1 / norm_x1 * self.full_sol[0]
-
+                        for jj in range(2):
+                            dp1 = self.dotprod(1, ii, 1)
+                            self.full_sol[ind] -= dp1 / norm_x1 * self.full_sol[0]
+                            print('jj, dp1 =', jj, dp1)
+                        # self.symmetrize(ind)
+                        # check if this is still a solution
+                        # aaa = (np.dot(lmat[harmjj - 1], self.full_sol[ind]) - self.rhs[ind]) #/ self.rhs[ind]
+                        # print('max error = ', np.abs(aaa).max(),  self.rhs[ind].max())
+                        # dp1 = self.dotprod(1, ii, 1)
+                        # self.full_sol[ind] -= dp1 / norm_x1 * self.full_sol[0]
+                        # print('dp1 =', dp1)
+                        
         return harm_c, self.ratot, self.full_sol, meant, qtop
