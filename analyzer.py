@@ -333,6 +333,10 @@ def spherical_matrices(self, l_harm, ra_num, ra_comp=None):
 
     # T equations
     # laplacian(T) - u.grad(T_conductive) = sigma T
+    if self.phys.cooling_smo is not None:
+        gamt_f, w_f = self.phys.cooling_smo
+        gam2_smo = gamt_f(gamma)**2
+        w_smo = w_f(gamma)
 
     # Neumann boundary condition if imposed flux
     if heat_flux_top is not None:
@@ -341,6 +345,10 @@ def spherical_matrices(self, l_harm, ra_num, ra_comp=None):
         lmat[itg(itn), tgall] = dr1[itn, tall]
 
     lmat[tgint, tgall] = lapl[tint, tall]
+    if self.phys.cooling_smo is not None:
+        grad_ref_temp_top = grad_ref_temperature(np.diag(rad)[0])
+        lmat[tgint, tgall] += w_smo * (
+            np.dot(rad, dr1) + grad_ref_temp_top * one)[tint, tall]
 
     # advection of reference profile
     # using u_r = l(l+1)/r P
@@ -363,6 +371,8 @@ def spherical_matrices(self, l_harm, ra_num, ra_comp=None):
     lmat[tgint, pgall] = np.diag(lh2 * grad_tcond)[tint, pall]
 
     rmat[tgint, tgall] = one[tint, tall]
+    if self.phys.cooling_smo:
+        rmat[tgint, tgall] *= gam2_smo
 
     # C equations
     # 1/Le lapl(C) - u.grad(C_reference) = sigma C
@@ -371,8 +381,12 @@ def spherical_matrices(self, l_harm, ra_num, ra_comp=None):
         lmat[cgint, pgall] = -lh2 * np.dot(orad1, grad_comp)[cint, pall]
     elif lewis is not None:
         raise ValueError('Finite Lewis not implemented in spherical')
+    if self.phys.cooling_smo is not None:
+        lmat[cgint, cgall] = w_smo * np.dot(rad, dr1)[cint, call]
     if comp_terms:
         rmat[cgint, cgall] = one[cint, call]
+        if self.phys.cooling_smo is not None:
+            rmat[cgint, cgall] *= gam2_smo
 
     return lmat, rmat
 

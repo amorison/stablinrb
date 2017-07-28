@@ -11,7 +11,7 @@ class PhysicalProblem:
                  heat_flux_top=None, heat_flux_bot=None,
                  lewis=None, composition=None,
                  grad_ref_temperature=None,
-                 eta_r=None,
+                 eta_r=None, cooling_smo=None,
                  ref_state_translation=False):
         """Create a physical problem instance
 
@@ -38,6 +38,7 @@ class PhysicalProblem:
         self.composition = composition
         self.grad_ref_temperature = grad_ref_temperature
         self.eta_r = eta_r
+        self.cooling_smo = cooling_smo
         self.ref_state_translation = ref_state_translation
 
     def bind_to(self, analyzer):
