@@ -29,7 +29,7 @@ PHI = 1e-2
 
 pblm = PhysicalProblem(
     gamma=None,
-    phi_top=PHI,
+    phi_top=None,
     phi_bot=PHI,
     freeslip_top=True,
     freeslip_bot=True,
@@ -59,14 +59,14 @@ if NON_LINEAR:
     # maxt = 1
     coef_t = moyt[2] * ray[0] / ray[2]
     print('coef_t = ', coef_t)
-    # ramax = (1 + (maxt - 0.5) / coef_t) * ray[0] 
-    # epsmax = np.sqrt((ramax - ray[0]) / ray[2])
-    # print('ramax, epsmax = ', ramax, epsmax)
+    ramax = (1 + (maxt - 0.5) / coef_t) * ray[0] 
+    epsmax = np.sqrt((ramax - ray[0]) / ray[2])
+    print('ramax, epsmax = ', ramax, epsmax)
     # epsmax simply set
-    epsmax = 5.58
-    # plotting.plot_mode_image(ana, mode, harm_c, eps=epsmax, plot_ords=True)
+    # epsmax = 5.58
+    plotting.plot_mode_image(ana, mode, harm_c, eps=epsmax, plot_ords=True)
 
-    # plotting.plot_mode_profiles(ana, mode, harm_c, plot_theory=False)
+    plotting.plot_mode_profiles(ana, mode, harm_c, plot_theory=False)
 
     nterms = qtop.shape[0]
     eps = np.linspace(0, epsmax, num=20)

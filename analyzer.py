@@ -996,7 +996,7 @@ class NonLinearAnalyzer(Analyser):
         else:
             dprod = 0
         # Complex conjugate needed to get the full dot product. CHECK!
-        return dprod #+ np.conj(dprod)
+        return dprod + np.conj(dprod)
 
     def ntermprod(self, mle, mri, harm):
         """One non-linear term on the RHS
@@ -1088,7 +1088,7 @@ class NonLinearAnalyzer(Analyser):
         # First compute the linear mode and matrix
         ana = LinearAnalyzer(self.phys, self._ncheb)
         ra_c, harm_c = ana.critical_ra()
-        lmat_c, _ = self.matrices(harm_c, ra_c)
+        lmat_c, rmat = self.matrices(harm_c, ra_c)
         _, mode_c = self.eigvec(harm_c, ra_c)
         modec = self.split_mode(mode_c, harm_c, apply_bc=True)
         modec, _ = normalize_modes(modec, norm_mode=2, full_norm=False)
@@ -1230,8 +1230,9 @@ class NonLinearAnalyzer(Analyser):
                     # should be possible to avoid the use of a rhs0
                     rhs0 = np.zeros(lmat0.shape[1]) * (1 + 1j)
                     rhs0[tgall0] = self.rhs[ind, tgall]
-                    # sol = solve(lmat0, rhs0)
-                    sol = lstsq(lmat0, rhs0)[0]
+                    # eigva = linalg.eigvals(lmat0)
+                    # print('eig lmat0 =', np.sort(np.real(eigva)))
+                    sol = solve(lmat0, rhs0)
                     self.full_sol[ind, pgint] = sol[pgint0]
                     self.full_sol[ind, tgint] = sol[tgint0]
                     # compute coefficient ii in meant
@@ -1247,14 +1248,19 @@ class NonLinearAnalyzer(Analyser):
                         self.full_w0[ind] = 0
                 else:
                     # Only the positive power of exp(1j k x)
-                    # self.full_sol[ind] = solve(lmat[harmjj - 1], self.rhs[ind])
-                    self.full_sol[ind] = lstsq(lmat[harmjj - 1], self.rhs[ind])[0]
-                    # remove the contribution proportional to X1, if it exists
+                    # eigva = linalg.eigvals(lmat[harmjj - 1], rmat)
+                    # print('harm, eig lmat0 =', harmjj, np.sort(np.real(eigva)))
                     if harmjj == 1:
+                        # matrix is singular. Solve using least square
+                        self.full_sol[ind] = lstsq(lmat[harmjj - 1], self.rhs[ind])[0]
+                        # remove the contribution proportional to X1, if it exists
                         for jj in range(2):
                             dp1 = self.dotprod(1, ii, 1)
                             self.full_sol[ind] -= dp1 / norm_x1 * self.full_sol[0]
                             print('jj, dp1 =', jj, dp1)
+                    else:
+                        self.full_sol[ind] = solve(lmat[harmjj - 1], self.rhs[ind])
+                        
                         # self.symmetrize(ind)
                         # check if this is still a solution
                         # aaa = (np.dot(lmat[harmjj - 1], self.full_sol[ind]) - self.rhs[ind]) #/ self.rhs[ind]
