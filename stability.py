@@ -228,34 +228,23 @@ if EXPLORE_PHASE:
                     for i in range(nphi):
                         fich.write(fmt.format(phinum[i], kwn[i], ram[i], np.abs(pmax[i]),
                                             np.abs(umax[i]), np.abs(tmax[i]), np.abs(wmax[i])))
-                # with open('EqualTopBotPhi.dat', 'w') as fich:
-                #     fmt = '{:13}'*7 + '\n'
-                #     fich.write(fmt.format(' phi', 'kx', 'Ra', 'Pmax', 'Umax', 'Tmax', 'Wmax'))
-                #     fmt = '{:20.3e}'*6 + '{20.3}' + '\n'
-                #     for i in range(nphi):
-                #         fich.write(fmt.format(phinum[i], kwn[i], ram[i], pmax[i],
-                #                             umax[i], tmax[i], wmax[i]))
             else:
                 print('reading from file: EqualTopBotPhi.dat')
                 phinum, kwn, ram, pmax, umax, tmax, wmax =\
                   np.loadtxt('EqualTopBotPhi.dat', unpack=True, skiprows=1)
-                # with open('EqualTopBotPhi.dat', 'r') as fich:
-                    # fmt = '{:13}'*7 + '\n'
-                    # fich.write(fmt.format(' phi', 'kx', 'Ra', 'Pmax', 'Umax', 'Tmax', 'Wmax'))
-                    # next(fich)
-                    # for line in fich:
-                        # fich.read(fmt.format(phinum[i], kwn[i], ram[i], pmax[i],
-                                            # umax[i], tmax[i], wmax[i]))
     
             # plot kx and ra as function of phi
             fig, axe = plt.subplots(2, 1, sharex=True)
             # Theoretical prediction for translation
             axe[0].loglog(phinum, 24*phinum, '--', c='k', label=r'Translation mode')
             # Theoretical for low phi development
-            ra_theo = 24*phinum2-81*phinum2**2/256
+            ra_theo = 24 * phinum2 - 81 * phinum2 ** 2 / 256
+            ra_theo2 = 24 * phinum2 - 9 * phinum2 ** 2 / 25
+            ra_theo2 += - 6.3591 / 112 * phinum2 ** 3 + 4.550887 / 448  * phinum ** 4
             # rat2 = ra_theo[np.log10(np.abs(ra_theo-ram))<1]
             # phi2 = phinum[np.log10(np.abs(ra_theo-ram))<1]
             axe[0].loglog(phinum2, ra_theo, '-', c='k')
+            axe[0].loglog(phinum2, ra_theo, '-', c='r')
                             # label=r'Small $\Phi$ prediction')
             # classical RB case
             axe[0].loglog([phinum[0], phinum[-1]], [rac, rac], '-.', c='k')
@@ -273,7 +262,9 @@ if EXPLORE_PHASE:
             axe[1].loglog([phinum[0], phinum[-1]], [kxc, kxc], '-.', c='k',
                         label=r'$\mbox{\textit{Ra}}_c=\frac{27\pi^4}{4}, k_c=\frac{\pi}{\sqrt{2}}$')
             # Small phi prediction
-            axe[1].loglog(phinum2, np.sqrt(9*phinum2/32), '-', c='k',
+            axe[1].loglog(phinum2, np.sqrt(9 * phinum2 / 32), '-', c='k',
+                        label=r'Small $\Phi$ prediction')
+            axe[1].loglog(phinum2, np.sqrt(3 * phinum2 / 10), '-', c='r',
                         label=r'Small $\Phi$ prediction')
             axe[1].loglog(phinum, kwn, 'o', markersize=MSIZE, markeredgewidth=0.0, c=col1,
                         label=r'Fastest growing mode')
@@ -308,8 +299,10 @@ if EXPLORE_PHASE:
             # axe[2].set_yticks(np.arange(7, 15, 2))
             axe[2].yaxis.set_major_locator(ticker.MultipleLocator(2))
             axe[2].yaxis.set_minor_locator(ticker.MultipleLocator(1))
-            axe[3].loglog(phinum, 81*phinum**2/256,  linestyle='--', c='k',
+            axe[3].loglog(phinum, 81 * phinum ** 2 / 256,  linestyle='--', c='k',
                             label=r'$81\Phi^2/256$')
+            axe[3].loglog(phinum, 9 * phinum ** 2 / 25,  linestyle='--', c='r',
+                            label=r'$9\Phi^2/25$')
             axe[3].loglog(phinum, 24*phinum-ram, 'o', markersize=MSIZE, markeredgewidth=0.0)#, linestyle='-')
             axe[3].set_ylabel(r'$24\Phi-Ra$', fontsize=FTSZ)
             axe[3].legend(loc='upper left', fontsize=FTSZ, frameon=False)

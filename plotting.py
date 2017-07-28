@@ -21,7 +21,40 @@ mpl.rcParams['pdf.fonttype'] = 42
 FTSZ = 10
 MSIZE = 3
 
-def plot_mode_image(analyzer, mode, harm, eps=1, name=None):
+def image_mode(xgr, zgr, t2d, u2d, w2d, harm, filename):
+    """Create an image for one mode and save it in a file
+
+    takes 2D fields in input as grids
+    """
+    dpi = 300
+    # prepare plot. 1 temperature anomaly
+    fig = plt.figure(dpi=dpi)
+    axis = fig.add_subplot(111)
+    # plot temperature
+    surf = plt.pcolormesh(xgr, zgr, t2d, cmap='RdBu_r', linewidth=0,)
+    plt.axis([xgr.min(), xgr.max(), zgr.min(), zgr.max()])
+    # stream function
+    speed = np.sqrt(u2d**2+w2d**2)
+    if speed.max() > 0:
+        lw = 2 * speed / speed.max()
+        plt.streamplot(xgr, zgr, u2d, w2d, linewidth=lw, density=0.7)
+    # labels etc.
+    axis.tick_params(axis='both', which='major', labelsize=FTSZ)
+    axis.set_xlabel(r'$x$', fontsize=FTSZ+2)
+    axis.set_ylabel(r'$z$', fontsize=FTSZ+2)
+    if harm > 0.6:
+        fig.set_figwidth(9)
+        axis.set_aspect('equal')
+    else:
+        fig.set_size_inches(9, 2)
+    cbar = plt.colorbar(surf, aspect=20)
+    cbar.set_label(r'$\theta$')
+    # filename = '_'.join((name, 'mode_theta_eps-' + np.str(eps) + '_ord-' + np.str(nord) + '.pdf'))
+    plt.savefig(filename, bbox_inches='tight', format='PDF')
+    plt.close(fig)
+
+
+def plot_mode_image(analyzer, mode, harm, eps=1, name=None, plot_ords=False):
     """Plot velocity and temperature image of a mode given on input
 
     Generic function for any mode, not necessarily the fastest growing one.
@@ -30,6 +63,7 @@ def plot_mode_image(analyzer, mode, harm, eps=1, name=None):
     analyser: holding all numerical and physical parameters
     harm: wavenumber of the mode
     eps: epsilon value for the non-linear mode
+    plot_ords: if True, plots individual modes on separate figures, in addition to the full solution
     """
     if analyzer.phys.spherical:
         raise ValueError('plot_mode_image not yet implemented in spherical')
@@ -45,6 +79,11 @@ def plot_mode_image(analyzer, mode, harm, eps=1, name=None):
     t2d = np.zeros((n_rad , n_phi))
     u2d = np.zeros((n_rad , n_phi))
     w2d = np.zeros((n_rad , n_phi))
+    # local version for plotting individual modes
+    t2dl = np.zeros((n_rad , n_phi))
+    u2dl = np.zeros((n_rad , n_phi))
+    w2dl = np.zeros((n_rad , n_phi))
+
     cheb_space = np.linspace(-1, 1, n_rad)
     rad = np.linspace(-1/2, 1/2, n_rad)
 
@@ -74,89 +113,94 @@ def plot_mode_image(analyzer, mode, harm, eps=1, name=None):
         modx = np.exp(1j * harm * nharm * xvar)
         # temperature
         t2d1, t2d2 = np.meshgrid(modx, t_interp)
-        t2d += eps ** nord * np.real(t2d1 * t2d2)
+        t2dl = eps ** nord * 2 * np.real(t2d1 * t2d2)
+        t2d +=  t2dl
         # velocity
         u2d1, u2d2 = np.meshgrid(modx, u_interp)
-        u2d += eps ** nord * 2 * np.real(u2d1 * u2d2)
+        u2dl = eps ** nord * 2 * np.real(u2d1 * u2d2)
+        u2d +=  u2dl
         w2d1, w2d2 = np.meshgrid(modx, w_interp)
-        w2d += eps ** nord * 2 * np.real(w2d1 * w2d2)
+        w2dl = eps ** nord * 2 * np.real(w2d1 * w2d2)
+        w2d +=  w2dl
+        if plot_ords:
+            # individual contributions
+            filename = '_'.join((name, 'mode_theta_ord-' + np.str(nord) + '_nharm-' + np.str(nharm) + '.pdf'))
+            image_mode(xgr, zgr, t2dl, u2dl, w2dl, harm, filename)
+            # parial sum
+            filename = '_'.join((name, 'mode_theta_ordd-' + np.str(nord) + '_nharm-' + np.str(nharm) + '.pdf'))
+            image_mode(xgr, zgr, t2d, u2d, w2d, harm, filename)
 
-    dpi = 300
-    # prepare plot. 1 temperature anomaly
-    fig = plt.figure(dpi=dpi)
-    axis = fig.add_subplot(111)
-    # plot temperature
-    surf = plt.pcolormesh(xgr, zgr, t2d, cmap='RdBu_r', linewidth=0,)
-    plt.axis([xgr.min(), xgr.max(), zgr.min(), zgr.max()])
-    # stream function
-    speed = np.sqrt(u2d**2+w2d**2)
-    lw = 2 * speed / speed.max()
-    plt.streamplot(xgr, zgr, u2d, w2d, linewidth=lw, density=0.7)
-    # labels etc.
-    axis.tick_params(axis='both', which='major', labelsize=FTSZ)
-    axis.set_xlabel(r'$x$', fontsize=FTSZ+2)
-    axis.set_ylabel(r'$z$', fontsize=FTSZ+2)
-    if harm > 0.6:
-        fig.set_figwidth(9)
-        axis.set_aspect('equal')
-    else:
-        fig.set_size_inches(9, 2)
-    cbar = plt.colorbar(surf, shrink=0.3, aspect=10)
-    cbar.set_label(r'$\theta$')
+    # Plot 1: temperature anomaly
     filename = '_'.join((name, 'mode_theta_eps-' + np.str(eps) + '_ord-' + np.str(nord) + '.pdf'))
-    plt.savefig(filename, bbox_inches='tight', format='PDF')
-    plt.close(fig)
+    image_mode(xgr, zgr, t2d, u2d, w2d, harm, filename)
 
-    # prepare plot. 2 total temperature
-    fig = plt.figure(dpi=dpi)
-    axis = fig.add_subplot(111)
-    # plot temperature
-    surf = plt.pcolormesh(xgr, zgr, tcond + t2d, cmap='RdBu_r', linewidth=0,)
-    plt.axis([xgr.min(), xgr.max(), zgr.min(), zgr.max()])
-    # stream function
-    speed = np.sqrt(u2d**2+w2d**2)
-    lw = speed / speed.max()
-    plt.streamplot(xgr, zgr, u2d, w2d, linewidth=lw, density=0.7)
-    # labels etc.
-    axis.tick_params(axis='both', which='major', labelsize=FTSZ)
-    axis.set_xlabel(r'$x$', fontsize=FTSZ+2)
-    axis.set_ylabel(r'$z$', fontsize=FTSZ+2)
-    if harm > 0.6:
-        fig.set_figwidth(9)
-        axis.set_aspect('equal')
-    else:
-        fig.set_size_inches(9, 2)
-    cbar = plt.colorbar(surf, shrink=0.3, aspect=10)
-    cbar.set_label(r'$T$')
+    # Plot 2: total temperature
+    t2d += tcond
     filename = '_'.join((name, 'mode_T_eps-' + np.str(eps) + '_ord-' + np.str(nord) + '.pdf'))
-    plt.savefig(filename, bbox_inches='tight', format='PDF')
-    plt.close(fig)
+    image_mode(xgr, zgr, t2d, u2d, w2d, harm, filename)
 
     return
 
 def w11(rad, phi):
     """11 mode for the vertical velocity at low phi for both bc"""
-    ww = 0.5 * (1 - 9 /64 * rad ** 2 * phi)
-    ww += 9 * rad ** 2 * (23 * rad ** 2 - 22) / 16384 * phi ** 2
-    return ww
+    ww0 = 0.5 * np.ones(rad.shape)
+    # ww1 = - 9 /128 * rad ** 2 * phi
+    ww1 = - 3 / 40 * rad ** 2 * phi
+    # ww2 = 9 * rad ** 2 * (23 * rad ** 2 - 22) / 16384 * phi ** 2
+    ww2 = rad ** 2 * (-1.365 + 1.47 * rad ** 2 - 0.56 * rad ** 4) / 112 * phi ** 2
+    return ww0, ww1, ww2
 
 def u11(rad, phi):
     """11 mode for the horizontal velocity at low phi for both bc"""
-    uu = - np.sqrt(phi * 2) * rad * 3 / 16
-    uu += 3 * rad * (23 * rad ** 2 - 11) / (512 * np.sqrt(2)) * phi ** 1.5 
-    return uu
+    uu = - np.sqrt(3 * phi * 10) * rad / 2
+    uu2 = - rad * (16 * rad ** 4 - 28 * rad ** 2 + 13) / 160 * np.sqrt(3 / 10) * phi ** 1.5 
+    # uu = - np.sqrt(phi * 2) * rad * 3 / 16
+    # uu2 = 3 * rad * (23 * rad ** 2 - 11) / (512 * np.sqrt(2)) * phi ** 1.5 
+    return uu, uu2
 
 def t11(rad, phi):
     """11 mode for the temperature at low phi for both bc"""
-    tt = (1 - 4 * rad ** 2) * (1 / 16 - 9 / 4096 * phi)
-    tt += 3 * (1 - 216 * rad ** 2 + 848 * rad ** 4) / 2097152 * phi ** 2
-    return tt
+    tt = (1 - 4 * rad ** 2) / 16
+    tt2 = - 3 / 1280 * phi * (1 - 4 * rad ** 2)
+    tt3 = (0.233 - 4.108 * rad ** 2 + 1.488 * rad ** 4 - 0.320 * rad ** 6) / 14336 * phi ** 2 * (1 - 4 * rad ** 2)
+    # tt2 = - 9 / 4096 * phi * (1 - 4 * rad ** 2)
+    # tt3 = 3 * (1 - 216 * rad ** 2 + 848 * rad ** 4) / 2097152 * phi ** 2
+    return tt, tt2, tt3
 
 def t20(rad, phi):
-    """ mode for the temperature at low phi for both bc"""
-    tt = (1- 4 * rad ** 2) * rad / 48
-    # tt += 3 * (1 - 216 * rad ** 2 + 848 * rad ** 4) / 2097152 * phi ** 2
-    return tt
+    """20 mode for the temperature at low phi for both bc"""
+    # zeroth order in phi
+    tt = (1- 4 * rad ** 2) * rad / 96
+    # order 1 in phi
+    tt1 = (-57 * rad /163840 +3 * rad ** 3 / 4096 + 27 * rad ** 5 / 10240 ) * phi
+    return tt, tt1
+
+def t22(rad, phi):
+    """22 mode for the temperature at low phi for both bc"""
+    # zeroth order in phi
+    tt = (1- 4 * rad ** 2) * rad / 96
+    # order 1 in phi
+    tt1 =  - (1- 4 * rad ** 2) * rad * ( 35 / 49152 * phi + 565 / 6291456 * phi ** 2)
+    return tt, tt1
+
+def w22(rad, phi):
+    """22 mode for the vertical velocity at low phi for both bc"""
+    # ww = phi * rad * (1 - 4 * rad ** 2) * 3 / 256
+    # ww = (np.sqrt(2 * phi) * harm + phi) * rad * 3 /256
+    # order 1
+    ww1 = phi * rad / 128
+    # order 2
+    ww2 = phi ** 2 * (- 1631 * rad / 524288 - 17 * rad ** 3 / 131072)
+    return ww1, ww2
+
+def u22(rad, phi):
+    """22 mode for the horizontal velocity at low phi for both bc"""
+    # order 1/2
+    uu1 = np.sqrt(phi / 2) / 96  * np.ones(rad.shape)#- harm * phi / 4096
+    # uu = np.sqrt(phi * 2) / 128 * (1 - 12 * rad ** 2)
+    # order 3/2
+    uu2 = - phi ** (3/2) / np.sqrt(2) * (1631 / 393216 + 17 * rad ** 2 / 32768 + rad ** 4 /64)
+    return uu1, uu2
 
 def plot_mode_profiles(analyzer, mode, harm, name=None, plot_theory=False):
     """Plot all mode profiles"""
@@ -175,6 +219,7 @@ def plot_mode_profiles(analyzer, mode, harm, name=None, plot_theory=False):
         fig, axe = plt.subplots(1, 3, sharey=True)
 
         pik2 = np.pi **2 + harm ** 2
+        
         axe[0].plot(np.real(w_mode), rad_cheb, 'o')
         axe[0].set_ylabel(r'$z$', fontsize=FTSZ)
         axe[0].set_xlabel(r'$W$', fontsize=FTSZ)
@@ -182,6 +227,7 @@ def plot_mode_profiles(analyzer, mode, harm, name=None, plot_theory=False):
         axe[1].set_xlabel(r'$U$', fontsize=FTSZ)
         axe[2].plot(np.real(t_mode), rad_cheb, 'o')
         axe[2].set_xlabel(r'$\Theta$', fontsize=FTSZ)
+
         if plot_theory:
             if (phitop is None or phitop >= 1e2) and (phibot is None or phibot >= 1e2):
                 if nord ==1 and nharm == 1:
@@ -195,19 +241,57 @@ def plot_mode_profiles(analyzer, mode, harm, name=None, plot_theory=False):
                                     / 16 / (pik2 ** 3 - (9 * np.pi ** 2 + harm ** 2) ** 3), rad_cheb)
                     axe[1].plot( - pik2 ** 2 * 3 / harm * np.pi * np.sin(3 * np.pi * rad_cheb)\
                                     / 16 / (pik2 ** 3 - (9 * np.pi ** 2 + harm ** 2) ** 3), rad_cheb)
-            if (phitop <= 10) and (phibot == phitop):
+                plt.savefig(name + '_n-' + np.str(nord) + '_l-' + np.str(nharm) + '.pdf', format='PDF')
+                plt.close(fig)
+            if (phitop is not None and phitop <= 10) and (phibot == phitop):
                 if nord ==1 and nharm == 1:
-                    # axe[0].plot(0.5 * (1 - 9 /64 * rad_cheb ** 2 * phitop), rad_cheb)
-                    axe[0].plot(w11(rad_cheb, phitop), rad_cheb)
-                    axe[1].plot(u11(rad_cheb, phitop), rad_cheb)
-                    axe[2].plot(t11(rad_cheb, phitop), rad_cheb)
+                    # leading order
+                    axe[0].plot(w11(rad_cheb, phitop)[0]+w11(rad_cheb, phitop)[1], rad_cheb)
+                    axe[1].plot(u11(rad_cheb, phitop)[0]+u11(rad_cheb, phitop)[1], rad_cheb)
+                    axe[2].plot(t11(rad_cheb, phitop)[0]+t11(rad_cheb, phitop)[1], rad_cheb)
+                    plt.savefig(name + '_n-' + np.str(nord) + '_l-' + np.str(nharm) + '.pdf', format='PDF')
+                    plt.close(fig)
+                    # next order : new figure
+                    fig, axe = plt.subplots(1, 3, sharey=True)
+                    # W
+                    axe[0].plot(np.real(w_mode) - w11(rad_cheb, phitop)[0], rad_cheb, 'o')
+                    axe[0].plot(w11(rad_cheb, phitop)[1], rad_cheb)
+                    # U
+                    axe[1].plot(np.imag(u_mode) - u11(rad_cheb, phitop)[0], rad_cheb, 'o')
+                    axe[1].plot(u11(rad_cheb, phitop)[1], rad_cheb)
+                    # T
+                    axe[2].plot(np.real(t_mode) - t11(rad_cheb, phitop)[0], rad_cheb, 'o')
+                    axe[2].plot(t11(rad_cheb, phitop)[1], rad_cheb)
+                    plt.savefig(name + 'ord1_n-' + np.str(nord) + '_l-' + np.str(nharm) + '.pdf', format='PDF', transparent=True)
+                    plt.close(fig)
+                    # next order : new figure
+                    fig, axe = plt.subplots(1, 3, sharey=True)
+                    # W
+                    axe[0].plot(np.real(w_mode) - w11(rad_cheb, phitop)[0] - w11(rad_cheb, phitop)[1], rad_cheb, 'o')
+                    axe[0].plot(w11(rad_cheb, phitop)[2], rad_cheb)
+                    # U
+                    # axe[1].plot(np.imag(u_mode) - u11(rad_cheb, phitop)[0], rad_cheb, 'o')
+                    # axe[1].plot(u11(rad_cheb, phitop)[1], rad_cheb)
+                    # T
+                    axe[2].plot(np.real(t_mode) - t11(rad_cheb, phitop)[0] - t11(rad_cheb, phitop)[1], rad_cheb, 'o')
+                    axe[2].plot(t11(rad_cheb, phitop)[2], rad_cheb)
+                    plt.savefig(name + 'ord2_n-' + np.str(nord) + '_l-' + np.str(nharm) + '.pdf', format='PDF', transparent=True)
+                    plt.close(fig)
                 if nord ==2 and nharm == 0:
                     axe[0].plot(np.zeros(rad_cheb.shape), rad_cheb)
                     axe[1].plot(np.zeros(rad_cheb.shape), rad_cheb)
-                    axe[2].plot(t20(rad_cheb, phitop), rad_cheb)
-
-        plt.savefig(name + '_n-' + np.str(nord) + '_l-' + np.str(nharm) + '.pdf', format='PDF')
-        plt.close(fig)
+                    axe[2].plot(t20(rad_cheb, phitop)[0], rad_cheb)
+                    plt.savefig(name + '_n-' + np.str(nord) + '_l-' + np.str(nharm) + '.pdf', format='PDF')
+                    plt.close(fig)
+                if nord ==2 and nharm == 2:
+                    axe[0].plot(w22(rad_cheb, phitop)[0], rad_cheb)
+                    axe[1].plot(u22(rad_cheb, phitop)[0], rad_cheb)
+                    axe[2].plot(t22(rad_cheb, phitop)[0], rad_cheb)
+                    plt.savefig(name + '_n-' + np.str(nord) + '_l-' + np.str(nharm) + '.pdf', format='PDF')
+                    plt.close(fig)
+                if nord == 3:
+                    plt.savefig(name + '_n-' + np.str(nord) + '_l-' + np.str(nharm) + '.pdf', format='PDF')
+                    plt.close(fig)
 
     return
 
