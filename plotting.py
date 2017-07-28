@@ -289,9 +289,13 @@ def plot_mode_profiles(analyzer, mode, harm, name=None, plot_theory=False):
                     axe[2].plot(t22(rad_cheb, phitop)[0], rad_cheb)
                     plt.savefig(name + '_n-' + np.str(nord) + '_l-' + np.str(nharm) + '.pdf', format='PDF')
                     plt.close(fig)
-                if nord == 3:
+                if nord >= 3:
                     plt.savefig(name + '_n-' + np.str(nord) + '_l-' + np.str(nharm) + '.pdf', format='PDF')
                     plt.close(fig)
+        else:
+            plt.savefig(name + '_n-' + np.str(nord) + '_l-' + np.str(nharm) + '.pdf', format='PDF')
+            plt.close(fig)
+
 
     return
 

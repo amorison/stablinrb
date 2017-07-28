@@ -40,7 +40,7 @@ NON_LINEAR = True
 ra_comp = None
 
 if NON_LINEAR:
-    ana = NonLinearAnalyzer(pblm, ncheb=20, nnonlin=2)
+    ana = NonLinearAnalyzer(pblm, ncheb=30, nnonlin=2)
     harm_c, ray, mode, moyt, qtop = ana.nonlinana()
     print('kc = ', harm_c, np.pi / np.sqrt(2))
     print('Rayleigh = ', ray)
@@ -50,17 +50,26 @@ if NON_LINEAR:
     coef_nu = ray[0] * qtop[2] / ray[2]
     print('coef qtop2 = ', coef_nu)
 
+    # epsmax determined to obtain a given Nu
     # maxnu = 1.1
     # ramax = (1 + (maxnu - 1) / coef_nu) * ray[0]
     # epsmax = np.sqrt((ramax - ray[0]) / ray[2])
     # print('ramax, epsmax = ', ramax, epsmax)
-    epsmax = 1
-    plotting.plot_mode_image(ana, mode, harm_c, eps=epsmax, plot_ords=True)
+    # epsmax determined to obtain a given Tmoy
+    # maxt = 1
+    coef_t = moyt[2] * ray[0] / ray[2]
+    print('coef_t = ', coef_t)
+    # ramax = (1 + (maxt - 0.5) / coef_t) * ray[0] 
+    # epsmax = np.sqrt((ramax - ray[0]) / ray[2])
+    # print('ramax, epsmax = ', ramax, epsmax)
+    # epsmax simply set
+    epsmax = 5.58
+    # plotting.plot_mode_image(ana, mode, harm_c, eps=epsmax, plot_ords=True)
 
-    plotting.plot_mode_profiles(ana, mode, harm_c, plot_theory=True)
+    # plotting.plot_mode_profiles(ana, mode, harm_c, plot_theory=False)
 
     nterms = qtop.shape[0]
-    eps = np.linspace(0, epsmax, num=30)
+    eps = np.linspace(0, epsmax, num=20)
     vdm = np.vander(eps, nterms, increasing=True)
     rayl = np.dot(vdm, ray)
     nuss = np.dot(vdm, qtop)
