@@ -222,20 +222,28 @@ def cartesian_matrices(self, wnk, ra_num, ra_comp=None):
 
 def spherical_matrices(self, l_harm, ra_num, ra_comp=None):
     """Build left and right matrices in spherical case"""
+    gamma = self.phys.gamma
     rad = self.rad
-    ncheb = self._ncheb
     dr1, dr2 = self.dr1, self.dr2
-    orad1 = 1 / rad
-    orad2 = 1 / rad**2
-    orad3 = 1 / rad**3
+
+    lam_r = (2 * gamma - 1) / (1 - gamma)
+    # r + lambda
+    ral = rad + lam_r
+    # 1 / (r + lambda)
+    orl1 = (1 - gamma) / ((1 - gamma) * rad + 2 * gamma - 1)
+    orl2 = orl1**2
+    orl3 = orl1**3
+
     rad = np.diag(rad)
-    orad1 = np.diag(orad1)
-    orad2 = np.diag(orad2)
-    orad3 = np.diag(orad3)
+    ral = np.diag(ral)
+    orl1 = np.diag(orl1)
+    orl2 = np.diag(orl2)
+    orl3 = np.diag(orl3)
+
+    ncheb = self._ncheb
     one = np.identity(ncheb + 1)  # identity
     lh2 = l_harm * (l_harm + 1)  # horizontal laplacian
-    lapl = dr2 + 2 * np.dot(orad1, dr1) - lh2 * orad2  # laplacian
-    gamma = self.phys.gamma
+    lapl = dr2 + 2 * np.dot(orl1, dr1) - lh2 * orl2  # laplacian
     phi_top = self.phys.phi_top
     phi_bot = self.phys.phi_bot
     freeslip_top = self.phys.freeslip_top
@@ -280,7 +288,7 @@ def spherical_matrices(self, l_harm, ra_num, ra_comp=None):
     if phi_top is not None:
         # free-slip at top
         lmat[ipg(ip0), pgall] = dr2[ip0, pall] + \
-            (lh2 - 2) * orad2[ip0, pall]
+            (lh2 - 2) * orl2[ip0, pall]
     else:
         # no radial velocity, Dirichlet condition but
         # need to keep boundary point to ensure free-slip
@@ -292,7 +300,7 @@ def spherical_matrices(self, l_harm, ra_num, ra_comp=None):
     if phi_bot is not None:
         # free-slip at bot
         lmat[ipg(ipn), pgall] = dr2[ipn, pall] + \
-            (lh2 - 2) * orad2[ipn, pall]
+            (lh2 - 2) * orl2[ipn, pall]
     else:
         lmat[ipg(ipn), pgall] = one[ipn, pall]
 
@@ -300,10 +308,10 @@ def spherical_matrices(self, l_harm, ra_num, ra_comp=None):
     # normal stress continuity at top
     if phi_top is not None:
         lmat[iqg(iq0), pgall] = lh2 * (self.phys.phi_top *
-            orad1[iq0, pall] - 2 * np.dot(eta_r, orad2)[iq0, pall] +
-            2 * np.dot(eta_r, np.dot(orad1, dr1))[iq0, pall])
+            orl1[iq0, pall] - 2 * np.dot(eta_r, orl2)[iq0, pall] +
+            2 * np.dot(eta_r, np.dot(orl1, dr1))[iq0, pall])
         lmat[iqg(iq0), qgall] = -eta_r[iq0, qall] - \
-            np.dot(eta_r, np.dot(rad, dr1))[iq0, qall]
+            np.dot(eta_r, np.dot(ral, dr1))[iq0, qall]
     elif freeslip_top:
         lmat[iqg(iq0), pgall] = dr2[iq0, pall]
     else:
@@ -321,16 +329,16 @@ def spherical_matrices(self, l_harm, ra_num, ra_comp=None):
     else:
         # laplacian(Q) - RaT/r = 0
         lmat[qgint, qgall] = lapl[qint, qall]
-    lmat[qgint, tgall] = - ra_num * orad1[qint, tall]
+    lmat[qgint, tgall] = - ra_num * orl1[qint, tall]
     if comp_terms:
-        lmat[qgint, cgall] = - ra_comp * orad1[qint, call]
+        lmat[qgint, cgall] = - ra_comp * orl1[qint, call]
     # normal stress continuity at bot
     if phi_bot is not None:
         lmat[iqg(iqn), pgall] = lh2 * (-self.phys.phi_bot *
-            orad1[iqn, pall] - 2 * np.dot(eta_r, orad2)[iqn, pall] +
-            2 * np.dot(eta_r, np.dot(orad1, dr1))[iqn, pall])
+            orl1[iqn, pall] - 2 * np.dot(eta_r, orl2)[iqn, pall] +
+            2 * np.dot(eta_r, np.dot(orl1, dr1))[iqn, pall])
         lmat[iqg(iqn), qgall] = -eta_r[iqn, qall] - \
-            np.dot(eta_r, np.dot(rad, dr1))[iqn, qall]
+            np.dot(eta_r, np.dot(ral, dr1))[iqn, qall]
     elif freeslip_bot:
         lmat[iqg(iqn), pgall] = dr2[iqn, pall]
     else:
@@ -354,7 +362,7 @@ def spherical_matrices(self, l_harm, ra_num, ra_comp=None):
     if self.phys.cooling_smo is not None:
         grad_ref_temp_top = grad_ref_temperature(np.diag(rad)[0])
         lmat[tgint, tgall] += w_smo * (
-            np.dot(rad, dr1) + grad_ref_temp_top * one)[tint, tall]
+            np.dot(rad - one, dr1) + grad_ref_temp_top * one)[tint, tall]
 
     # advection of reference profile
     # using u_r = l(l+1)/r P
@@ -364,16 +372,16 @@ def spherical_matrices(self, l_harm, ra_num, ra_comp=None):
         # reference is conductive profile
         grad_tcond = h_int / 3
         if heat_flux_bot is not None:
-            grad_tcond -= ((gamma / (1-gamma))**2 * heat_flux_bot +
-                           h_int * (gamma/(1-gamma))**3 / 3) * np.diag(orad3)
+            grad_tcond -= ((1 + lam_r)**2 * heat_flux_bot +
+                           h_int * (1 + lam_r)**3 / 3) * np.diag(orl3)
         elif heat_flux_top is not None:
-            grad_tcond -= (heat_flux_top / ((1-gamma)**2) +
-                           h_int / (3 * (1-gamma)**3)) * np.diag(orad3)
+            grad_tcond -= ((2 + lam_r)**2 * heat_flux_top +
+                           h_int * (2 + lam_r)**3 / 3) * np.diag(orl3)
         else:
-            grad_tcond += (h_int * (gamma**3 - gamma) / (6*(1-gamma)**4)
-                           + gamma / ((1-gamma)**2)) * np.diag(orad3)
+            grad_tcond -= ((h_int / 6 * (3 + 2 * lam_r) - 1) *
+                           (2 + lam_r) * (1 + lam_r)) * np.diag(orl3)
     else:
-        grad_tcond = np.dot(orad1, -grad_ref_temperature(np.diag(rad)))
+        grad_tcond = np.dot(orl1, -grad_ref_temperature(np.diag(rad)))
     lmat[tgint, pgall] = np.diag(lh2 * grad_tcond)[tint, pall]
 
     rmat[tgint, tgall] = one[tint, tall]
@@ -384,11 +392,11 @@ def spherical_matrices(self, l_harm, ra_num, ra_comp=None):
     # 1/Le lapl(C) - u.grad(C_reference) = sigma C
     if composition is not None:
         grad_comp = np.diag(np.dot(dr1, composition(np.diag(rad))))
-        lmat[cgint, pgall] = -lh2 * np.dot(orad1, grad_comp)[cint, pall]
+        lmat[cgint, pgall] = -lh2 * np.dot(orl1, grad_comp)[cint, pall]
     elif lewis is not None:
         raise ValueError('Finite Lewis not implemented in spherical')
     if self.phys.cooling_smo is not None:
-        lmat[cgint, cgall] = w_smo * np.dot(rad, dr1)[cint, call]
+        lmat[cgint, cgall] = w_smo * np.dot(rad - one, dr1)[cint, call]
     if comp_terms:
         rmat[cgint, cgall] = one[cint, call]
         if self.phys.cooling_smo is not None:
@@ -451,9 +459,9 @@ class Analyser:
         """Change analyzed physical problem"""
         # Chebyshev polynomials are -1 < z < 1
         if phys_obj.spherical:
-            # physical space is gamma/(1-gamma) < r < 1/(1-gamma)
+            # physical space is 1 < r < 2
             gamma = phys_obj.gamma
-            self.rad = (self._zcheb + (1 + gamma) / (1 - gamma)) / 2
+            self.rad = (self._zcheb + 3) / 2
         else:
             # physical space is -1/2 < z < 1/2
             self.rad = self._zcheb / 2
@@ -591,8 +599,10 @@ class Analyser:
             p_mode = self._insert_boundaries(p_mode, ip0, ipn)
             t_mode = self._insert_boundaries(t_mode, it0, itn)
 
-        ur_mode = l_harm * (l_harm + 1) * p_mode / self.rad
-        up_mode = 1j * l_harm * (np.dot(self.dr1, p_mode) + p_mode / self.rad)
+        gamma = self.phys.gamma
+        orl1 = (1 - gamma) / ((1 - gamma) * self.rad + 2 * gamma - 1)
+        ur_mode = l_harm * (l_harm + 1) * p_mode * orl1
+        up_mode = 1j * l_harm * (np.dot(self.dr1, p_mode) + p_mode * orl1)
 
         return (p_mode, up_mode, ur_mode, t_mode)
 

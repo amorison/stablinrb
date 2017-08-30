@@ -369,7 +369,7 @@ def plot_fastest_mode(analyzer, harm, ra_num, ra_comp=None,
     n_phi = 400  # could depends on wavelength
     cheb_space = np.linspace(-1, 1, n_rad)
     if spherical:
-        rad = np.linspace(gamma / (1-gamma), 1 / (1-gamma), n_rad)
+        rad = np.linspace(1, 2, n_rad)
         psi_interp = dm.chebint(psi_mode, cheb_space)
     else:
         rad = np.linspace(-1/2, 1/2, n_rad)
@@ -387,7 +387,7 @@ def plot_fastest_mode(analyzer, harm, ra_num, ra_comp=None,
     fig, axis = plt.subplots(1, 4, sharey=True)
     if spherical:
         plt.setp(axis, xlim=[-1.1, 1.1],
-                 ylim=[gamma / (1-gamma), 1 / (1-gamma)],
+                 ylim=[1, 2],
                  xticks=[-1, -0.5, 0., 0.5, 1])
     else:
         plt.setp(axis, xlim=[-1.1, 1.1], ylim=[-1/2, 1/2],
@@ -429,6 +429,7 @@ def plot_fastest_mode(analyzer, harm, ra_num, ra_comp=None,
         # mesh construction
         theta = np.pi/2
         phi = np.linspace(0, 2*np.pi, n_phi)
+        rad = np.linspace(gamma, 1, n_rad)
         rad_mesh, phi_mesh = np.meshgrid(rad, phi)
 
         # spherical harmonic
@@ -455,7 +456,7 @@ def plot_fastest_mode(analyzer, harm, ra_num, ra_comp=None,
         tick_formatter2 = DictFormatter(dict(radius_ticks))
 
         grid_helper = floating_axes.GridHelperCurveLinear(
-            tr, extremes=(2.*np.pi, 0, 1 / (1-gamma), gamma / (1-gamma)),
+            tr, extremes=(2.*np.pi, 0, gamma, 1),
             grid_locator1=grid_locator1, tick_formatter1=tick_formatter1,
             grid_locator2=grid_locator2, tick_formatter2=tick_formatter2)
 

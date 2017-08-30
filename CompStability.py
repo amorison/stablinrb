@@ -73,6 +73,8 @@ eta_vals = np.array(range(16, 18))
 h_crystal_vals = np.logspace(np.log10(5) + 3, np.log10(h_crystal_max), 50)
 phi_vals = [(None, None), (None, 1e-2), (1e-2, 1e-2)]
 
+# dimensional radius from non-dimensional one
+radim = lambda r, h: (r - 1) * h + r_int
 # non-dimensional variables
 gamma = lambda h: r_int / r_ext(h)
 rayleigh = lambda h, eta: \
@@ -99,9 +101,9 @@ def update_ana_thickness(ana, h_crystal):
     """Update analyzer with new thickness"""
     ana.phys.gamma = gamma(h_crystal)
     ana.phys.composition = np.vectorize(
-        lambda r: composition(r * h_crystal))
+        lambda r: composition(radim(r, h_crystal)))
     ana.phys.grad_ref_temperature = np.vectorize(
-        lambda r: grad_temp(r * h_crystal) *
+        lambda r: grad_temp(radim(r, h_crystal)) *
             h_crystal / delta_temp(h_crystal))
 
 def cooling_time():
@@ -195,11 +197,17 @@ def plot_destab(ana, crystallized, time):
     plt.savefig('DestabilizationTimeCryst.pdf', format='PDF')
 
 
-def _time_diff(h_cryst, eta, ana, crystallized, time):
-    """Compute time difference between destab and cooling time"""
+def _sigma(h_cryst, eta, ana):
+    """Return dimensionless growth rate"""
     update_ana_thickness(ana, h_cryst)
     sigma, _ = ana.fastest_mode(rayleigh(h_cryst, 10**eta),
                                 ra_comp(h_cryst, 10**eta))
+    return sigma
+
+
+def _time_diff(h_cryst, eta, ana, crystallized, time):
+    """Compute time difference between destab and cooling time"""
+    sigma = _sigma(h_cryst, eta, ana)
     destab = np.real(tau(sigma))
     cooling = np.interp(h_cryst, crystallized, time)
     return cooling - destab
@@ -216,8 +224,15 @@ def plot_min_time(ana, crystallized, time, eps=1e-3):
         tau_vals = []
         for eta in eta_logs:
             h_min = 20e3
+            while _sigma(h_min, eta, ana) < 0:
+                h_min *= 4
             while _time_diff(h_min, eta, ana, crystallized, time) > 0:
                 h_min /= 2
+                if _sigma(h_min, eta, ana) < 0:
+                    # could be finer
+                    raise ValueError(
+                        'Destab=cooling time has no solution {} {}'
+                        .format(phi_str, eta))
             h_max = h_min * 2
             while _time_diff(h_max, eta, ana, crystallized, time) < 0:
                 h_max *= 2
@@ -271,17 +286,17 @@ if __name__ == '__main__':
     w_smo = ((crystallized[1:] - crystallized[:-1]) / (time[1:] - time[:-1]) *
              crystallized[1:] / kappa)
     gamt_f = lambda g: np.interp(g, gam_smo, gamt_smo)
-    #w_f = lambda g: np.interp(g, gam_smo, w_smo)
-    w_f = lambda _: 0
+    w_f = lambda g: np.interp(g, gam_smo, w_smo)
+    #w_f = lambda _: 0
     ana = LinearAnalyzer(
         PhysicalProblem(cooling_smo=(gamt_f, w_f)),
         ncheb=15)
 
-    plt.figure()
-    plt.semilogy(gamt_smo, label='$\Gamma^2$')
-    #plt.plot(w_smo, label='$W$')
-    plt.legend()
-    plt.savefig('test.pdf')
+    #plt.figure()
+    #plt.semilogy(gamt_smo, label='$\Gamma^2$')
+    ##plt.plot(w_smo, label='$W$')
+    #plt.legend()
+    #plt.savefig('test.pdf')
 
-    #plot_min_time(ana, crystallized, time)
+    plot_min_time(ana, crystallized, time)
     plot_destab(ana, crystallized, time)
