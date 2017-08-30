@@ -144,28 +144,39 @@ def plot_mode_image(analyzer, mode, harm, eps=1, name=None, plot_ords=False):
 def w11(rad, phi):
     """11 mode for the vertical velocity at low phi for both bc"""
     ww0 = 0.5 * np.ones(rad.shape)
-    # ww1 = - 9 /128 * rad ** 2 * phi
-    ww1 = - 3 / 40 * rad ** 2 * phi
-    # ww2 = 9 * rad ** 2 * (23 * rad ** 2 - 22) / 16384 * phi ** 2
-    ww2 = rad ** 2 * (-1.365 + 1.47 * rad ** 2 - 0.56 * rad ** 4) / 112 * phi ** 2
-    return ww0, ww1, ww2
+    ww1 = - 9 /128 * rad ** 2 * phi
+    # ww1 = - 3 / 40 * rad ** 2 * phi
+    ww2 = 9 * rad ** 2 * (2.3 * rad ** 2 - 2.2) / 1.6384e3 * phi ** 2
+    # ww2 = rad ** 2 * (-1.365 + 1.47 * rad ** 2 - 0.56 * rad ** 4) / 112 * phi ** 2
+    ww3 = - 0.5 * 2.7 * rad ** 2 * (2.20 * rad ** 2 - 3.09) / 2.097152e3 * phi ** 3
+    ww4 = 135* rad ** 2 * (-4.293 + 2.084 * rad ** 2) / 4.294967296e6 * phi ** 4
+    return ww0, ww1, ww2, ww3, ww4
 
 def u11(rad, phi):
     """11 mode for the horizontal velocity at low phi for both bc"""
-    uu = - np.sqrt(3 * phi * 10) * rad / 2
-    uu2 = - rad * (16 * rad ** 4 - 28 * rad ** 2 + 13) / 160 * np.sqrt(3 / 10) * phi ** 1.5 
-    # uu = - np.sqrt(phi * 2) * rad * 3 / 16
-    # uu2 = 3 * rad * (23 * rad ** 2 - 11) / (512 * np.sqrt(2)) * phi ** 1.5 
-    return uu, uu2
+    # uu = - np.sqrt(3 * phi * 10) * rad / 2
+    # uu2 = - rad * (16 * rad ** 4 - 28 * rad ** 2 + 13) / 160 * np.sqrt(3 / 10) * phi ** 1.5 
+    uu1 = - 3 / 8 * rad * np.sqrt(phi / 2)
+    uu2 = 3 * rad * (23 * rad ** 2 - 11) / (512 * np.sqrt(2)) * phi ** 1.5
+    uu3 = 3 * (4.4 * rad ** 2 - 3.09) * rad / (2.62144e3 * np.sqrt(2)) * phi ** 2.5
+    return uu1, uu2, uu3
+
+def p11(rad, phi):
+    """11 mode for the pressure at low phi for both bc"""
+    pp1 = (39 / 32 - 2 * rad ** 2) * rad * phi
+    pp2 = 9 * rad * (35 * rad ** 2 - 22) / 2048 * phi ** 2
+    pp3 = - 9 * rad * (1.772 * rad ** 2 - 0.751) /4.194304e3 * phi ** 3
+    return pp1, pp2, pp3
 
 def t11(rad, phi):
     """11 mode for the temperature at low phi for both bc"""
-    tt = (1 - 4 * rad ** 2) / 16
-    tt2 = - 3 / 1280 * phi * (1 - 4 * rad ** 2)
-    tt3 = (0.233 - 4.108 * rad ** 2 + 1.488 * rad ** 4 - 0.320 * rad ** 6) / 14336 * phi ** 2 * (1 - 4 * rad ** 2)
-    # tt2 = - 9 / 4096 * phi * (1 - 4 * rad ** 2)
-    # tt3 = 3 * (1 - 216 * rad ** 2 + 848 * rad ** 4) / 2097152 * phi ** 2
-    return tt, tt2, tt3
+    tt0 = (1 - 4 * rad ** 2) / 16
+    # tt2 = - 3 / 1280 * phi * (1 - 4 * rad ** 2)
+    # tt3 = (0.233 - 4.108 * rad ** 2 + 1.488 * rad ** 4 - 0.320 * rad ** 6) / 14336 * phi ** 2 * (1 - 4 * rad ** 2)
+    tt1 = - 9 / 4096 * phi * (1 - 4 * rad ** 2)
+    tt2 = 3 * (1 - 4 * rad ** 2) * (212 * rad ** 2 - 1) / 2.097152e6 * phi ** 2
+    tt3 = 27 *  (1 - 4 * rad ** 2) * (4.3 * rad ** 2 + 1.07) / 2.68435456e6  * phi ** 3
+    return tt0, tt1, tt2, tt3
 
 def t20(rad, phi):
     """20 mode for the temperature at low phi for both bc"""
@@ -174,6 +185,14 @@ def t20(rad, phi):
     # order 1 in phi
     tt1 = (-57 * rad /163840 +3 * rad ** 3 / 4096 + 27 * rad ** 5 / 10240 ) * phi
     return tt, tt1
+
+def p20(rad, phi):
+    """20 mode for the pressure at low phi for both bc"""
+    # order 1 in phi
+    pp1 = - 0.25 * (1 / 16 - 0.5 * rad ** 2 + rad ** 4) * phi
+    # order 1 in phi
+    # tt1 = (-57 * rad /163840 +3 * rad ** 3 / 4096 + 27 * rad ** 5 / 10240 ) * phi
+    return pp1
 
 def t22(rad, phi):
     """22 mode for the temperature at low phi for both bc"""
@@ -216,7 +235,7 @@ def plot_mode_profiles(analyzer, mode, harm, name=None, plot_theory=False):
         nord, nharm = analyzer.indexmat(nmodes, ind=i)[1: 3]
         (p_mode, u_mode, w_mode, t_mode) = analyzer.split_mode(mode[i, :], harm, apply_bc=True)
 
-        fig, axe = plt.subplots(1, 3, sharey=True)
+        fig, axe = plt.subplots(1, 4, sharey=True)
 
         pik2 = np.pi **2 + harm ** 2
         
@@ -227,6 +246,11 @@ def plot_mode_profiles(analyzer, mode, harm, name=None, plot_theory=False):
         axe[1].set_xlabel(r'$U$', fontsize=FTSZ)
         axe[2].plot(np.real(t_mode), rad_cheb, 'o')
         axe[2].set_xlabel(r'$\Theta$', fontsize=FTSZ)
+        axe[3].plot(np.real(p_mode), rad_cheb, 'o')
+        if nord == 2 and nharm == 0:
+            print('p_mode = ', np.real(p_mode))
+            print('p20 theorique =', p20(rad_cheb, phitop))
+        axe[3].set_xlabel(r'$P$', fontsize=FTSZ)
 
         if plot_theory:
             if (phitop is None or phitop >= 1e2) and (phibot is None or phibot >= 1e2):
@@ -249,38 +273,57 @@ def plot_mode_profiles(analyzer, mode, harm, name=None, plot_theory=False):
                     axe[0].plot(w11(rad_cheb, phitop)[0]+w11(rad_cheb, phitop)[1], rad_cheb)
                     axe[1].plot(u11(rad_cheb, phitop)[0]+u11(rad_cheb, phitop)[1], rad_cheb)
                     axe[2].plot(t11(rad_cheb, phitop)[0]+t11(rad_cheb, phitop)[1], rad_cheb)
+                    axe[3].plot(p11(rad_cheb, phitop)[0]+p11(rad_cheb, phitop)[1], rad_cheb)
                     plt.savefig(name + '_n-' + np.str(nord) + '_l-' + np.str(nharm) + '.pdf', format='PDF')
                     plt.close(fig)
                     # next order : new figure
-                    fig, axe = plt.subplots(1, 3, sharey=True)
+                    fig, axe = plt.subplots(1, 4, sharey=True)
                     # W
                     axe[0].plot(np.real(w_mode) - w11(rad_cheb, phitop)[0], rad_cheb, 'o')
                     axe[0].plot(w11(rad_cheb, phitop)[1], rad_cheb)
+                    axe[0].set_ylabel(r'$z$', fontsize=FTSZ)
+                    axe[0].set_xlabel(r'$W$', fontsize=FTSZ)
                     # U
                     axe[1].plot(np.imag(u_mode) - u11(rad_cheb, phitop)[0], rad_cheb, 'o')
                     axe[1].plot(u11(rad_cheb, phitop)[1], rad_cheb)
+                    axe[1].set_xlabel(r'$U$', fontsize=FTSZ)
                     # T
                     axe[2].plot(np.real(t_mode) - t11(rad_cheb, phitop)[0], rad_cheb, 'o')
                     axe[2].plot(t11(rad_cheb, phitop)[1], rad_cheb)
+                    axe[2].set_xlabel(r'$\Theta$', fontsize=FTSZ)
+                    # P
+                    axe[3].plot(np.real(p_mode) - p11(rad_cheb, phitop)[0], rad_cheb, 'o')
+                    axe[3].plot(p11(rad_cheb, phitop)[1], rad_cheb)
+                    # save
                     plt.savefig(name + 'ord1_n-' + np.str(nord) + '_l-' + np.str(nharm) + '.pdf', format='PDF', transparent=True)
                     plt.close(fig)
                     # next order : new figure
-                    fig, axe = plt.subplots(1, 3, sharey=True)
+                    fig, axe = plt.subplots(1, 4, sharey=True)
                     # W
                     axe[0].plot(np.real(w_mode) - w11(rad_cheb, phitop)[0] - w11(rad_cheb, phitop)[1], rad_cheb, 'o')
                     axe[0].plot(w11(rad_cheb, phitop)[2], rad_cheb)
+                    axe[0].set_ylabel(r'$z$', fontsize=FTSZ)
+                    axe[0].set_xlabel(r'$W$', fontsize=FTSZ)
                     # U
-                    # axe[1].plot(np.imag(u_mode) - u11(rad_cheb, phitop)[0], rad_cheb, 'o')
-                    # axe[1].plot(u11(rad_cheb, phitop)[1], rad_cheb)
+                    axe[1].plot(np.imag(u_mode) - u11(rad_cheb, phitop)[0] - u11(rad_cheb, phitop)[1], rad_cheb, 'o')
+                    axe[1].plot(u11(rad_cheb, phitop)[2], rad_cheb)
+                    axe[1].set_xlabel(r'$U$', fontsize=FTSZ)
                     # T
                     axe[2].plot(np.real(t_mode) - t11(rad_cheb, phitop)[0] - t11(rad_cheb, phitop)[1], rad_cheb, 'o')
                     axe[2].plot(t11(rad_cheb, phitop)[2], rad_cheb)
+                    axe[2].set_xlabel(r'$\Theta$', fontsize=FTSZ)
+                    # P
+                    axe[3].plot(np.real(p_mode) - p11(rad_cheb, phitop)[0] - p11(rad_cheb, phitop)[1], rad_cheb, 'o')
+                    axe[3].plot(p11(rad_cheb, phitop)[2], rad_cheb)
+                    axe[3].set_xlabel(r'$P$', fontsize=FTSZ)
+                    # save
                     plt.savefig(name + 'ord2_n-' + np.str(nord) + '_l-' + np.str(nharm) + '.pdf', format='PDF', transparent=True)
                     plt.close(fig)
                 if nord ==2 and nharm == 0:
                     axe[0].plot(np.zeros(rad_cheb.shape), rad_cheb)
                     axe[1].plot(np.zeros(rad_cheb.shape), rad_cheb)
                     axe[2].plot(t20(rad_cheb, phitop)[0], rad_cheb)
+                    axe[3].plot(p20(rad_cheb, phitop), rad_cheb)
                     plt.savefig(name + '_n-' + np.str(nord) + '_l-' + np.str(nharm) + '.pdf', format='PDF')
                     plt.close(fig)
                 if nord ==2 and nharm == 2:

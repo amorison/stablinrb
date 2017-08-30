@@ -240,11 +240,11 @@ if EXPLORE_PHASE:
             # Theoretical for low phi development
             ra_theo = 24 * phinum2 - 81 * phinum2 ** 2 / 256
             ra_theo2 = 24 * phinum2 - 9 * phinum2 ** 2 / 25
-            ra_theo2 += - 6.3591 / 112 * phinum2 ** 3 + 4.550887 / 448  * phinum ** 4
+            # ra_theo2 += - 6.3591 / 112 * phinum2 ** 3 + 4.550887 / 448  * phinum2 ** 4
             # rat2 = ra_theo[np.log10(np.abs(ra_theo-ram))<1]
             # phi2 = phinum[np.log10(np.abs(ra_theo-ram))<1]
             axe[0].loglog(phinum2, ra_theo, '-', c='k')
-            axe[0].loglog(phinum2, ra_theo, '-', c='r')
+            axe[0].loglog(phinum2, ra_theo2, '-', c='r')
                             # label=r'Small $\Phi$ prediction')
             # classical RB case
             axe[0].loglog([phinum[0], phinum[-1]], [rac, rac], '-.', c='k')
@@ -303,7 +303,7 @@ if EXPLORE_PHASE:
                             label=r'$81\Phi^2/256$')
             axe[3].loglog(phinum, 9 * phinum ** 2 / 25,  linestyle='--', c='r',
                             label=r'$9\Phi^2/25$')
-            axe[3].loglog(phinum, 24*phinum-ram, 'o', markersize=MSIZE, markeredgewidth=0.0)#, linestyle='-')
+            axe[3].loglog(phinum, 24*phinum - ram, 'o', markersize=MSIZE, markeredgewidth=0.0)#, linestyle='-')
             axe[3].set_ylabel(r'$24\Phi-Ra$', fontsize=FTSZ)
             axe[3].legend(loc='upper left', fontsize=FTSZ, frameon=False)
             axe[3].set_xlabel(r'$\Phi$', fontsize=FTSZ)
@@ -312,6 +312,13 @@ if EXPLORE_PHASE:
             # axe[3].set_ylim([1.e-6, 1.e2])
             plt.savefig('Phi_ModeMax.pdf', format='PDF')
             plt.close(fig)
+            phi1 = phinum[np.where(phinum <= 1)]
+            ra1 = ram[np.where(phinum <= 1)]
+            print('1 ', 24 * phi1 - ra1)
+            print('2', 81 * phi1 ** 2 / 256)
+            diff1 = (np.log10(24 * phi1 - ra1) - np.log10(81 * phi1 ** 2 / 256)) ** 2
+            chi2ra1 = np.sum(diff1)
+            print('chi2ra1 = ', chi2ra1)
 
         PHASEBOTONLY = True
         if PHASEBOTONLY:

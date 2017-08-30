@@ -11,10 +11,11 @@ from misc import build_slices, normalize_modes
 def cartesian_matrices_0(self, ra_num):
     """LHS matrix for x-independent forcing
 
-    When the RHS is independent of x, the also solution is,
+    When the RHS is independent of x, the solution also is,
     and the velocity is uniform and only vertical, possibly null.
     Only the pressure, temperature and uniform vertical velocity
-    are solved"""
+    are solved for
+    """
     ncheb = self._ncheb
     dz1, dz2 = self.dr1, self.dr2
     one = np.identity(ncheb + 1)  # identity
@@ -69,13 +70,18 @@ def cartesian_matrices_0(self, ra_num):
         # Vertical velocity in momentum boundary conditions
         lmat[0, 0] = -1
         lmat[0, igw] = phi_top
-        lmat[ipn, 0] = 1
-        lmat[0, igw] = phi_bot
+        lmat[ipn, ipn] = 1
+        lmat[ipn, igw] = phi_bot
         # equation for the uniform vertical velocity
         lmat[igw, igw] = phi_top + phi_bot
         lmat[igw, 0] = 1
         lmat[igw, ipn] = -1
 
+    # print('ra = ', ra_num)
+    # print('dz1 =', dz1)
+    # print('dz2 =', dz2)
+    print('lmat = ', matlab.double(lmat.tolist()))
+        
     return lmat, pgint, tgint, pgall, tgall, igw
 
 def cartesian_matrices(self, wnk, ra_num, ra_comp=None):
@@ -996,7 +1002,9 @@ class NonLinearAnalyzer(Analyser):
         else:
             dprod = 0
         # Complex conjugate needed to get the full dot product. CHECK!
-        return dprod + np.conj(dprod)
+        # no because otherwise we loose the phase, needed to remove the contribution
+        # from mode 1 in other modes
+        return dprod #+ np.conj(dprod)
 
     def ntermprod(self, mle, mri, harm):
         """One non-linear term on the RHS
@@ -1228,24 +1236,30 @@ class NonLinearAnalyzer(Analyser):
                 ind = self.indexmat(ii, harmm=harmjj)[3]
                 if harmjj == 0 : # special treatment for 0 modes.
                     # should be possible to avoid the use of a rhs0
-                    rhs0 = np.zeros(lmat0.shape[1]) * (1 + 1j)
+                    rhs0 = np.zeros(lmat0.shape[1]) #* (1 + 1j)
                     rhs0[tgall0] = self.rhs[ind, tgall]
                     # eigva = linalg.eigvals(lmat0)
                     # print('eig lmat0 =', np.sort(np.real(eigva)))
+                    print('rhs0 = ', rhs0)
+                    print('-z/4 = ', - self.rad[tall] / 4)
+                    
                     sol = solve(lmat0, rhs0)
+                    print('sol0 = ', sol)
                     self.full_sol[ind, pgint] = sol[pgint0]
+                    print('p20 = ', sol[pgint0])
                     self.full_sol[ind, tgint] = sol[tgint0]
+                    print('t20 = ', sol[tgint0])                    
                     # compute coefficient ii in meant
                     # factor to account for the complex conjugate
                     prot = self._insert_boundaries(2 * np.real(sol[tgint0]), it0, itn)
                     meant[ii] = self.integz(prot)
                     dprot = np.dot(self.dr1, prot)
                     qtop[ii] = - dprot[0]
-                    if phi_top is not None and phi_bot is not None:
+                    # if phi_top is not None and phi_bot is not None:
                         # translation velocity possible
-                        self.full_w0[ind] = np.real(sol[igw0])
-                    else:
-                        self.full_w0[ind] = 0
+                        # self.full_w0[ind] = np.real(sol[igw0])
+                    # else:
+                    self.full_w0[ind] = 0
                 else:
                     # Only the positive power of exp(1j k x)
                     # eigva = linalg.eigvals(lmat[harmjj - 1], rmat)

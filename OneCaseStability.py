@@ -29,7 +29,7 @@ PHI = 1e-2
 
 pblm = PhysicalProblem(
     gamma=None,
-    phi_top=None,
+    phi_top=PHI,
     phi_bot=PHI,
     freeslip_top=True,
     freeslip_bot=True,
@@ -40,7 +40,7 @@ NON_LINEAR = True
 ra_comp = None
 
 if NON_LINEAR:
-    ana = NonLinearAnalyzer(pblm, ncheb=30, nnonlin=2)
+    ana = NonLinearAnalyzer(pblm, ncheb=10, nnonlin=2)
     harm_c, ray, mode, moyt, qtop = ana.nonlinana()
     print('kc = ', harm_c, np.pi / np.sqrt(2))
     print('Rayleigh = ', ray)
@@ -57,31 +57,31 @@ if NON_LINEAR:
     # print('ramax, epsmax = ', ramax, epsmax)
     # epsmax determined to obtain a given Tmoy
     # maxt = 1
-    coef_t = moyt[2] * ray[0] / ray[2]
-    print('coef_t = ', coef_t)
-    ramax = (1 + (maxt - 0.5) / coef_t) * ray[0] 
-    epsmax = np.sqrt((ramax - ray[0]) / ray[2])
-    print('ramax, epsmax = ', ramax, epsmax)
+    # coef_t = moyt[2] * ray[0] / ray[2]
+    # print('coef_t = ', coef_t)
+    # ramax = (1 + (maxt - 0.5) / coef_t) * ray[0] 
+    # epsmax = np.sqrt((ramax - ray[0]) / ray[2])
+    # print('ramax, epsmax = ', ramax, epsmax)
     # epsmax simply set
-    # epsmax = 5.58
-    plotting.plot_mode_image(ana, mode, harm_c, eps=epsmax, plot_ords=True)
+    epsmax = .5
+    # plotting.plot_mode_image(ana, mode, harm_c, eps=epsmax, plot_ords=True)
 
-    plotting.plot_mode_profiles(ana, mode, harm_c, plot_theory=False)
+    plotting.plot_mode_profiles(ana, mode, harm_c, plot_theory=True)
 
-    nterms = qtop.shape[0]
-    eps = np.linspace(0, epsmax, num=20)
-    vdm = np.vander(eps, nterms, increasing=True)
-    rayl = np.dot(vdm, ray)
-    nuss = np.dot(vdm, qtop)
-    meant = np.dot(vdm, moyt)
-    fig, axe = plt.subplots(2, 1, sharex=True)
-    axe[0].plot(rayl, nuss)
-    axe[0].set_ylabel('Nusselt number', fontsize=FTSZ)
-    axe[0].set_xlabel('Rayleigh number', fontsize=FTSZ)
-    axe[1].plot(rayl, meant)
-    axe[1].set_xlabel('Rayleigh number', fontsize=FTSZ)
-    axe[1].set_ylabel('Mean T', fontsize=FTSZ)
-    plt.savefig('Ra-Nu-Tmean.pdf', format='PDF')
+    # nterms = qtop.shape[0]
+    # eps = np.linspace(0, epsmax, num=20)
+    # vdm = np.vander(eps, nterms, increasing=True)
+    # rayl = np.dot(vdm, ray)
+    # nuss = np.dot(vdm, qtop)
+    # meant = np.dot(vdm, moyt)
+    # fig, axe = plt.subplots(2, 1, sharex=True)
+    # axe[0].plot(rayl, nuss)
+    # axe[0].set_ylabel('Nusselt number', fontsize=FTSZ)
+    # axe[0].set_xlabel('Rayleigh number', fontsize=FTSZ)
+    # axe[1].plot(rayl, meant)
+    # axe[1].set_xlabel('Rayleigh number', fontsize=FTSZ)
+    # axe[1].set_ylabel('Mean T', fontsize=FTSZ)
+    # plt.savefig('Ra-Nu-Tmean.pdf', format='PDF')
 else:
     ana = LinearAnalyzer(pblm, ncheb=20)
     ra_c, harm_c = ana.critical_ra(ra_comp=ra_comp)

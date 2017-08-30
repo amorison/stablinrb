@@ -38,11 +38,11 @@ FTSZ = 12
 MSIZE = 3
 
 # Controls
-PLOT_NURA = False
-PLOT_COEF_NU = False
-PLOT_COEFT = False
-PLOT_BOTTOP = False
-PLOT_BOT_ONLY = False
+PLOT_NURA = True
+PLOT_COEF_NU = True
+PLOT_COEFT = True
+PLOT_BOTTOP = True
+PLOT_BOT_ONLY = True
 PLOT_TEMP = True
 COMPUTE = False
 
