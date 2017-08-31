@@ -6,6 +6,7 @@ import numpy as np
 import scipy.integrate as integ
 import scipy.optimize as opt
 import matplotlib.pyplot as plt
+from misc import savefig
 from analyzer import LinearAnalyzer
 from physics import PhysicalProblem
 
@@ -196,10 +197,8 @@ def plot_destab(ana, crystallized, time):
              'closed', r'$\Phi^+=10^{-2}$', r'$\Phi^+=\Phi^-=10^{-2}$'],
             loc='upper right', fontsize=FTSZ)
         axis.tick_params(labelsize=FTSZ)
-    figt.savefig('DestabilizationTimeCryst.pdf',
-                 format='PDF', bbox_inches='tight')
-    figl.savefig('DestabilizationTimeCryst_l.pdf',
-                 format='PDF', bbox_inches='tight')
+    savefig(figt, 'DestabilizationTimeCryst.pdf')
+    savefig(figl, 'DestabilizationTimeCryst_l.pdf')
 
 
 def _sigma(h_cryst, eta, ana):
@@ -262,7 +261,7 @@ def plot_min_time(ana, crystallized, time, eps=1e-3):
     axh.set_yscale('log')
     axh.set_ylim(hmin * 1e-3, hmax * 1e-3)
     axh.set_ylabel(r'Crystallized thickness (km)')
-    fig.savefig('CoolingDestab.pdf', format='PDF', bbox_inches='tight')
+    savefig(fig, 'CoolingDestab.pdf')
 
 
 def plot_cooling_time(crystallized, time):
@@ -279,7 +278,7 @@ def plot_cooling_time(crystallized, time):
               linestyle='--', lw=0.5, color='k')
     axis.set_xlabel('Crystallized thickness (km)')
     axis.set_ylabel('Time (kyr)')
-    fig.savefig('CoolingTime.pdf', format='PDF', bbox_inches='tight')
+    savefig(fig, 'CoolingTime.pdf')
 
 
 if __name__ == '__main__':

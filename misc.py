@@ -1,4 +1,10 @@
 import numpy as np
+import matplotlib.pyplot as plt
+
+
+def savefig(fig, name):
+    fig.savefig(name, format='PDF', bbox_inches='tight')
+    plt.close(fig)
 
 
 def normalize(arr, norm=None):
