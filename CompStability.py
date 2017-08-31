@@ -1,15 +1,13 @@
 #!/usr/bin/env python3
 """
-Calculation of stability from an initial composition and temperature profile.
+Crystallization and cumulate destabilization time scales of a SMO
 """
 import numpy as np
 import scipy.integrate as integ
 import scipy.optimize as opt
 import matplotlib.pyplot as plt
-from analyzer import LinearAnalyzer, NonLinearAnalyzer
-from physics import PhysicalProblem, compo_smo
-from plotting import plot_fastest_mode, plot_ran_harm
-from misc import normalize_modes
+from analyzer import LinearAnalyzer
+from physics import PhysicalProblem
 
 # Font and markers size
 FTSZ = 14
@@ -37,7 +35,7 @@ kappa = 1e-6
 tau = lambda s: h_mantle**2 / (kappa * s)
 # composition
 part = 0.6  # partitioning coefficient
-c_feo_liq0 = 0.0848  # part & c_feo_liq0 from Andrault et al, 2011
+c_feo_liq0 = 0.1  # part & c_feo_liq0 from Andrault et al, 2011
 c_0 = part * c_feo_liq0
 # r at which c = 1
 r_eut = (r_int**3 * c_0**(1 / (1-part)) +
@@ -47,7 +45,7 @@ composition = lambda r: \
             / (r_earth**3 - r**3))**(1-part)
      if r < r_eut else 1)
 dtmelt_dp = 2e-8
-dtmelt_dc = -1e2
+dtmelt_dc = -1e3
 
 
 def grad_temp(r, rm_isen=True):
@@ -165,10 +163,6 @@ def plot_destab(ana, crystallized, time):
                 sigma, harm = ana.fastest_mode(rayleigh(h_crystal, 10**eta),
                                                ra_comp(h_crystal, 10**eta),
                                                harm)
-                #plot_fastest_mode(ana, harm, rayleigh(h_crystal, 10**eta),
-                #                  ra_comp(h_crystal, 10**eta), name='N150')
-                #sigma = ana.eigval(harm, rayleigh(h_crystal, 10**eta),
-                #                   ra_comp(h_crystal, 10**eta))
                 print(phi_top, phi_bot, eta, sigma, harm, rayleigh(h_crystal, 10**eta))
                 tau_vals[eta].append(np.real(tau(sigma)))
             axis.semilogy(h_crystal_vals/1e3, np.array(tau_vals[eta]),
@@ -287,16 +281,9 @@ if __name__ == '__main__':
              crystallized[1:] / kappa)
     gamt_f = lambda g: np.interp(g, gam_smo, gamt_smo)
     w_f = lambda g: np.interp(g, gam_smo, w_smo)
-    #w_f = lambda _: 0
     ana = LinearAnalyzer(
         PhysicalProblem(cooling_smo=(gamt_f, w_f)),
-        ncheb=15)
-
-    #plt.figure()
-    #plt.semilogy(gamt_smo, label='$\Gamma^2$')
-    ##plt.plot(w_smo, label='$W$')
-    #plt.legend()
-    #plt.savefig('test.pdf')
+        ncheb=24)
 
     plot_min_time(ana, crystallized, time)
     plot_destab(ana, crystallized, time)
