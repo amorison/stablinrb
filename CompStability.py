@@ -146,7 +146,8 @@ def _phi_col_lbl(phi_top, phi_bot):
 
 def plot_destab(ana, crystallized, time):
     """Plot destabilization time scale as function of solid thickness"""
-    fig, axis = plt.subplots(1, 1)
+    figt, axt = plt.subplots(1, 1)
+    figl, axl = plt.subplots(1, 1)
 
     for phi_bot, phi_top in phi_vals:
         ana.phys.phi_top = phi_top
@@ -154,10 +155,12 @@ def plot_destab(ana, crystallized, time):
         col, phi_str = _phi_col_lbl(phi_top, phi_bot)
 
         tau_vals = {}
+        harm_vals = {}
         for eta in eta_vals:
             harm = 1
             style = '-' if eta == 17 else '--'
             tau_vals[eta] = []
+            harm_vals[eta] = []
             for h_crystal in h_crystal_vals:
                 update_ana_thickness(ana, h_crystal)
                 sigma, harm = ana.fastest_mode(rayleigh(h_crystal, 10**eta),
@@ -165,30 +168,38 @@ def plot_destab(ana, crystallized, time):
                                                harm)
                 print(phi_top, phi_bot, eta, sigma, harm, rayleigh(h_crystal, 10**eta))
                 tau_vals[eta].append(np.real(tau(sigma)))
-            axis.semilogy(h_crystal_vals/1e3, np.array(tau_vals[eta]),
-                          label=r'$\eta=10^{%d}$, %s' %(eta, phi_str),
-                          color=col, linestyle=style)
-    axis.semilogy(crystallized / 1e3, time, color='k')
+                harm_vals[eta].append(harm)
+            axt.semilogy(h_crystal_vals/1e3, np.array(tau_vals[eta]),
+                         label=r'$\eta=10^{%d}$, %s' %(eta, phi_str),
+                         color=col, linestyle=style)
+            axl.semilogy(h_crystal_vals/1e3, np.array(harm_vals[eta]),
+                         label=r'$\eta=10^{%d}$, %s' %(eta, phi_str),
+                         color=col, linestyle=style)
+    axt.semilogy(crystallized / 1e3, time, color='k')
     for duration, name in [(86400, '1d'), (3.15e7, '1y'),
                            (3.15e10, '1ky'), (3.15e13, '1My')]:
-        axis.semilogy([0, h_crystal_max/1e3], [duration]*2,
-                      color='k', linestyle=':', linewidth=1)
-        axis.text(-h_crystal_max/2e4, duration, name, va='center')
-    axis.set_xlabel(r'Crystallized mantle thickness $h$ (km)', fontsize=FTSZ)
-    axis.set_ylabel(r'Destabilization time scale $\tau$ (s)', fontsize=FTSZ)
-    axis.legend(
-        [plt.Line2D((0,1),(0,0), color='k'),
-         plt.Line2D((0,1),(0,0), color='b', linestyle='--'),
-         plt.Line2D((0,1),(0,0), color='b', linestyle='-'),
-         plt.Line2D((0,1),(0,0), color='b'),
-         plt.Line2D((0,1),(0,0), color='g'),
-         plt.Line2D((0,1),(0,0), color='r')],
-        ['Cooling time', '$\eta=10^{16}$', '$\eta=10^{17}$',
-         'closed', r'$\Phi^+=10^{-2}$', r'$\Phi^+=\Phi^-=10^{-2}$'],
-        loc='upper right', fontsize=FTSZ)
-    axis.tick_params(labelsize=FTSZ)
-    plt.tight_layout()
-    plt.savefig('DestabilizationTimeCryst.pdf', format='PDF')
+        axt.semilogy([0, h_crystal_max/1e3], [duration]*2,
+                     color='k', linestyle=':', linewidth=1)
+        axt.text(-h_crystal_max/2e4, duration, name, va='center')
+    axt.set_ylabel(r'Destabilization time scale $\tau$ (s)', fontsize=FTSZ)
+    axl.set_ylabel(r'Harmonic degree $l$', fontsize=FTSZ)
+    for axis in (axt, axl):
+        axis.set_xlabel(r'Crystallized mantle thickness $h$ (km)', fontsize=FTSZ)
+        axis.legend(
+            [plt.Line2D((0,1),(0,0), color='k'),
+             plt.Line2D((0,1),(0,0), color='b', linestyle='--'),
+             plt.Line2D((0,1),(0,0), color='b', linestyle='-'),
+             plt.Line2D((0,1),(0,0), color='b'),
+             plt.Line2D((0,1),(0,0), color='g'),
+             plt.Line2D((0,1),(0,0), color='r')],
+            ['Cooling time', '$\eta=10^{16}$', '$\eta=10^{17}$',
+             'closed', r'$\Phi^+=10^{-2}$', r'$\Phi^+=\Phi^-=10^{-2}$'],
+            loc='upper right', fontsize=FTSZ)
+        axis.tick_params(labelsize=FTSZ)
+    figt.savefig('DestabilizationTimeCryst.pdf',
+                 format='PDF', bbox_inches='tight')
+    figl.savefig('DestabilizationTimeCryst_l.pdf',
+                 format='PDF', bbox_inches='tight')
 
 
 def _sigma(h_cryst, eta, ana):
