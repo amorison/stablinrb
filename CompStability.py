@@ -18,8 +18,8 @@ MSIZE = 5
 r_earth = 6371e3
 r_cmb = 3400e3
 h_mantle = r_earth - r_cmb
-d_crystal = 1500e3
-t_crystal = 3500  # temperature solidus as d_crystal
+d_crystal = 2500e3
+t_crystal = 4500  # temperature solidus as d_crystal
 r_int = r_earth - d_crystal
 r_ext = lambda h: r_int + h
 rho = 4e3
@@ -66,7 +66,7 @@ def grad_temp(r, rm_isen=True):
 delta_temp = lambda h, rm_isen=True: -integ.quad(
     lambda r: grad_temp(r, rm_isen), r_int, r_ext(h))[0]
 
-h_crystal_max = r_eut - r_int - 150e3
+h_crystal_max = min(1500e3, r_eut - r_int - 150e3)
 
 eta_vals = np.array(range(16, 18))
 h_crystal_vals = np.logspace(np.log10(5) + 3, np.log10(h_crystal_max), 50)
