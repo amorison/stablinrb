@@ -14,6 +14,8 @@ from physics import PhysicalProblem
 FTSZ = 14
 MSIZE = 5
 
+COMPO_EFFECTS = True
+
 # all in base units
 r_earth = 6371e3
 r_cmb = 3400e3
@@ -54,10 +56,10 @@ def grad_temp(r, rm_isen=True):
 
     Total if rm_isen is False,
     superadiabatic otherwise"""
-    total = -rho * g * dtmelt_dp + \
-        dtmelt_dc * (composition(r) * 3 * (1 - part) *
-                     r**2 / (r_earth**3 - r**3)
-                     if r < r_eut else 0)
+    total = -rho * g * dtmelt_dp
+    if COMPO_EFFECTS and r < r_eut:
+        total += dtmelt_dc * (composition(r) * 3 * (1 - part) *
+                              r**2 / (r_earth**3 - r**3))
     if rm_isen:
         total += t_crystal * isen * np.exp(- isen * (r - r_int))
     return total
@@ -99,8 +101,9 @@ def surf_temp(h):
 def update_ana_thickness(ana, h_crystal):
     """Update analyzer with new thickness"""
     ana.phys.gamma = gamma(h_crystal)
-    ana.phys.composition = np.vectorize(
-        lambda r: composition(radim(r, h_crystal)))
+    if COMPO_EFFECTS:
+        ana.phys.composition = np.vectorize(
+            lambda r: composition(radim(r, h_crystal)))
     ana.phys.grad_ref_temperature = np.vectorize(
         lambda r: grad_temp(radim(r, h_crystal)) *
             h_crystal / delta_temp(h_crystal))

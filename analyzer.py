@@ -395,9 +395,9 @@ def spherical_matrices(self, l_harm, ra_num, ra_comp=None):
         lmat[cgint, pgall] = -lh2 * np.dot(orl1, grad_comp)[cint, pall]
     elif lewis is not None:
         raise ValueError('Finite Lewis not implemented in spherical')
-    if self.phys.cooling_smo is not None:
-        lmat[cgint, cgall] = w_smo * np.dot(rad - one, dr1)[cint, call]
     if comp_terms:
+        if self.phys.cooling_smo is not None:
+            lmat[cgint, cgall] = w_smo * np.dot(rad - one, dr1)[cint, call]
         rmat[cgint, cgall] = one[cint, call]
         if self.phys.cooling_smo is not None:
             rmat[cgint, cgall] *= gam2_smo
