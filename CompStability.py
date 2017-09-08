@@ -217,8 +217,43 @@ def _time_diff(h_cryst, eta, ana, crystallized, time):
     return cooling - destab
 
 
-def plot_min_time(ana, crystallized, time, eps=1e-3):
-    """Research of time at which destab = cooling time"""
+def time_intersection(ana, eta, crystallized, time, eps=1e-3):
+    """Research time at which destab = cooling time"""
+    h_min = crystallized[1]
+    h_max = crystallized[-1]
+    if _sigma(h_min, eta, ana) < 0 and _sigma(h_max, eta, ana) < 0:
+        # never unstable
+        return np.nan
+    elif _time_diff(h_max, eta, ana, crystallized, time) < 0:
+        # not unstable enough to be faster than crystallization
+        return np.nan
+
+    if _sigma(h_min, eta, ana) < 0:
+        # search thickness beyond which sigma > 0
+        while (h_max - h_min) / h_min > eps:
+            h_zero = np.sqrt(h_min * h_max)
+            if _sigma(h_zero, eta, ana) < 0:
+                h_min = h_zero
+            else:
+                h_max = h_zero
+        h_min = h_max
+        h_max = crystallized[-1]
+    if _time_diff(h_min, eta, ana, crystallized, time) > 0:
+        # crystallization too slow to determine intersection
+        # could try to determine h_zero with better accuracy
+        return np.nan
+
+    while (h_max - h_min) / h_min > eps:
+        h_cryst = np.sqrt(h_min * h_max)
+        if _time_diff(h_cryst, eta, ana, crystallized, time) < 0:
+            h_min = h_cryst
+        else:
+            h_max = h_cryst
+    return np.interp(h_cryst, crystallized, time)
+
+
+def plot_min_time(ana, crystallized, time):
+    """Plot time at which destab = cooling time"""
     fig, axt = plt.subplots(1, 1)
     eta_logs = np.linspace(15, 18, 10)
     for phi_bot, phi_top in phi_vals:
@@ -227,26 +262,7 @@ def plot_min_time(ana, crystallized, time, eps=1e-3):
         col, phi_str = _phi_col_lbl(phi_top, phi_bot)
         tau_vals = []
         for eta in eta_logs:
-            h_min = 20e3
-            while _sigma(h_min, eta, ana) < 0:
-                h_min *= 4
-            while _time_diff(h_min, eta, ana, crystallized, time) > 0:
-                h_min /= 2
-                if _sigma(h_min, eta, ana) < 0:
-                    # could be finer
-                    raise ValueError(
-                        'Destab=cooling time has no solution {} {}'
-                        .format(phi_str, eta))
-            h_max = h_min * 2
-            while _time_diff(h_max, eta, ana, crystallized, time) < 0:
-                h_max *= 2
-            while (h_max - h_min) / h_max > eps:
-                h_cryst = np.sqrt(h_min * h_max)
-                if _time_diff(h_cryst, eta, ana, crystallized, time) < 0:
-                    h_min = h_cryst
-                else:
-                    h_max = h_cryst
-            tau_val = np.interp(h_cryst, crystallized, time)
+            tau_val = time_intersection(ana, eta, crystallized, time)
             tau_vals.append(tau_val)
             print(eta, tau_val)
         axt.loglog(10**eta_logs, np.array(tau_vals) / 3.15e10,
