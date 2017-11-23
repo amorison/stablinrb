@@ -3,12 +3,11 @@
 Crystallization and cumulate destabilization time scales of a SMO
 """
 import numpy as np
-import scipy.integrate as integ
-import scipy.optimize as opt
 import matplotlib.pyplot as plt
 from misc import savefig
 from analyzer import LinearAnalyzer
 from physics import PhysicalProblem
+from planets import EARTH as pnt
 
 # Font and markers size
 FTSZ = 14
@@ -16,125 +15,18 @@ MSIZE = 5
 
 COMPO_EFFECTS = True
 
-# all in base units
-r_earth = 6371e3
-r_cmb = 3400e3
-h_mantle = r_earth - r_cmb
-d_crystal = 2500e3
-t_crystal = 4500  # temperature solidus as d_crystal
-r_int = r_earth - d_crystal
-r_ext = lambda h: r_int + h
-rho = 4e3
-g = 10
-alpha = 1e-5  # dV/dT /V
-beta = (3.58 - 5.74) / 3.58  # dV/dc /V
-heat_capacity = 1e3  # in SMO
-isen = alpha * g / heat_capacity  # in SMO
-latent_heat = 4e5  # J/kg
-emissivity = 1.0  # black body
-stefan_boltzmann = 5.67e-8
-temp_inf = 255
-kappa = 1e-6
-tau = lambda s: h_mantle**2 / (kappa * s)
-# composition
-part = 0.6  # partitioning coefficient
-c_feo_liq0 = 0.1  # part & c_feo_liq0 from Andrault et al, 2011
-c_0 = part * c_feo_liq0
-# r at which c = 1
-r_eut = (r_int**3 * c_0**(1 / (1-part)) +
-         r_earth**3 * (1 - c_0**(1 / (1-part))))**(1/3)
-composition = lambda r: \
-    (c_0 * ((r_earth**3 - r_int**3)
-            / (r_earth**3 - r**3))**(1-part)
-     if r < r_eut else 1)
-dtmelt_dp = 2e-8
-dtmelt_dc = -1e3
-
-
-def grad_temp(r, rm_isen=True):
-    """Temperature gradient
-
-    Total if rm_isen is False,
-    superadiabatic otherwise"""
-    total = -rho * g * dtmelt_dp
-    if COMPO_EFFECTS and r < r_eut:
-        total += dtmelt_dc * (composition(r) * 3 * (1 - part) *
-                              r**2 / (r_earth**3 - r**3))
-    if rm_isen:
-        total += t_crystal * isen * np.exp(- isen * (r - r_int))
-    return total
-
-
-delta_temp = lambda h, rm_isen=True: -integ.quad(
-    lambda r: grad_temp(r, rm_isen), r_int, r_ext(h))[0]
-
-h_crystal_max = min(1500e3, r_eut - r_int - 150e3)
-
-h_crystal_vals = np.logspace(np.log10(5) + 3, np.log10(h_crystal_max), 200)
-phi_vals = [(None, None), (None, 1e-2), (1e-2, 1e-2)]
-
-# dimensional radius from non-dimensional one
-radim = lambda r, h: (r - 1) * h + r_int
-# non-dimensional variables
-gamma = lambda h: r_int / r_ext(h)
-rayleigh = lambda h, eta: \
-    rho * g * alpha * delta_temp(h) * h**3 / (eta * kappa)
-ra_comp = lambda h, eta: \
-    rho * g * beta * h**3 / (eta * kappa)
-
 # compute time to crystallize given thickness of solid mantle
-def surf_temp(h):
-    """Surface temperature determined by fixing
-    the boundary layer Ra# at top of the SMO"""
-    temp_bot_smo = t_crystal - delta_temp(h, False)
-    temp_surf_pot = temp_bot_smo * np.exp(- isen * (r_earth - r_ext(h)))
-    ra_bnd = 1e3
-    eta_smo = 1e-1
-    tsurf_func = lambda ts: ((temp_surf_pot - ts)**(4/3) -
-                             emissivity * stefan_boltzmann /
-                             (kappa * rho * heat_capacity) *
-                             (kappa * eta_smo * ra_bnd / alpha * rho * g)**(1/3) *
-                             (ts**4 - temp_inf**4))
-    return opt.fsolve(tsurf_func, (temp_surf_pot - temp_inf) / 2)[0]
 
-def update_ana_thickness(ana, h_crystal):
-    """Update analyzer with new thickness"""
-    ana.phys.gamma = gamma(h_crystal)
+def update_thickness(ana, pnt, h_crystal):
+    """Update analyzer and planet with new thickness"""
+    pnt.h_crystal = h_crystal
+    ana.phys.gamma = pnt.gamma
     if COMPO_EFFECTS:
         ana.phys.composition = np.vectorize(
-            lambda r: composition(radim(r, h_crystal)))
+            lambda r: pnt.composition(pnt.radim(r)))
     ana.phys.grad_ref_temperature = np.vectorize(
-        lambda r: grad_temp(radim(r, h_crystal)) *
-            h_crystal / delta_temp(h_crystal))
-
-def cooling_time():
-    """Compute time to evacuate latent heat and cool down SMO
-
-    Based on grey body radiation and fixed boundary layer Ra
-    """
-    crystallized = [0]
-    time = [0]
-    dtime = None
-    while crystallized[-1] < h_crystal_max:
-        dtime = 1e5 if dtime is None else 3e8  # to have first point earlier
-        h = crystallized[-1]
-        temp_top = t_crystal - delta_temp(h, False)
-        gtemp_top = grad_temp(r_ext(h), False)
-        heat_to_extract = rho * heat_capacity * (gtemp_top + temp_top * isen)
-        expis = np.exp(isen * (r_ext(h) - r_earth))
-        heat_to_extract *= (r_earth**2 * expis - r_ext(h)**2) / isen + \
-            2 * (r_earth * expis - r_ext(h)) / isen**2 + \
-            2 * (expis - 1) / isen**3
-        heat_to_extract += rho * latent_heat * r_ext(h)**2 + \
-            rho * heat_capacity * temp_top * r_ext(h)**2
-        gray_body = emissivity * stefan_boltzmann * r_earth**2 * \
-            (surf_temp(h)**4 - temp_inf**4)
-        drad = gray_body * dtime / heat_to_extract
-        crystallized.append(h + drad)
-        time.append(time[-1] + dtime)
-        if len(crystallized) % 1000 == 0:
-            print(surf_temp(h), temp_top, crystallized[-1]/1e3, time[-1]/3.15e7)
-    return np.array(crystallized), np.array(time)
+        lambda r: pnt.grad_temp(pnt.radim(r)) *
+            pnt.h_crystal / pnt.delta_temp())
 
 
 def _phi_col_lbl(phi_top, phi_bot):
@@ -147,10 +39,11 @@ def _phi_col_lbl(phi_top, phi_bot):
     return col, phi_str
 
 
-def plot_destab(ana, crystallized, time):
+def plot_destab(pnt, ana, crystallized, time):
     """Plot destabilization time scale as function of solid thickness"""
     figt, axt = plt.subplots(1, 1)
     figl, axl = plt.subplots(1, 1)
+    pnt.eta = 1e18
 
     for phi_bot, phi_top in phi_vals:
         ana.phys.phi_top = phi_top
@@ -159,22 +52,19 @@ def plot_destab(ana, crystallized, time):
 
         tau_vals = []
         harm_vals = []
-        eta = 18
         harm = 1
         for h_crystal in h_crystal_vals:
-            update_ana_thickness(ana, h_crystal)
-            sigma, harm = ana.fastest_mode(rayleigh(h_crystal, 10**eta),
-                                           ra_comp(h_crystal, 10**eta),
-                                           harm)
-            print(phi_top, phi_bot, sigma, harm, rayleigh(h_crystal, 10**eta))
-            tau_vals.append(np.real(tau(sigma)))
+            update_thickness(ana, pnt, h_crystal)
+            sigma, harm = ana.fastest_mode(pnt.rayleigh, pnt.ra_comp, harm)
+            print(phi_top, phi_bot, sigma, harm, pnt.rayleigh)
+            tau_vals.append(np.real(pnt.tau(sigma)))
             harm_vals.append(harm)
         axt.semilogy(h_crystal_vals/1e3, tau_vals,
                      label=phi_str, color=col)
         axl.semilogy(h_crystal_vals/1e3, harm_vals,
                      label=phi_str, color=col)
     axt.semilogy(crystallized / 1e3, time, color='k')
-    axt.semilogy(crystallized[2:] / 1e3, crystallized[2:]**2 / kappa, color='k',
+    axt.semilogy(crystallized[2:] / 1e3, crystallized[2:]**2 / pnt.kappa, color='k',
                  linestyle='--')
     axt.set_ylim([None, 1e19])
 
@@ -183,7 +73,7 @@ def plot_destab(ana, crystallized, time):
                  xy=(crystallized[i_annot] / 1e3, time[i_annot]), rotation=3)
     axt.annotate('Diffusive time', fontsize=8, va='top',
                  xy=(crystallized[i_annot]/1e3,
-                     crystallized[i_annot]**2/kappa), rotation=3)
+                     crystallized[i_annot]**2/pnt.kappa), rotation=3)
 
     # more human friendly time units
     axt_right = axt.twinx()
@@ -203,58 +93,57 @@ def plot_destab(ana, crystallized, time):
     savefig(figl, 'DestabilizationTimeCryst_l.pdf')
 
 
-def _sigma(h_cryst, eta, ana):
+def _sigma(h_cryst, pnt, ana):
     """Return dimensionless growth rate"""
-    update_ana_thickness(ana, h_cryst)
-    sigma, _ = ana.fastest_mode(rayleigh(h_cryst, 10**eta),
-                                ra_comp(h_cryst, 10**eta))
+    update_thickness(ana, pnt, h_cryst)
+    sigma, _ = ana.fastest_mode(pnt.rayleigh, pnt.ra_comp)
     return sigma
 
 
-def _time_diff(h_cryst, eta, ana, crystallized, time):
+def _time_diff(h_cryst, pnt, ana, crystallized, time):
     """Compute time difference between destab and cooling time"""
-    sigma = _sigma(h_cryst, eta, ana)
-    destab = np.real(tau(sigma))
+    sigma = _sigma(h_cryst, pnt, ana)
+    destab = np.real(pnt.tau(sigma))
     cooling = np.interp(h_cryst, crystallized, time)
     return cooling - destab
 
 
-def time_intersection(ana, eta, crystallized, time, eps=1e-3):
+def time_intersection(ana, pnt, crystallized, time, eps=1e-3):
     """Research time at which destab = cooling time"""
     h_min = crystallized[1]
     h_max = crystallized[-1]
-    if _sigma(h_min, eta, ana) < 0 and _sigma(h_max, eta, ana) < 0:
+    if _sigma(h_min, pnt, ana) < 0 and _sigma(h_max, pnt, ana) < 0:
         # never unstable
         return np.nan
-    elif _time_diff(h_max, eta, ana, crystallized, time) < 0:
+    elif _time_diff(h_max, pnt, ana, crystallized, time) < 0:
         # not unstable enough to be faster than crystallization
         return np.nan
 
-    if _sigma(h_min, eta, ana) < 0:
+    if _sigma(h_min, pnt, ana) < 0:
         # search thickness beyond which sigma > 0
         while (h_max - h_min) / h_min > eps:
             h_zero = np.sqrt(h_min * h_max)
-            if _sigma(h_zero, eta, ana) < 0:
+            if _sigma(h_zero, pnt, ana) < 0:
                 h_min = h_zero
             else:
                 h_max = h_zero
         h_min = h_max
         h_max = crystallized[-1]
-    if _time_diff(h_min, eta, ana, crystallized, time) > 0:
+    if _time_diff(h_min, pnt, ana, crystallized, time) > 0:
         # crystallization too slow to determine intersection
         # could try to determine h_zero with better accuracy
         return np.nan
 
     while (h_max - h_min) / h_min > eps:
         h_cryst = np.sqrt(h_min * h_max)
-        if _time_diff(h_cryst, eta, ana, crystallized, time) < 0:
+        if _time_diff(h_cryst, pnt, ana, crystallized, time) < 0:
             h_min = h_cryst
         else:
             h_max = h_cryst
     return np.interp(h_cryst, crystallized, time)
 
 
-def plot_min_time(ana, crystallized, time):
+def plot_min_time(pnt, ana, crystallized, time):
     """Plot time at which destab = cooling time"""
     fig, axt = plt.subplots(1, 1)
     eta_logs = np.linspace(15, 18, 10)
@@ -264,7 +153,8 @@ def plot_min_time(ana, crystallized, time):
         col, phi_str = _phi_col_lbl(phi_top, phi_bot)
         tau_vals = []
         for eta in eta_logs:
-            tau_val = time_intersection(ana, eta, crystallized, time)
+            pnt.eta = 10**eta
+            tau_val = time_intersection(ana, pnt, crystallized, time)
             tau_vals.append(tau_val)
             print(eta, tau_val)
         axt.loglog(10**eta_logs, np.array(tau_vals) / 3.15e10,
@@ -300,18 +190,24 @@ def plot_cooling_time(crystallized, time):
 
 
 if __name__ == '__main__':
-    crystallized, time = cooling_time()
+    pnt.compo_effects = COMPO_EFFECTS
+    h_crystal_max = pnt.r_eut - pnt.r_int - 150e3
+    h_crystal_vals = np.logspace(np.log10(5) + 3, np.log10(h_crystal_max), 200)
+    phi_vals = [(None, None), (None, 1e-2), (1e-2, 1e-2)]
+
+    crystallized, time = pnt.cooling_time(h_crystal_max, True)
     plot_cooling_time(crystallized, time)
 
-    gam_smo = gamma(crystallized[1:])
-    gamt_smo = (crystallized[1:] / h_mantle)
+    gamma_from_h = lambda h: pnt.r_int / (pnt.r_int + h)
+    gam_smo = gamma_from_h(crystallized[1:])
+    gamt_smo = (crystallized[1:] / pnt.d_crystal)
     w_smo = ((crystallized[1:] - crystallized[:-1]) / (time[1:] - time[:-1]) *
-             crystallized[1:] / kappa)
+             crystallized[1:] / pnt.kappa)
     gamt_f = lambda g: np.interp(g, gam_smo, gamt_smo)
     w_f = lambda g: np.interp(g, gam_smo, w_smo)
     ana = LinearAnalyzer(
         PhysicalProblem(cooling_smo=(gamt_f, w_f)),
         ncheb=24)
 
-    plot_min_time(ana, crystallized, time)
-    plot_destab(ana, crystallized, time)
+    plot_min_time(pnt, ana, crystallized, time)
+    plot_destab(pnt, ana, crystallized, time)
