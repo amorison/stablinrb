@@ -70,7 +70,7 @@ delta_temp = lambda h, rm_isen=True: -integ.quad(
 
 h_crystal_max = min(1500e3, r_eut - r_int - 150e3)
 
-h_crystal_vals = np.logspace(np.log10(5) + 3, np.log10(h_crystal_max), 50)
+h_crystal_vals = np.logspace(np.log10(5) + 3, np.log10(h_crystal_max), 200)
 phi_vals = [(None, None), (None, 1e-2), (1e-2, 1e-2)]
 
 # dimensional radius from non-dimensional one
@@ -159,7 +159,7 @@ def plot_destab(ana, crystallized, time):
 
         tau_vals = []
         harm_vals = []
-        eta = 17
+        eta = 18
         harm = 1
         for h_crystal in h_crystal_vals:
             update_ana_thickness(ana, h_crystal)
