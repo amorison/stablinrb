@@ -17,7 +17,7 @@ class Planet(SimpleNamespace):
     d_crystal = 2500e3
     t_crystal = 4500  # solidus temperature at d_crystal
     rho = 4e3
-    g = 10
+    g = 9.81
     alpha = 1e-5  # dV/dT /V
     beta = (3.58 - 5.74) / 3.58  # dV/dc /V
     heat_capacity = 1e3  # in SMO
@@ -30,7 +30,7 @@ class Planet(SimpleNamespace):
     c_feo_liq0 = 0.1  # part & c_feo_liq0 from Andrault et al, 2011
     dtmelt_dp = 2e-8
     dtmelt_dc = -1e3
-    ra_bnd = 10
+    ra_bnd = 1e3
     eta_smo = 1e-1
     eta = 1e18
 
@@ -132,7 +132,7 @@ class Planet(SimpleNamespace):
                                  (self.kappa * self.eta_smo * self.ra_bnd
                                   / (self.alpha * self.rho * self.g))**(1/3) *
                                  (ts**4 - self.temp_inf**4))
-        return opt.fsolve(tsurf_func, (temp_surf_pot - self.temp_inf) / 2)[0]
+        return opt.fsolve(tsurf_func, self.temp_inf)[0]
 
     def cooling_time(self, h_max, verbose=False):
         """Compute time to evacuate latent heat and cool down SMO
@@ -167,3 +167,19 @@ class Planet(SimpleNamespace):
 
 
 EARTH = Planet()
+
+MOON = Planet(
+    name='Moon',
+    d_crystal=1200e3,
+    emissivity=1,
+    g=1.62,
+    r_tot=1737e3,
+    t_crystal=2000)
+
+MARS = Planet(
+    name='Mars',
+    d_crystal=1300e3,
+    emissivity=1e-3,
+    g=3.71,
+    r_tot=3390e3,
+    t_crystal=2400)

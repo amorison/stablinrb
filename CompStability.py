@@ -7,7 +7,7 @@ import matplotlib.pyplot as plt
 from misc import savefig
 from analyzer import LinearAnalyzer
 from physics import PhysicalProblem
-from planets import EARTH as pnt
+from planets import MARS as pnt
 
 # Font and markers size
 FTSZ = 14
@@ -89,8 +89,8 @@ def plot_destab(pnt, ana, crystallized, time):
         axis.set_xlabel(r'Crystallized mantle thickness $h$ (km)', fontsize=FTSZ)
         axis.legend()
         axis.tick_params(labelsize=FTSZ)
-    savefig(figt, 'DestabilizationTimeCryst.pdf')
-    savefig(figl, 'DestabilizationTimeCryst_l.pdf')
+    savefig(figt, '{}_DestabilizationTimeCryst.pdf'.format(pnt.name))
+    savefig(figl, '{}_DestabilizationTimeCryst_l.pdf'.format(pnt.name))
 
 
 def _sigma(h_cryst, pnt, ana):
@@ -169,10 +169,10 @@ def plot_min_time(pnt, ana, crystallized, time):
     axh.set_yscale('log')
     axh.set_ylim(hmin * 1e-3, hmax * 1e-3)
     axh.set_ylabel(r'Crystallized thickness (km)')
-    savefig(fig, 'CoolingDestab.pdf')
+    savefig(fig, '{}_CoolingDestab.pdf'.format(pnt.name))
 
 
-def plot_cooling_time(crystallized, time):
+def plot_cooling_time(pnt, crystallized, time):
     """Plot cooling time"""
     crt = crystallized / 1000
     tim = time / 3.15e10
@@ -186,17 +186,17 @@ def plot_cooling_time(crystallized, time):
               linestyle='--', lw=0.5, color='k')
     axis.set_xlabel('Crystallized thickness (km)')
     axis.set_ylabel('Time (kyr)')
-    savefig(fig, 'CoolingTime.pdf')
+    savefig(fig, '{}_CoolingTime.pdf'.format(pnt.name))
 
 
 if __name__ == '__main__':
     pnt.compo_effects = COMPO_EFFECTS
-    h_crystal_max = pnt.r_eut - pnt.r_int - 150e3
+    h_crystal_max = pnt.r_eut - pnt.r_int - 10e3
     h_crystal_vals = np.logspace(np.log10(5) + 3, np.log10(h_crystal_max), 200)
     phi_vals = [(None, None), (None, 1e-2), (1e-2, 1e-2)]
 
     crystallized, time = pnt.cooling_time(h_crystal_max, True)
-    plot_cooling_time(crystallized, time)
+    plot_cooling_time(pnt, crystallized, time)
 
     gamma_from_h = lambda h: pnt.r_int / (pnt.r_int + h)
     gam_smo = gamma_from_h(crystallized[1:])
