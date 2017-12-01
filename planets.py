@@ -180,6 +180,7 @@ MARS = Planet(
     name='Mars',
     d_crystal=1300e3,
     emissivity=1e-3,
+    temp_inf=212,
     g=3.71,
     r_tot=3390e3,
     t_crystal=2400)
