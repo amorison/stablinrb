@@ -7,7 +7,7 @@ import matplotlib.pyplot as plt
 from misc import savefig
 from analyzer import LinearAnalyzer
 from physics import PhysicalProblem
-from planets import MARS as pnt
+from planets import EARTH as pnt
 
 # Font and markers size
 FTSZ = 14

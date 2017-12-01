@@ -30,8 +30,7 @@ class Planet(SimpleNamespace):
     c_feo_liq0 = 0.1  # part & c_feo_liq0 from Andrault et al, 2011
     dtmelt_dp = 2e-8
     dtmelt_dc = -1e3
-    ra_bnd = 1e3
-    eta_smo = 1e-1
+    ra_smo = 1e30
     eta = 1e18
 
     def __init__(self, **kwargs):
@@ -80,6 +79,15 @@ class Planet(SimpleNamespace):
     def gamma(self):
         return self.r_int / self.r_ext
 
+    @property
+    def conductivity(self):
+        return self.rho * self.heat_capacity * self.kappa
+
+    @property
+    def thick_smo(self):
+        """Dimensionless SMO thickness"""
+        return (self.r_tot - self.r_ext) / self.d_crystal
+
     def tau(self, growth_rate):
         """Dimensional time from dimensionless growth rate"""
         return self.d_crystal**2 / (self.kappa * growth_rate)
@@ -126,12 +134,12 @@ class Planet(SimpleNamespace):
         temp_bot_smo = self.t_crystal - self.delta_temp(False)
         temp_surf_pot = temp_bot_smo * np.exp(- self.isen *
                                               (self.r_tot - self.r_ext))
-        tsurf_func = lambda ts: ((temp_surf_pot - ts)**(4/3) -
-                                 self.emissivity * STEFAN_BOLTZMANN /
-                                 (self.kappa * self.rho * self.heat_capacity) *
-                                 (self.kappa * self.eta_smo * self.ra_bnd
-                                  / (self.alpha * self.rho * self.g))**(1/3) *
-                                 (ts**4 - self.temp_inf**4))
+        tsurf_func = lambda ts: (self.emissivity * STEFAN_BOLTZMANN *
+                                 (ts**4 - self.temp_inf**4) -
+                                 self.conductivity *
+                                 (temp_surf_pot - ts) * 0.16 *
+                                 self.ra_smo**(2/7) * self.thick_smo**(-1/7) /
+                                 self.d_crystal)
         return opt.fsolve(tsurf_func, self.temp_inf)[0]
 
     def cooling_time(self, h_max, verbose=False):
