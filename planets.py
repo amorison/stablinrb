@@ -12,6 +12,7 @@ class Planet(SimpleNamespace):
     """Simple parametrization of a planet, default to Earth"""
     name = 'Earth'
     compo_effects = True
+    dtime = 3e8
     # all in SI base units
     r_tot = 6371e3
     d_crystal = 2500e3
@@ -149,9 +150,8 @@ class Planet(SimpleNamespace):
         """
         crystallized = [0]
         time = [0]
-        dtime = None
+        dtime = self.dtime / 3e3  # to have first point earlier
         while crystallized[-1] < h_max:
-            dtime = 1e5 if dtime is None else 3e8  # to have first point earlier
             self.h_crystal = crystallized[-1]
             temp_top = self.t_crystal - self.delta_temp(False)
             gtemp_top = self.grad_temp(self.r_ext, False)
@@ -169,7 +169,8 @@ class Planet(SimpleNamespace):
             drad = gray_body * dtime / heat_to_extract
             crystallized.append(self.h_crystal + drad)
             time.append(time[-1] + dtime)
-            if verbose:
+            dtime = self.dtime
+            if verbose and len(time)%1000==0:
                 print(self.surf_temp, temp_top, crystallized[-1]/1e3, time[-1]/3.15e7)
         return np.array(crystallized), np.array(time)
 
@@ -178,6 +179,7 @@ EARTH = Planet()
 
 MOON = Planet(
     name='Moon',
+    dtime=3e6,
     d_crystal=1000e3,
     emissivity=1,
     g=1.62,
