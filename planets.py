@@ -19,7 +19,7 @@ class Planet(SimpleNamespace):
     rho = 4e3
     g = 9.81
     alpha = 1e-5  # dV/dT /V
-    beta = (3.58 - 5.74) / 3.58  # dV/dc /V
+    beta = (3.3 - 4.4) / 3.3  # drho/dc /rho
     heat_capacity = 1e3  # in SMO
     latent_heat = 4e5  # J/kg
     emissivity = 1e-4
@@ -29,7 +29,7 @@ class Planet(SimpleNamespace):
     part = 0.6  # partitioning coefficient
     c_feo_liq0 = 0.1  # part & c_feo_liq0 from Andrault et al, 2011
     dtmelt_dp = 2e-8
-    dtmelt_dc = -1e3
+    dtmelt_dc = -700
     ra_smo = 1e30
     eta = 1e18
 
@@ -178,11 +178,11 @@ EARTH = Planet()
 
 MOON = Planet(
     name='Moon',
-    d_crystal=1200e3,
+    d_crystal=1000e3,
     emissivity=1,
     g=1.62,
     r_tot=1737e3,
-    t_crystal=2000)
+    t_crystal=1500)
 
 MARS = Planet(
     name='Mars',
