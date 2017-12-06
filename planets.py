@@ -12,6 +12,7 @@ class Planet(SimpleNamespace):
     """Simple parametrization of a planet, default to Earth"""
     name = 'Earth'
     compo_effects = True
+    dtime = 3e8
     # all in SI base units
     r_tot = 6371e3
     d_crystal = 2500e3
@@ -19,7 +20,7 @@ class Planet(SimpleNamespace):
     rho = 4e3
     g = 9.81
     alpha = 1e-5  # dV/dT /V
-    beta = (3.58 - 5.74) / 3.58  # dV/dc /V
+    beta = (3.3 - 4.4) / 3.3  # drho/dc /rho
     heat_capacity = 1e3  # in SMO
     latent_heat = 4e5  # J/kg
     emissivity = 1e-4
@@ -29,7 +30,7 @@ class Planet(SimpleNamespace):
     part = 0.6  # partitioning coefficient
     c_feo_liq0 = 0.1  # part & c_feo_liq0 from Andrault et al, 2011
     dtmelt_dp = 2e-8
-    dtmelt_dc = -1e3
+    dtmelt_dc = -700
     ra_smo = 1e30
     eta = 1e18
 
@@ -149,9 +150,8 @@ class Planet(SimpleNamespace):
         """
         crystallized = [0]
         time = [0]
-        dtime = None
+        dtime = self.dtime / 3e3  # to have first point earlier
         while crystallized[-1] < h_max:
-            dtime = 1e5 if dtime is None else 3e8  # to have first point earlier
             self.h_crystal = crystallized[-1]
             temp_top = self.t_crystal - self.delta_temp(False)
             gtemp_top = self.grad_temp(self.r_ext, False)
@@ -169,7 +169,8 @@ class Planet(SimpleNamespace):
             drad = gray_body * dtime / heat_to_extract
             crystallized.append(self.h_crystal + drad)
             time.append(time[-1] + dtime)
-            if verbose:
+            dtime = self.dtime
+            if verbose and len(time)%1000==0:
                 print(self.surf_temp, temp_top, crystallized[-1]/1e3, time[-1]/3.15e7)
         return np.array(crystallized), np.array(time)
 
@@ -178,11 +179,12 @@ EARTH = Planet()
 
 MOON = Planet(
     name='Moon',
-    d_crystal=1200e3,
+    dtime=3e6,
+    d_crystal=1000e3,
     emissivity=1,
     g=1.62,
     r_tot=1737e3,
-    t_crystal=2000)
+    t_crystal=1500)
 
 MARS = Planet(
     name='Mars',
