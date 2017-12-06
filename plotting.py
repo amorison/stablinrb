@@ -24,10 +24,10 @@ MSIZE = 3
 def fmt(x):
     a, b = '{:.2e}'.format(x).split('e')
     b = int(b)
-    if b != 0:
-        return r'${} \times 10^{{{}}}$'.format(a, b)
+    if b:
+        return r'{} \times 10^{{{}}}'.format(a, b)
     else:
-        return r'${}$'.format(a)
+        return a
 
 def image_mode(xgr, zgr, t2d, u2d, w2d, harm, filename, notbare=True):
     """Create an image for one mode and save it in a file.
@@ -482,7 +482,8 @@ def plot_fastest_mode(analyzer, harm, ra_num, ra_comp=None,
         axis.set_axis_off()
         fig.set_size_inches(9, 9)
         if plot_text:
-            axis.text(0, 0, r'$Ra_c=$'+fmt(ra_num), fontsize=20, verticalalignment='center', horizontalalignment='center')
+            axis.text(0, 0, r'$Ra_c={}$'.format(fmt(ra_num)), fontsize=20,
+                      verticalalignment='center', horizontalalignment='center')
         filename = '_'.join((name, 'mode.pdf'))
         plt.savefig(filename, bbox_inches='tight', format='PDF')
         plt.close(fig)
