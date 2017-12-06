@@ -26,8 +26,8 @@ FTSZ = 12
 MSIZE = 3
 
 # range of exploration in phi
-PLOT_K_RA = True
-PLOT_KSIGMA = False
+PLOT_K_RA = False
+PLOT_KSIGMA = True
 PLOT_RAMAX = False
 # type of colorscale
 GREYSCALE = False
@@ -77,7 +77,7 @@ pblm = PhysicalProblem(
 ana = LinearAnalyzer(pblm, ncheb=20)
 
 # number epsilon values to plot
-neps = 100
+neps = 4
 # number of wavenumber values for the plot
 nwkn = 200
 
@@ -154,7 +154,7 @@ for n, phi in enumerate(phitot):
 
     if PLOT_KSIGMA:
 
-        axe.set_xlabel(r'$k_x$', fontsize=FTSZ+2)
+        axe.set_xlabel(r'$k$', fontsize=FTSZ+2)
         axe.set_ylabel(r'$Re(\sigma)$', fontsize=FTSZ+2)
         plt.legend(loc='upper center', ncol=2, fontsize=FTSZ)
         axe.xaxis.grid(True, 'major')
@@ -176,14 +176,14 @@ for n, phi in enumerate(phitot):
 
         axe2.semilogx(kmax, epsilon, '--', c='k')
         if GREYSCALE:
-            axe2.fill_between(ktot, 0, eptot, color=gscale(phi), alpha=0.5, label='Unstable translation, $\phi=%.2f$' %phi)
+            axe2.fill_between(ktot, 0, eptot, color=gscale(phi), alpha=0.5, label=r'Unstable translation, $\Phi=%.2f$' %phi)
         else:
-            axe2.fill_between(ktot, 0, eptot, alpha=0.5, label='Unstable translation, $\phi=%.2f$' %phi)
+            axe2.fill_between(ktot, 0, eptot, alpha=0.5, label=r'Unstable translation, $\Phi=%.2f$' %phi)
 
 if PLOT_K_RA:
     axe2.set_xlim([1e-2, 1e0])
-    axe2.set_xlabel(r'$k_x$', fontsize=FTSZ+2)
-    axe2.set_ylabel(r'$(Ra-Ra_c)/Ra_c$', fontsize=FTSZ+2)
+    axe2.set_xlabel(r'$k$', fontsize=FTSZ+2)
+    axe2.set_ylabel(r'$(\mbox{\textit{Ra}}-\mbox{\textit{Ra}}_c)/\mbox{\textit{Ra}}_c$', fontsize=FTSZ+2)
     axe2.legend(loc='upper left', fontsize=FTSZ)
     plt.savefig('kxEpsilonTransN' + np.str(ana._ncheb) + '.pdf')
     plt.close(fig2)

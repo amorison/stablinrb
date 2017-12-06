@@ -34,7 +34,7 @@ def fmt(x):
 
 
 # Font and markers size
-FTSZ = 12
+FTSZ = 16
 MSIZE = 3
 
 # Controls
@@ -152,9 +152,10 @@ if PLOT_BOTTOP:
     axe[1].set_ylabel(r'$\mbox{\textit{Nu}}$', fontsize=FTSZ)
     axe[1].yaxis.set_label_position("right")
     axe[1].yaxis.tick_right()
-    axe[1].legend(loc='lower right', fontsize=FTSZ)
+    axe[1].tick_params(axis='both', which='major', labelsize=FTSZ)
+    axe[1].legend(loc='lower right', fontsize=FTSZ-2)
 
-    plt.tight_layout(pad=0, w_pad=0, h_pad=0)
+    plt.tight_layout(pad=1, w_pad=0, h_pad=0)
     plt.savefig('HFcoeff_NuRa_BotTop.pdf')
     plt.close(fig)
 
@@ -182,7 +183,8 @@ if PLOT_BOT_ONLY:
     axe[1].set_ylabel(r'$\mbox{\textit{Nu}}$', fontsize=FTSZ)
     axe[1].yaxis.set_label_position("right")
     axe[1].yaxis.tick_right()
-    axe[1].legend(loc='lower right', fontsize=FTSZ)
+    axe[1].tick_params(axis='both', which='major', labelsize=FTSZ)
+    axe[1].legend(loc='lower right', fontsize=FTSZ-2)
 
     plt.tight_layout(pad=0, w_pad=0, h_pad=0)
     plt.savefig('HFcoeff_NuRa_BotOnly.pdf')

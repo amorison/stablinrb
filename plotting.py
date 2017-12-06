@@ -21,10 +21,11 @@ mpl.rcParams['pdf.fonttype'] = 42
 FTSZ = 10
 MSIZE = 3
 
-def image_mode(xgr, zgr, t2d, u2d, w2d, harm, filename):
-    """Create an image for one mode and save it in a file
+def image_mode(xgr, zgr, t2d, u2d, w2d, harm, filename, notbare=True):
+    """Create an image for one mode and save it in a file.
 
-    takes 2D fields in input as grids
+    Takes 2D fields in input as grids
+    Only 2D cartesian for now
     """
     dpi = 300
     # prepare plot. 1 temperature anomaly
@@ -39,17 +40,17 @@ def image_mode(xgr, zgr, t2d, u2d, w2d, harm, filename):
         lw = 2 * speed / speed.max()
         plt.streamplot(xgr, zgr, u2d, w2d, linewidth=lw, density=0.7)
     # labels etc.
-    axis.tick_params(axis='both', which='major', labelsize=FTSZ)
-    axis.set_xlabel(r'$x$', fontsize=FTSZ+2)
-    axis.set_ylabel(r'$z$', fontsize=FTSZ+2)
-    if harm > 0.6:
+    if notbare:
+        axis.tick_params(axis='both', which='major', labelsize=FTSZ)
+        axis.set_xlabel(r'$x$', fontsize=FTSZ+2)
+        axis.set_ylabel(r'$z$', fontsize=FTSZ+2)
+        cbar = plt.colorbar(surf, aspect=20)
+        cbar.set_label(r'$\theta$')
+    if harm > 0.006:
         fig.set_figwidth(9)
         axis.set_aspect('equal')
     else:
         fig.set_size_inches(9, 2)
-    cbar = plt.colorbar(surf, aspect=20)
-    cbar.set_label(r'$\theta$')
-    # filename = '_'.join((name, 'mode_theta_eps-' + np.str(eps) + '_ord-' + np.str(nord) + '.pdf'))
     plt.savefig(filename, bbox_inches='tight', format='PDF')
     plt.close(fig)
 
@@ -343,7 +344,7 @@ def plot_mode_profiles(analyzer, mode, harm, name=None, plot_theory=False):
     return
 
 def plot_fastest_mode(analyzer, harm, ra_num, ra_comp=None,
-                      name=None, plot_theory=False):
+                      name=None, plot_theory=False, notbare=True):
     """Plot fastest growing mode for a given harmonic and Ra
 
     plot_theory: theory in case of transition, cartesian geometry
@@ -470,6 +471,9 @@ def plot_fastest_mode(analyzer, harm, ra_num, ra_comp=None,
         # plot stream lines
         axis.contour(phi_mesh, rad_mesh, psi_field)
         axis.set_axis_off()
+        plt.savefig(filename, bbox_inches='tight', format='PDF')
+        plt.close(fig)
+
     else:
         # 2D cartesian box
         # make a version with the total temperature
@@ -479,34 +483,13 @@ def plot_fastest_mode(analyzer, harm, ra_num, ra_comp=None,
         modx = np.exp(1j * harm * xvar)
         t2d1, t2d2 = np.meshgrid(modx, t_interp / t_max)
         t2d = np.real(t2d1 * t2d2)
-        plt.rcParams['contour.negative_linestyle'] = 'solid'
-        dpi = 300
-        fig = plt.figure(dpi=dpi)
-        axis = fig.add_subplot(111)
-        # plot temperature
-        surf = plt.pcolormesh(xgr, zgr, t2d, cmap='RdBu_r', linewidth=0,)
-        plt.axis([xgr.min(), xgr.max(), zgr.min(), zgr.max()])
         # stream function
         u2d1, u2d2 = np.meshgrid(modx, u_interp / t_max)
         u2d = np.real(u2d1*u2d2)
         w2d1, w2d2 = np.meshgrid(modx, w_interp / t_max)
         w2d = np.real(w2d1*w2d2)
-        speed = np.sqrt(u2d**2+w2d**2)
-        lw = 2 * speed / speed.max()
-        plt.streamplot(xgr, zgr, u2d, w2d, linewidth=lw, density=0.7)
-        # labels etc.
-        axis.tick_params(axis='both', which='major', labelsize=FTSZ)
-        axis.set_xlabel(r'$x$', fontsize=FTSZ+2)
-        axis.set_ylabel(r'$z$', fontsize=FTSZ+2)
-        if harm > 0.6:
-            fig.set_figwidth(9)
-            axis.set_aspect('equal')
-        else:
-            fig.set_size_inches(9, 2)
-
-    filename = '_'.join((name, 'mode.pdf'))
-    plt.savefig(filename, bbox_inches='tight', format='PDF')
-    plt.close(fig)
+        filename = '_'.join((name, 'mode.pdf'))
+        image_mode(xgr, zgr, t2d, u2d, w2d, harm, filename, notbare)
 
 
 def plot_ran_harm(analyzer, harm, ra_comp=None, name=None):
