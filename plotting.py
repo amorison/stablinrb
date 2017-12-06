@@ -20,6 +20,14 @@ mpl.rcParams['pdf.fonttype'] = 42
 # Font and markers size
 FTSZ = 10
 MSIZE = 3
+# scientific format for text
+def fmt(x):
+    a, b = '{:.2e}'.format(x).split('e')
+    b = int(b)
+    if b != 0:
+        return r'${} \times 10^{{{}}}$'.format(a, b)
+    else:
+        return r'${}$'.format(a)
 
 def image_mode(xgr, zgr, t2d, u2d, w2d, harm, filename, notbare=True):
     """Create an image for one mode and save it in a file.
@@ -46,7 +54,7 @@ def image_mode(xgr, zgr, t2d, u2d, w2d, harm, filename, notbare=True):
         axis.set_ylabel(r'$z$', fontsize=FTSZ+2)
         cbar = plt.colorbar(surf, aspect=20)
         cbar.set_label(r'$\theta$')
-    if harm > 0.006:
+    if harm > 0.6:
         fig.set_figwidth(9)
         axis.set_aspect('equal')
     else:
@@ -344,7 +352,7 @@ def plot_mode_profiles(analyzer, mode, harm, name=None, plot_theory=False):
     return
 
 def plot_fastest_mode(analyzer, harm, ra_num, ra_comp=None,
-                      name=None, plot_theory=False, notbare=True):
+                      name=None, plot_theory=False, notbare=True, plot_text=True):
     """Plot fastest growing mode for a given harmonic and Ra
 
     plot_theory: theory in case of transition, cartesian geometry
@@ -445,7 +453,8 @@ def plot_fastest_mode(analyzer, harm, ra_num, ra_comp=None,
         t_field = 2 * (t_field - t_min) / (t_max - t_min) - 1
 
         # create annulus frame
-        fig = plt.figure()
+        dpi = 300
+        fig = plt.figure(dpi=dpi)
         tr = PolarAxes.PolarTransform()
 
         angle_ticks = []
@@ -471,6 +480,10 @@ def plot_fastest_mode(analyzer, harm, ra_num, ra_comp=None,
         # plot stream lines
         axis.contour(phi_mesh, rad_mesh, psi_field)
         axis.set_axis_off()
+        fig.set_size_inches(9, 9)
+        if plot_text:
+            axis.text(0, 0, r'$Ra_c=$'+fmt(ra_num), fontsize=20, verticalalignment='center', horizontalalignment='center')
+        filename = '_'.join((name, 'mode.pdf'))
         plt.savefig(filename, bbox_inches='tight', format='PDF')
         plt.close(fig)
 
