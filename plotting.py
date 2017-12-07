@@ -20,14 +20,21 @@ mpl.rcParams['pdf.fonttype'] = 42
 # Font and markers size
 FTSZ = 10
 MSIZE = 3
+
+
 # scientific format for text
 def fmt(x):
     a, b = '{:.2e}'.format(x).split('e')
     b = int(b)
     if b:
-        return r'{} \times 10^{{{}}}'.format(a, b)
+        if float(a) != 1:
+            a = r'{} \times '.format(a)
+        else:
+            a = ''
+        return r'{}10^{{{}}}'.format(a, b)
     else:
         return a
+
 
 def image_mode(xgr, zgr, t2d, u2d, w2d, harm, filename, notbare=True):
     """Create an image for one mode and save it in a file.
