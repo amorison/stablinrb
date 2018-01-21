@@ -12,7 +12,8 @@ class PhysicalProblem:
                  lewis=None, composition=None,
                  grad_ref_temperature=None,
                  eta_r=None, cooling_smo=None,
-                 ref_state_translation=False):
+                 ref_state_translation=False,
+                 water=False, thetar=0):
         """Create a physical problem instance
 
         gamma is r_bot/r_top, cartesian if None
@@ -40,6 +41,9 @@ class PhysicalProblem:
         self.eta_r = eta_r
         self.cooling_smo = cooling_smo
         self.ref_state_translation = ref_state_translation
+        # parameters for the stability of water cooled from below around 4C
+        self.water = water
+        self.thetar = thetar
 
     def bind_to(self, analyzer):
         """Connect analyzer to physical problem

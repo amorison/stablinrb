@@ -34,7 +34,7 @@ pblm = PhysicalProblem(
     freeslip_top=True,
     freeslip_bot=True,
     eta_r = visco_Arrhenius(eta_c, gamma) if eta_c is not None else None,
-    ref_state_translation=False)
+    ref_state_translation=False, water=True, thetar=-0.25)
 
 NON_LINEAR = False
 ra_comp = None

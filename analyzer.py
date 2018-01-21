@@ -103,6 +103,8 @@ def cartesian_matrices(self, wnk, ra_num, ra_comp=None):
     composition = self.phys.composition
     comp_terms = lewis is not None or composition is not None
     translation = self.phys.ref_state_translation
+    water = self.phys.water
+    thetar = self.phys.thetar
     if comp_terms and ra_comp is None:
         raise ValueError("ra_comp must be specified for compositional problem")
 
@@ -165,7 +167,11 @@ def cartesian_matrices(self, wnk, ra_num, ra_comp=None):
     # vertical momentum conservation
     lmat[wgint, pgall] = -dz1[wint, pall]
     lmat[wgint, wgall] = lapl[wint, wall]
-    lmat[wgint, tgall] = ra_num * one[wint, tall]
+    if water:
+        theta0 = thetar - zphys
+        lmat[wgint, tgall] = - ra_num * np.diag(theta0)[wint, tall]
+    else:
+        lmat[wgint, tgall] = ra_num * one[wint, tall]
     if comp_terms:
         lmat[wgint, cgall] = ra_comp * one[wint, call]
     if phi_bot is not None:
@@ -202,7 +208,11 @@ def cartesian_matrices(self, wnk, ra_num, ra_comp=None):
         elif heat_flux_top is not None:
             grad_tcond += heat_flux_top + h_int / 2
         else:
-            grad_tcond += 1
+            if water:
+                # cooled from below
+                grad_tcond -= 1
+            else:
+                grad_tcond += 1
         lmat[tgint, wgall] = np.diag(grad_tcond)[tint, wall]
 
     rmat[tgint, tgall] = one[tint, tall]
