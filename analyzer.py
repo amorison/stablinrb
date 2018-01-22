@@ -101,6 +101,7 @@ def cartesian_matrices(self, wnk, ra_num, ra_comp=None):
     heat_flux_bot = self.phys.heat_flux_bot
     lewis = self.phys.lewis
     composition = self.phys.composition
+    prandtl = self.phys.prandtl
     comp_terms = lewis is not None or composition is not None
     translation = self.phys.ref_state_translation
     water = self.phys.water
@@ -216,7 +217,10 @@ def cartesian_matrices(self, wnk, ra_num, ra_comp=None):
         lmat[tgint, wgall] = np.diag(grad_tcond)[tint, wall]
 
     rmat[tgint, tgall] = one[tint, tall]
-
+    if prandtl is not None:
+        # finite Prandtl number case
+        rmat[ugint, ugall] = one[uint, uall] / prandtl
+        rmat[wgint, wgall] = one[wint, wall] / prandtl
     # C equations
     # 1/Le lapl(C) - u.grad(C_reference) = sigma C
     if composition is not None:

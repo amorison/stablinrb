@@ -25,16 +25,16 @@ MSIZE = 2
 GAMMA = None
 eta_c = None
 
-PHI = 1e5
+PHI = None
 
 pblm = PhysicalProblem(
     gamma=GAMMA,
     phi_top=PHI,
     phi_bot=PHI,
-    freeslip_top=True,
-    freeslip_bot=True,
+    freeslip_top=False,
+    freeslip_bot=False,
     eta_r = visco_Arrhenius(eta_c, gamma) if eta_c is not None else None,
-    ref_state_translation=False, water=True, thetar=-0.25)
+    ref_state_translation=False, prandtl=10, water=True, thetar=-1/4)
 
 NON_LINEAR = False
 ra_comp = None
@@ -88,6 +88,7 @@ else:
     print('Rac, kc = ', ra_c, harm_c)
     print('Wavelewngth = ', 2 * np.pi / harm_c)
     plotting.plot_fastest_mode(ana, harm_c, ra_c, ra_comp, plot_theory=False, notbare=False)
+    plotting.plot_ran_harm(ana, harm_c)
     # plotting.plot_ran_harm(ana, harm_c, ra_comp)
     if eta_c is not None:
         plotting.plot_viscosity(pblm)

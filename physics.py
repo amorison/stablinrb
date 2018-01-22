@@ -10,6 +10,7 @@ class PhysicalProblem:
                  freeslip_top=True, freeslip_bot=True,
                  heat_flux_top=None, heat_flux_bot=None,
                  lewis=None, composition=None,
+                 prandtl=None,
                  grad_ref_temperature=None,
                  eta_r=None, cooling_smo=None,
                  ref_state_translation=False,
@@ -25,6 +26,10 @@ class PhysicalProblem:
         phi_*: phase change number, no phase change if None
         freeslip_*: whether free-slip of rigid if no phase change
         heat_flux_*: heat flux, Dirichlet condition if None
+        prandtl: None if infinite
+        water: to study convection in a layer of water cooled from below, around 4C.
+        thetar: (T0-T1)/Delta T -1/2 with T0 the temperature of maximum density (4C), 
+           Delta T the total temperature difference across the layer and T1 the bottom T.
         """
         self._observers = []
         self.gamma = gamma
@@ -37,6 +42,7 @@ class PhysicalProblem:
         self.heat_flux_bot = heat_flux_bot
         self.lewis = lewis
         self.composition = composition
+        self.prandtl = prandtl
         self.grad_ref_temperature = grad_ref_temperature
         self.eta_r = eta_r
         self.cooling_smo = cooling_smo
