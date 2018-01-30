@@ -194,6 +194,8 @@ if __name__ == '__main__':
     h_crystal_max = pnt.r_eut - pnt.r_int - 10e3
     h_crystal_vals = np.logspace(np.log10(5) + 3, np.log10(h_crystal_max), 200)
     phi_vals = [(None, None), (None, 1e-2), (1e-2, 1e-2)]
+    if pnt.name != 'Earth':
+        phi_vals = phi_vals[:-1]
 
     crystallized, time = pnt.cooling_time(h_crystal_max, True)
     plot_cooling_time(pnt, crystallized, time)
