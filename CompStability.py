@@ -189,6 +189,18 @@ def plot_cooling_time(pnt, crystallized, time):
     savefig(fig, '{}_CoolingTime.pdf'.format(pnt.name))
 
 
+def plot_composition(pnt, crystallized, time):
+    """Plot cooling time"""
+    compo = np.vectorize(pnt.composition)
+    tim = time / 3.15e10
+    fig, axis = plt.subplots(1, 1)
+    print(tim)
+    print(crystallized)
+    axis.plot(tim, compo(crystallized))
+    savefig(fig, '{}_CompoTime.pdf'.format(pnt.name))
+    plt.close(fig)
+
+
 if __name__ == '__main__':
     pnt.compo_effects = COMPO_EFFECTS
     h_crystal_max = pnt.r_eut - pnt.r_int - 10e3
@@ -213,3 +225,4 @@ if __name__ == '__main__':
 
     plot_min_time(pnt, ana, crystallized, time)
     plot_destab(pnt, ana, crystallized, time)
+    plot_composition(pnt, crystallized, time)
