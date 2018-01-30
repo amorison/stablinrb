@@ -183,6 +183,7 @@ MOON = Planet(
     d_crystal=1000e3,
     emissivity=1,
     g=1.62,
+    ra_smo=1e30 * 1.62 / 9.81 * (1000e3 / 2500e3)**3,
     r_tot=1737e3,
     t_crystal=1500)
 
@@ -192,5 +193,6 @@ MARS = Planet(
     emissivity=1e-3,
     temp_inf=212,
     g=3.71,
+    ra_smo=1e30 * 3.71 / 9.81 * (1300e3 / 2500e3)**3,
     r_tot=3390e3,
     t_crystal=2400)
