@@ -2,9 +2,10 @@
 """
 Crystallization and cumulate destabilization time scales of a SMO
 """
+import pathlib
 import numpy as np
 import matplotlib.pyplot as plt
-from misc import savefig
+import misc
 from analyzer import LinearAnalyzer
 from physics import PhysicalProblem
 from planets import EARTH as pnt
@@ -13,7 +14,18 @@ from planets import EARTH as pnt
 FTSZ = 14
 MSIZE = 5
 
+TEMP_EFFECTS = False
 COMPO_EFFECTS = True
+
+#out_dir = pathlib.Path(pnt.name)
+out_dir = pathlib.Path('thermo_compo_C')
+out_dir.mkdir()
+
+
+def savefig(fig, stem):
+    stem += '.pdf'
+    misc.savefig(fig, str(out_dir / stem))
+
 
 # compute time to crystallize given thickness of solid mantle
 
@@ -21,12 +33,13 @@ def update_thickness(ana, pnt, h_crystal):
     """Update analyzer and planet with new thickness"""
     pnt.h_crystal = h_crystal
     ana.phys.gamma = pnt.gamma
+    if TEMP_EFFECTS:
+        ana.phys.grad_ref_temperature = np.vectorize(
+            lambda r: pnt.grad_temp(pnt.radim(r)) *
+                pnt.h_crystal / pnt.delta_temp())
     if COMPO_EFFECTS:
         ana.phys.composition = np.vectorize(
             lambda r: pnt.composition(pnt.radim(r)))
-    ana.phys.grad_ref_temperature = np.vectorize(
-        lambda r: pnt.grad_temp(pnt.radim(r)) *
-            pnt.h_crystal / pnt.delta_temp())
 
 
 def _phi_col_lbl(phi_top, phi_bot):
@@ -89,8 +102,8 @@ def plot_destab(pnt, ana, crystallized, time):
         axis.set_xlabel(r'Crystallized mantle thickness $h$ (km)', fontsize=FTSZ)
         axis.legend()
         axis.tick_params(labelsize=FTSZ)
-    savefig(figt, '{}_DestabilizationTimeCryst.pdf'.format(pnt.name))
-    savefig(figl, '{}_DestabilizationTimeCryst_l.pdf'.format(pnt.name))
+    savefig(figt, 'DestabilizationTimeCryst')
+    savefig(figl, 'DestabilizationTimeCryst_l')
 
 
 def _sigma(h_cryst, pnt, ana):
@@ -169,7 +182,7 @@ def plot_min_time(pnt, ana, crystallized, time):
     axh.set_yscale('log')
     axh.set_ylim(hmin * 1e-3, hmax * 1e-3)
     axh.set_ylabel(r'Crystallized thickness (km)')
-    savefig(fig, '{}_CoolingDestab.pdf'.format(pnt.name))
+    savefig(fig, 'CoolingDestab')
 
 
 def plot_cooling_time(pnt, crystallized, time):
@@ -186,19 +199,25 @@ def plot_cooling_time(pnt, crystallized, time):
               linestyle='--', lw=0.5, color='k')
     axis.set_xlabel('Crystallized thickness (km)')
     axis.set_ylabel('Time (kyr)')
-    savefig(fig, '{}_CoolingTime.pdf'.format(pnt.name))
+    savefig(fig, 'CoolingTime')
 
 
-def plot_composition(pnt, crystallized, time):
+def plot_composition(pnt):
     """Plot cooling time"""
     compo = np.vectorize(pnt.composition)
-    tim = time / 3.15e10
+    #tim = time / 3.15e10
+    compo_liq = np.vectorize(
+        lambda r: pnt.composition(r) / pnt.part if r < pnt.r_eut else 1)
+    rad = np.linspace(pnt.r_int, pnt.r_tot, 100)
     fig, axis = plt.subplots(1, 1)
-    print(tim)
-    print(crystallized)
-    axis.plot(tim, compo(crystallized))
-    savefig(fig, '{}_CompoTime.pdf'.format(pnt.name))
-    plt.close(fig)
+    axis.plot(compo(rad), rad / 1e3, label='FeO content of solid')
+    axis.plot(compo_liq(rad), rad / 1e3, label='FeO content of liquid')
+    axis.set_xlabel('FeO content at SMO/solid boundary')
+    axis.set_ylabel(r'$R^+$ (km)')
+    axis.set_xlim([0, 1])
+    axis.set_ylim([pnt.r_int / 1e3, pnt.r_tot / 1e3])
+    axis.legend(loc='best')
+    savefig(fig, 'CompoTime')
 
 
 if __name__ == '__main__':
@@ -220,9 +239,10 @@ if __name__ == '__main__':
     gamt_f = lambda g: np.interp(g, gam_smo, gamt_smo)
     w_f = lambda g: np.interp(g, gam_smo, w_smo)
     ana = LinearAnalyzer(
-        PhysicalProblem(cooling_smo=(gamt_f, w_f)),
+        PhysicalProblem(cooling_smo=(gamt_f, w_f),
+                        grad_ref_temperature=None),
         ncheb=24)
 
-    plot_min_time(pnt, ana, crystallized, time)
+    #plot_min_time(pnt, ana, crystallized, time)
     plot_destab(pnt, ana, crystallized, time)
-    plot_composition(pnt, crystallized, time)
+    #plot_composition(pnt)#, crystallized, time)
