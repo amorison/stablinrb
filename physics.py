@@ -11,7 +11,7 @@ class PhysicalProblem:
                  heat_flux_top=None, heat_flux_bot=None,
                  lewis=None, composition=None,
                  prandtl=None,
-                 grad_ref_temperature=None,
+                 grad_ref_temperature='conductive',
                  eta_r=None, cooling_smo=None,
                  ref_state_translation=False,
                  water=False, thetar=0):
@@ -19,6 +19,10 @@ class PhysicalProblem:
 
         gamma is r_bot/r_top, cartesian if None
 
+        grad_ref_temperature (spherical only): can be an arbitrary function of
+            the radius. If set to 'conductive', the conductive temperature
+            profile is used. If set to None, all temperature effects are
+            switched off.
         lewis: Lewis number if finite
         composition: reference compositional profile if Le->infinity
 

@@ -234,7 +234,7 @@ def cartesian_matrices(self, wnk, ra_num, ra_comp=None):
     return lmat, rmat
 
 
-def spherical_matrices(self, l_harm, ra_num, ra_comp=None):
+def spherical_matrices(self, l_harm, ra_num=None, ra_comp=None):
     """Build left and right matrices in spherical case"""
     gamma = self.phys.gamma
     rad = self.rad
@@ -262,23 +262,34 @@ def spherical_matrices(self, l_harm, ra_num, ra_comp=None):
     phi_bot = self.phys.phi_bot
     freeslip_top = self.phys.freeslip_top
     freeslip_bot = self.phys.freeslip_bot
+
     h_int = self.phys.h_int
     heat_flux_top = self.phys.heat_flux_top
     heat_flux_bot = self.phys.heat_flux_bot
+    grad_ref_temperature = self.phys.grad_ref_temperature
+    temp_terms = grad_ref_temperature is not None
+
     if self.phys.eta_r is not None:
         eta_r = np.diag(np.vectorize(self.phys.eta_r)(np.diag(rad)))
     else:
         eta_r = one
+
     lewis = self.phys.lewis
     composition = self.phys.composition
-    grad_ref_temperature = self.phys.grad_ref_temperature
     comp_terms = lewis is not None or composition is not None
     translation = self.phys.ref_state_translation
+
+    if temp_terms and ra_num is None:
+        raise ValueError('Temperature effect requires ra_num')
+    if comp_terms and ra_comp is None:
+        raise ValueError('Composition effect requires ra_comp')
+    if not (temp_terms or comp_terms):
+        raise ValueError('No buoyancy terms!')
 
     # global indices and slices
     i0n, igf, slall, slint, slgall, slgint = self._slices()
     i_0s, i_ns = zip(*i0n)
-    if comp_terms:
+    if temp_terms and comp_terms:
         ip0, iq0, it0, ic0 = i_0s
         ipn, iqn, itn, icn = i_ns
         ipg, iqg, itg, icg = igf
@@ -286,7 +297,7 @@ def spherical_matrices(self, l_harm, ra_num, ra_comp=None):
         pint, qint, tint, cint = slint
         pgall, qgall, tgall, cgall = slgall
         pgint, qgint, tgint, cgint = slgint
-    else:
+    elif temp_terms:
         ip0, iq0, it0 = i_0s
         ipn, iqn, itn = i_ns
         ipg, iqg, itg = igf
@@ -294,6 +305,14 @@ def spherical_matrices(self, l_harm, ra_num, ra_comp=None):
         pint, qint, tint = slint
         pgall, qgall, tgall = slgall
         pgint, qgint, tgint = slgint
+    else:  # only comp_terms
+        ip0, iq0, ic0 = i_0s
+        ipn, iqn, icn = i_ns
+        ipg, iqg, icg = igf
+        pall, qall, call = slall
+        pint, qint, cint = slint
+        pgall, qgall, cgall = slgall
+        pgint, qgint, cgint = slgint
 
     lmat = np.zeros((igf[-1](i_ns[-1]) + 1, igf[-1](i_ns[-1]) + 1))
     rmat = np.zeros((igf[-1](i_ns[-1]) + 1, igf[-1](i_ns[-1]) + 1))
@@ -343,7 +362,8 @@ def spherical_matrices(self, l_harm, ra_num, ra_comp=None):
     else:
         # laplacian(Q) - RaT/r = 0
         lmat[qgint, qgall] = lapl[qint, qall]
-    lmat[qgint, tgall] = - ra_num * orl1[qint, tall]
+    if temp_terms:
+        lmat[qgint, tgall] = - ra_num * orl1[qint, tall]
     if comp_terms:
         lmat[qgint, cgall] = - ra_comp * orl1[qint, call]
     # normal stress continuity at bot
@@ -359,48 +379,49 @@ def spherical_matrices(self, l_harm, ra_num, ra_comp=None):
         # rigid
         lmat[iqg(iqn), pgall] = dr1[iqn, pall]
 
-    # T equations
-    # laplacian(T) - u.grad(T_conductive) = sigma T
     if self.phys.cooling_smo is not None:
         gamt_f, w_f = self.phys.cooling_smo
         gam2_smo = gamt_f(gamma)**2
         w_smo = w_f(gamma)
 
-    # Neumann boundary condition if imposed flux
-    if heat_flux_top is not None:
-        lmat[itg(it0), tgall] = dr1[it0, tall]
-    elif heat_flux_bot is not None:
-        lmat[itg(itn), tgall] = dr1[itn, tall]
+    # T equations
+    # laplacian(T) - u.grad(T_conductive) = sigma T
+    if temp_terms:
+        # Neumann boundary condition if imposed flux
+        if heat_flux_top is not None:
+            lmat[itg(it0), tgall] = dr1[it0, tall]
+        elif heat_flux_bot is not None:
+            lmat[itg(itn), tgall] = dr1[itn, tall]
 
-    lmat[tgint, tgall] = lapl[tint, tall]
-    if self.phys.cooling_smo is not None:
-        grad_ref_temp_top = grad_ref_temperature(np.diag(rad)[0])
-        lmat[tgint, tgall] += w_smo * (
-            np.dot(rad - one, dr1) + grad_ref_temp_top * one)[tint, tall]
+        lmat[tgint, tgall] = lapl[tint, tall]
+        if self.phys.cooling_smo is not None:
+            grad_ref_temp_top = grad_ref_temperature(np.diag(rad)[0])
+            lmat[tgint, tgall] += w_smo * (
+                np.dot(rad - one, dr1) + grad_ref_temp_top * one)[tint, tall]
 
-    # advection of reference profile
-    # using u_r = l(l+1)/r P
-    # first compute - 1/r * nabla T
-    # then multiply by l(l+1)
-    if grad_ref_temperature is None:
-        # reference is conductive profile
-        grad_tcond = h_int / 3
-        if heat_flux_bot is not None:
-            grad_tcond -= ((1 + lam_r)**2 * heat_flux_bot +
-                           h_int * (1 + lam_r)**3 / 3) * np.diag(orl3)
-        elif heat_flux_top is not None:
-            grad_tcond -= ((2 + lam_r)**2 * heat_flux_top +
-                           h_int * (2 + lam_r)**3 / 3) * np.diag(orl3)
+        # advection of reference profile
+        # using u_r = l(l+1)/r P
+        # first compute - 1/r * nabla T
+        # then multiply by l(l+1)
+        if grad_ref_temperature == 'conductive':
+            # reference is conductive profile
+            grad_tcond = h_int / 3
+            if heat_flux_bot is not None:
+                grad_tcond -= ((1 + lam_r)**2 * heat_flux_bot +
+                               h_int * (1 + lam_r)**3 / 3) * np.diag(orl3)
+            elif heat_flux_top is not None:
+                grad_tcond -= ((2 + lam_r)**2 * heat_flux_top +
+                               h_int * (2 + lam_r)**3 / 3) * np.diag(orl3)
+            else:
+                grad_tcond -= ((h_int / 6 * (3 + 2 * lam_r) - 1) *
+                               (2 + lam_r) * (1 + lam_r)) * np.diag(orl3)
         else:
-            grad_tcond -= ((h_int / 6 * (3 + 2 * lam_r) - 1) *
-                           (2 + lam_r) * (1 + lam_r)) * np.diag(orl3)
-    else:
-        grad_tcond = np.dot(orl1, -grad_ref_temperature(np.diag(rad)))
-    lmat[tgint, pgall] = np.diag(lh2 * grad_tcond)[tint, pall]
+            grad_tcond = np.dot(orl1, -grad_ref_temperature(np.diag(rad)))
+        lmat[tgint, pgall] = np.diag(lh2 * grad_tcond)[tint, pall]
 
-    rmat[tgint, tgall] = one[tint, tall]
-    if self.phys.cooling_smo:
-        rmat[tgint, tgall] *= gam2_smo
+        rmat[tgint, tgall] = one[tint, tall]
+        if self.phys.cooling_smo:
+            rmat[tgint, tgall] *= gam2_smo
 
     # C equations
     # 1/Le lapl(C) - u.grad(C_reference) = sigma C
@@ -510,9 +531,13 @@ class Analyser:
             i_n = ncheb if (phi_bot is not None) else ncheb - 1
             i0n.append((i_0, i_n))
         # temperature
-        i_0 = 0 if (heat_flux_top is not None) else 1
-        i_n = ncheb if (heat_flux_bot is not None) else ncheb - 1
-        i0n.append((i_0, i_n))
+        if not (self.phys.spherical and
+                self.phys.grad_ref_temperature is None):
+            # handling of arbitrary grad_ref_temperature is only implemented
+            # in spherical geometry
+            i_0 = 0 if (heat_flux_top is not None) else 1
+            i_n = ncheb if (heat_flux_bot is not None) else ncheb - 1
+            i0n.append((i_0, i_n))
         if self.phys.composition is not None or self.phys.lewis is not None:
             i0n.append((1, ncheb - 1))
         return build_slices(i0n, ncheb)
