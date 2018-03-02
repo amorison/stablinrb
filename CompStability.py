@@ -49,26 +49,37 @@ def _phi_col_lbl(phi_top, phi_bot):
     return col, phi_str
 
 
-def plot_destab(pnt, ana, crystallized, time):
+def plot_destab(pnt, ana, crystallized, time, outfile):
     """Plot destabilization time scale as function of solid thickness"""
     figt, axt = plt.subplots(1, 1)
     figl, axl = plt.subplots(1, 1)
     pnt.eta = 1e18
 
     for phi_bot, phi_top in phi_vals:
-        ana.phys.phi_top = phi_top
-        ana.phys.phi_bot = phi_bot
         col, phi_str = _phi_col_lbl(phi_top, phi_bot)
-
-        tau_vals = []
-        harm_vals = []
-        harm = 1
-        for h_crystal in h_crystal_vals:
-            update_thickness(ana, pnt, h_crystal)
-            sigma, harm = ana.fastest_mode(pnt.rayleigh, pnt.ra_comp, harm)
-            print(phi_top, phi_bot, sigma, harm, pnt.rayleigh)
-            tau_vals.append(np.real(pnt.tau(sigma)))
-            harm_vals.append(harm)
+        with h5py.File(outfile, 'a') as h5f:
+            if phi_str in h5f:
+                print('Reading destab data from {}/{}'.
+                      format(outfile, phi_str))
+                tau_vals = h5f[phi_str]['tau_vals'].value
+                harm_vals = h5f[phi_str]['harmonics'].value
+            else:
+                grp = h5f.create_group(phi_str)
+                ana.phys.phi_top = phi_top
+                ana.phys.phi_bot = phi_bot
+                tau_vals = []
+                harm_vals = []
+                harm = 1
+                for h_crystal in h_crystal_vals:
+                    update_thickness(ana, pnt, h_crystal)
+                    sigma, harm = ana.fastest_mode(pnt.rayleigh, pnt.ra_comp, harm)
+                    print(phi_top, phi_bot, sigma, harm, pnt.rayleigh)
+                    tau_vals.append(np.real(pnt.tau(sigma)))
+                    harm_vals.append(harm)
+                tau_vals = np.array(tau_vals)
+                harm_vals = np.array(harm_vals)
+                grp['tau_vals'] = tau_vals
+                grp['harmonics'] = harm_vals
         axt.semilogy(h_crystal_vals/1e3, tau_vals,
                      label=phi_str, color=col)
         axl.semilogy(h_crystal_vals/1e3, harm_vals,
@@ -264,5 +275,5 @@ if __name__ == '__main__':
         ncheb=24)
 
     plot_min_time(pnt, ana, crystallized, time, out_dir / 'interTime.h5')
-    plot_destab(pnt, ana, crystallized, time)
+    plot_destab(pnt, ana, crystallized, time, out_dir / 'DestabTime.h5')
     #plot_composition(pnt)#, crystallized, time)
