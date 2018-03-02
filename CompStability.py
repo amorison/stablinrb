@@ -232,11 +232,12 @@ if __name__ == '__main__':
     if not TEMP_EFFECTS or COMPO_EFFECTS:
         ValueError('TEMP_EFFECTS or COMPO_EFFECTS should be switched on')
     pnt_dir = pathlib.Path(pnt.name)
-    out_dir = pnt_dir
     if not TEMP_EFFECTS:
-        out_dir /= 'onlyCompo'
+        out_dir = pnt_dir / 'onlyCompo'
     elif not COMPO_EFFECTS:
-        out_dir /= 'onlyTemp'
+        out_dir = pnt_dir / 'onlyTemp'
+    else:
+        out_dir = pnt_dir / 'both'
     out_dir.mkdir(parents=True, exist_ok=True)
 
     pnt.compo_effects = COMPO_EFFECTS
