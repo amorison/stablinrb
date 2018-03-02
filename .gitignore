@@ -2,4 +2,7 @@
 *.pdf
 *.swp
 dmsuite/
+Earth/
+Mars/
+Moon/
 __pycache__/
