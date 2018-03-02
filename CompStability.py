@@ -3,6 +3,7 @@
 Crystallization and cumulate destabilization time scales of a SMO
 """
 import pathlib
+import h5py
 import numpy as np
 import matplotlib.pyplot as plt
 import misc
@@ -152,21 +153,31 @@ def time_intersection(ana, pnt, crystallized, time, eps=1e-3):
     return np.interp(h_cryst, crystallized, time)
 
 
-def plot_min_time(pnt, ana, crystallized, time):
+def plot_min_time(pnt, ana, crystallized, time, outfile):
     """Plot time at which destab = cooling time"""
     fig, axt = plt.subplots(1, 1)
     eta_logs = np.linspace(15, 18, 10)
     for phi_bot, phi_top in phi_vals:
-        ana.phys.phi_top = phi_top
-        ana.phys.phi_bot = phi_bot
         col, phi_str = _phi_col_lbl(phi_top, phi_bot)
-        tau_vals = []
-        for eta in eta_logs:
-            pnt.eta = 10**eta
-            tau_val = time_intersection(ana, pnt, crystallized, time)
-            tau_vals.append(tau_val)
-            print(eta, tau_val)
-        axt.loglog(10**eta_logs, np.array(tau_vals) / 3.15e10,
+        with h5py.File(outfile, 'a') as h5f:
+            if phi_str in h5f:
+                print('Reading destab X cooling from {}/{}'.
+                      format(outfile, phi_str))
+                tau_vals = h5f[phi_str]['tau_vals'].value
+            else:
+                grp = h5f.create_group(phi_str)
+                ana.phys.phi_top = phi_top
+                ana.phys.phi_bot = phi_bot
+                tau_vals = []
+                for eta in eta_logs:
+                    pnt.eta = 10**eta
+                    tau_val = time_intersection(ana, pnt, crystallized, time)
+                    tau_vals.append(tau_val)
+                    print(eta, tau_val)
+                tau_vals = np.array(tau_vals)
+                grp['tau_vals'] = tau_vals
+                grp['eta_logs'] = eta_logs
+        axt.loglog(10**eta_logs, tau_vals / 3.15e10,
                    color=col, label=phi_str)
     axt.set_xlabel(r'Viscosity $\eta$')
     axt.set_ylabel(r'Time (kyr)')
@@ -251,6 +262,6 @@ if __name__ == '__main__':
                         grad_ref_temperature=None),
         ncheb=24)
 
-    #plot_min_time(pnt, ana, crystallized, time)
+    plot_min_time(pnt, ana, crystallized, time, out_dir / 'interTime.h5')
     plot_destab(pnt, ana, crystallized, time)
     #plot_composition(pnt)#, crystallized, time)
