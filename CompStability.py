@@ -14,12 +14,8 @@ from planets import EARTH as pnt
 FTSZ = 14
 MSIZE = 5
 
-TEMP_EFFECTS = False
+TEMP_EFFECTS = True
 COMPO_EFFECTS = True
-
-#out_dir = pathlib.Path(pnt.name)
-out_dir = pathlib.Path('thermo_compo_C')
-out_dir.mkdir()
 
 
 def savefig(fig, stem):
@@ -221,6 +217,17 @@ def plot_composition(pnt):
 
 
 if __name__ == '__main__':
+
+    if not TEMP_EFFECTS or COMPO_EFFECTS:
+        ValueError('TEMP_EFFECTS or COMPO_EFFECTS should be switched on')
+    pnt_dir = pathlib.Path(pnt.name)
+    out_dir = pnt_dir
+    if not TEMP_EFFECTS:
+        out_dir /= 'onlyCompo'
+    elif not COMPO_EFFECTS:
+        out_dir /= 'onlyTemp'
+    out_dir.mkdir(parents=True)
+
     pnt.compo_effects = COMPO_EFFECTS
     h_crystal_max = pnt.r_eut - pnt.r_int - 10e3
     h_crystal_vals = np.logspace(np.log10(5) + 3, np.log10(h_crystal_max), 200)
