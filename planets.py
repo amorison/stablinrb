@@ -1,6 +1,8 @@
 """Planets parametrization"""
 from types import SimpleNamespace
 import inspect
+
+import h5py
 import numpy as np
 import scipy.integrate as integ
 import scipy.optimize as opt
@@ -143,11 +145,17 @@ class Planet(SimpleNamespace):
                                  self.d_crystal)
         return opt.fsolve(tsurf_func, self.temp_inf)[0]
 
-    def cooling_time(self, h_max, verbose=False):
+    def cooling_time(self, h_max, outfile, verbose=False):
         """Compute time to evacuate latent heat and cool down SMO
 
         Based on grey body radiation and fixed boundary layer Ra
         """
+        if outfile.exists():
+            print('Reading cooling history from {}'.format(outfile))
+            with h5py.File(outfile, 'r') as h5f:
+                crystallized = h5f['thickness'].value
+                time = h5f['time'].value
+            return crystallized, time
         crystallized = [0]
         time = [0]
         dtime = self.dtime / 3e3  # to have first point earlier
@@ -172,7 +180,12 @@ class Planet(SimpleNamespace):
             dtime = self.dtime
             if verbose and len(time)%1000==0:
                 print(self.surf_temp, temp_top, crystallized[-1]/1e3, time[-1]/3.15e7)
-        return np.array(crystallized), np.array(time)
+        crystallized = np.array(crystallized)
+        time = np.array(time)
+        with h5py.File(outfile, 'w') as h5f:
+            h5f['thickness'] = crystallized
+            h5f['time'] = time
+        return crystallized, time
 
 
 EARTH = Planet()

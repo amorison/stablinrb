@@ -226,16 +226,17 @@ if __name__ == '__main__':
         out_dir /= 'onlyCompo'
     elif not COMPO_EFFECTS:
         out_dir /= 'onlyTemp'
-    out_dir.mkdir(parents=True)
+    out_dir.mkdir(parents=True, exist_ok=True)
 
     pnt.compo_effects = COMPO_EFFECTS
     h_crystal_max = pnt.r_eut - pnt.r_int - 10e3
-    h_crystal_vals = np.logspace(np.log10(5) + 3, np.log10(h_crystal_max), 200)
+    h_crystal_vals = np.logspace(np.log10(5) + 3, np.log10(h_crystal_max), 2000)
     phi_vals = [(None, None), (None, 1e-2), (1e-2, 1e-2)]
     if pnt.name != 'Earth':
         phi_vals = phi_vals[:-1]
 
-    crystallized, time = pnt.cooling_time(h_crystal_max, True)
+    crystallized, time = pnt.cooling_time(h_crystal_max, pnt_dir / 'CoolingSMO.h5',
+                                          verbose=True)
     plot_cooling_time(pnt, crystallized, time)
 
     gamma_from_h = lambda h: pnt.r_int / (pnt.r_int + h)
