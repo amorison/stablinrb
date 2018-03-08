@@ -61,7 +61,7 @@ def plot_destab(pnt, ana, crystallized, time, outfile):
             if phi_str in h5f:
                 print('Reading destab data from {}/{}'.
                       format(outfile, phi_str))
-                tau_vals = h5f[phi_str]['tau_vals'].value
+                tau_vals = h5f[phi_str]['tau'].value
                 harm_vals = h5f[phi_str]['harmonics'].value
             else:
                 grp = h5f.create_group(phi_str)
@@ -78,8 +78,9 @@ def plot_destab(pnt, ana, crystallized, time, outfile):
                     harm_vals.append(harm)
                 tau_vals = np.array(tau_vals)
                 harm_vals = np.array(harm_vals)
-                grp['tau_vals'] = tau_vals
+                grp['tau'] = tau_vals
                 grp['harmonics'] = harm_vals
+                grp['thickness'] = h_crystal_vals
         axt.semilogy(h_crystal_vals/1e3, tau_vals,
                      label=phi_str, color=col)
         axl.semilogy(h_crystal_vals/1e3, harm_vals,
@@ -174,7 +175,7 @@ def plot_min_time(pnt, ana, crystallized, time, outfile):
             if phi_str in h5f:
                 print('Reading destab X cooling from {}/{}'.
                       format(outfile, phi_str))
-                tau_vals = h5f[phi_str]['tau_vals'].value
+                tau_vals = h5f[phi_str]['tau'].value
             else:
                 grp = h5f.create_group(phi_str)
                 ana.phys.phi_top = phi_top
@@ -186,7 +187,7 @@ def plot_min_time(pnt, ana, crystallized, time, outfile):
                     tau_vals.append(tau_val)
                     print(eta, tau_val)
                 tau_vals = np.array(tau_vals)
-                grp['tau_vals'] = tau_vals
+                grp['tau'] = tau_vals
                 grp['eta_logs'] = eta_logs
         axt.loglog(10**eta_logs, tau_vals / 3.15e10,
                    color=col, label=phi_str)
