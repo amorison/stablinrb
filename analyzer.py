@@ -394,7 +394,7 @@ def spherical_matrices(self, l_harm, ra_num=None, ra_comp=None):
             lmat[itg(itn), tgall] = dr1[itn, tall]
 
         lmat[tgint, tgall] = lapl[tint, tall]
-        if self.phys.cooling_smo is not None:
+        if not self.phys.frozen_time and self.phys.cooling_smo is not None:
             grad_ref_temp_top = grad_ref_temperature(np.diag(rad)[0])
             lmat[tgint, tgall] += w_smo * (
                 np.dot(rad - one, dr1) + grad_ref_temp_top * one)[tint, tall]
@@ -420,7 +420,7 @@ def spherical_matrices(self, l_harm, ra_num=None, ra_comp=None):
         lmat[tgint, pgall] = np.diag(lh2 * grad_tcond)[tint, pall]
 
         rmat[tgint, tgall] = one[tint, tall]
-        if self.phys.cooling_smo:
+        if not self.phys.frozen_time and self.phys.cooling_smo:
             rmat[tgint, tgall] *= gam2_smo
 
     # C equations
@@ -431,10 +431,10 @@ def spherical_matrices(self, l_harm, ra_num=None, ra_comp=None):
     elif lewis is not None:
         raise ValueError('Finite Lewis not implemented in spherical')
     if comp_terms:
-        if self.phys.cooling_smo is not None:
+        if not self.phys.frozen_time and self.phys.cooling_smo is not None:
             lmat[cgint, cgall] = w_smo * np.dot(rad - one, dr1)[cint, call]
         rmat[cgint, cgall] = one[cint, call]
-        if self.phys.cooling_smo is not None:
+        if not self.phys.frozen_time and self.phys.cooling_smo is not None:
             rmat[cgint, cgall] *= gam2_smo
 
     return lmat, rmat

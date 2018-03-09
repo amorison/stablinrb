@@ -13,6 +13,7 @@ class PhysicalProblem:
                  prandtl=None,
                  grad_ref_temperature='conductive',
                  eta_r=None, cooling_smo=None,
+                 frozen_time=False,
                  ref_state_translation=False,
                  water=False, thetar=0):
         """Create a physical problem instance
@@ -50,6 +51,7 @@ class PhysicalProblem:
         self.grad_ref_temperature = grad_ref_temperature
         self.eta_r = eta_r
         self.cooling_smo = cooling_smo
+        self.frozen_time = frozen_time
         self.ref_state_translation = ref_state_translation
         # parameters for the stability of water cooled from below around 4C
         self.water = water

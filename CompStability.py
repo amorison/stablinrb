@@ -17,6 +17,7 @@ MSIZE = 5
 
 TEMP_EFFECTS = True
 COMPO_EFFECTS = True
+FROZEN_TIME = False
 
 
 def savefig(fig, stem):
@@ -241,15 +242,16 @@ def plot_composition(pnt):
 
 if __name__ == '__main__':
 
+    suffix = '_frozen' if FROZEN_TIME else ''
     if not TEMP_EFFECTS or COMPO_EFFECTS:
         ValueError('TEMP_EFFECTS or COMPO_EFFECTS should be switched on')
     pnt_dir = pathlib.Path(pnt.name)
     if not TEMP_EFFECTS:
-        out_dir = pnt_dir / 'onlyCompo'
+        out_dir = pnt_dir / ('onlyCompo' + suffix)
     elif not COMPO_EFFECTS:
-        out_dir = pnt_dir / 'onlyTemp'
+        out_dir = pnt_dir / ('onlyTemp' + suffix)
     else:
-        out_dir = pnt_dir / 'both'
+        out_dir = pnt_dir / ('both' + suffix)
     out_dir.mkdir(parents=True, exist_ok=True)
 
     pnt.compo_effects = COMPO_EFFECTS
@@ -272,7 +274,8 @@ if __name__ == '__main__':
     w_f = lambda g: np.interp(g, gam_smo, w_smo)
     ana = LinearAnalyzer(
         PhysicalProblem(cooling_smo=(gamt_f, w_f),
-                        grad_ref_temperature=None),
+                        grad_ref_temperature=None,
+                        frozen_time=FROZEN_TIME),
         ncheb=24)
 
     plot_min_time(pnt, ana, crystallized, time, out_dir / 'interTime.h5')
