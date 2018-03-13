@@ -72,7 +72,8 @@ data = {
              'label': 'Composition + Temperature + Moving Frame'},
     'both_frozen': {'linestyle': ':', 'linewidth': 1,
                     'label': 'Composition + Temperature'},
-    'onlyTemp': {'linestyle': '-.', 'linewidth': 1, 'label': 'Temperature + Moving Frame'},
+    'onlyTemp': {'linestyle': '-.', 'linewidth': 1,
+                 'label': 'Temperature + Moving Frame'},
 }
 
 for body in bodies:
