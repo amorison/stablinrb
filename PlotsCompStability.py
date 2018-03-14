@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 import pathlib
+import typing
 
 import h5py
 import matplotlib.pyplot as plt
@@ -56,24 +57,31 @@ class HandlerDashedLines(HandlerLineCollection):
         return leglines
 
 
+class BndInfo(typing.NamedTuple):
+    color: str
+    legend: str
+
 bodies = EARTH, MARS, MOON
 
-color_grp = {'closed': 'b',
-             r'$\Phi^+=10^{-2}$': 'g',
-             r'$\Phi^+=\Phi^-=10^{-2}$': 'r'}
-legend_grp = {
-    'closed': 'closed ($\Phi^+=\Phi^-=\infty$)',
-    r'$\Phi^+=10^{-2}$': 'open at top ($\Phi^+=10^{-2}, \Phi^-=\infty$)',
-    r'$\Phi^+=\Phi^-=10^{-2}$': 'open at top and bottom ($\Phi^+=\Phi^-=10^{-2}$)'}
+cases_bcs = 'closed', r'$\Phi^+=10^{-2}$', r'$\Phi^+=\Phi^-=10^{-2}$'
+cases_bulk = 'both', 'both_frozen', 'onlyTemp'
+bcs_meta = {
+    cases_bcs[0]:
+        BndInfo('b', 'open at top and bottom ($\Phi^+=\Phi^-=10^{-2}$)'),
+    cases_bcs[1]:
+        BndInfo('g', 'open at top ($\Phi^+=10^{-2}, \Phi^-=\infty$)'),
+    cases_bcs[2]:
+        BndInfo('r', 'open at top and bottom ($\Phi^+=\Phi^-=10^{-2}$)'),
+}
 
 data_smo = {}
 data = {
-    'both': {'linestyle': '-', 'linewidth': 2,
-             'label': 'Composition + Temperature + Moving Frame'},
-    'both_frozen': {'linestyle': ':', 'linewidth': 1,
+    cases_bulk[0]: {'linestyle': '-', 'linewidth': 2,
+                    'label': 'Composition + Temperature + Moving Frame'},
+    cases_bulk[1]: {'linestyle': ':', 'linewidth': 1,
                     'label': 'Composition + Temperature'},
-    'onlyTemp': {'linestyle': '-.', 'linewidth': 1,
-                 'label': 'Temperature + Moving Frame'},
+    cases_bulk[2]: {'linestyle': '-.', 'linewidth': 1,
+                    'label': 'Temperature + Moving Frame'},
 }
 
 for body in bodies:
@@ -102,7 +110,7 @@ for iplot, body in enumerate(bodies):
                                   color='k', linestyle='--',
                                   label='Diffusive timescale')
     for case_bulk, data_bulk in data.items():
-        for case_bcs in color_grp:
+        for case_bcs, meta_bcs in bcs_meta.items():
             if case_bcs in data_bulk[body.name]:
                 case_data = data_bulk[body.name][case_bcs]
             else:
@@ -112,7 +120,7 @@ for iplot, body in enumerate(bodies):
             axis[iplot].semilogy(
                 case_data['thickness'] / 1e3, case_data['tau'],
                 ls=data_bulk['linestyle'], linewidth=data_bulk['linewidth'],
-                color=color_grp[case_bcs], label=legend_grp[case_bcs])
+                color=meta_bcs.color, label=meta_bcs.legend)
     axis[iplot].set_xlabel('Thickness of solid mantle (km)')
     axis[iplot].annotate(body.name, xy=(thick_smo[-1] / 2e3, 3e4),
                          fontsize=18, ha='center')
@@ -125,17 +133,18 @@ dummy_line = [[(0, 0)]]
 llc = []
 llbl = []
 for case_bulk, case_data in data.items():
-    llc.append(mcol.LineCollection(dummy_line * 3,
-                                   linestyles=[case_data['linestyle']]*3,
-                                   linewidths=[case_data['linewidth']]*3,
-                                   colors=['b', 'g', 'r']))
+    llc.append(mcol.LineCollection(
+        dummy_line * 3, linestyles=[case_data['linestyle']]*3,
+        linewidths=[case_data['linewidth']]*3,
+        colors=[bcs_meta[b].color for b in cases_bcs]))
     llbl.append(case_data['label'])
-for case_bcs, color in color_grp.items():
-    llc.append(mcol.LineCollection(dummy_line * 3,
-                                   linestyles=['-', ':', '-.'],
-                                   linewidths=[2, 1, 1],
-                                   colors=[color] * 3))
-    llbl.append(legend_grp[case_bcs])
+for case_bcs, meta_bcs in bcs_meta.items():
+    llc.append(mcol.LineCollection(
+        dummy_line * 3,
+        linestyles=[data[b]['linestyle'] for b in cases_bulk],
+        linewidths=[data[b]['linewidth'] for b in cases_bulk],
+        colors=[meta_bcs.color] * 3))
+    llbl.append(meta_bcs.legend)
 llc.extend([cline, dline])
 llbl.extend(['Crystallization time', 'Diffusive timescale'])
 axis[0].legend(llc, llbl,
