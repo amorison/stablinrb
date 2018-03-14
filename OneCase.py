@@ -22,22 +22,25 @@ signal.signal(signal.SIGINT, sigint_handler)
 # Font and markers size
 FTSZ = 11
 MSIZE = 2
-GAMMA = None
+gamma = 0.7
 eta_c = None
 
 PHI = 1e-2
 
 pblm = PhysicalProblem(
+    gamma=None,
     phi_top=None,
     phi_bot=PHI,
     freeslip_top=True,
-    freeslip_bot=True)
+    freeslip_bot=True,
+    eta_r = visco_Arrhenius(eta_c, gamma) if eta_c is not None else None,
+    ref_state_translation=False)
 
-NON_LINEAR = False
+NON_LINEAR = True
 ra_comp = None
 
 if NON_LINEAR:
-    ana = NonLinearAnalyzer(pblm, ncheb=10, nnonlin=2)
+    ana = NonLinearAnalyzer(pblm, ncheb=30, nnonlin=2)
     harm_c, ray, mode, moyt, qtop = ana.nonlinana()
     print('kc = ', harm_c, np.pi / np.sqrt(2))
     print('Rayleigh = ', ray)
@@ -54,39 +57,37 @@ if NON_LINEAR:
     # print('ramax, epsmax = ', ramax, epsmax)
     # epsmax determined to obtain a given Tmoy
     # maxt = 1
-    # coef_t = moyt[2] * ray[0] / ray[2]
-    # print('coef_t = ', coef_t)
+    coef_t = moyt[2] * ray[0] / ray[2]
+    print('coef_t = ', coef_t)
     # ramax = (1 + (maxt - 0.5) / coef_t) * ray[0] 
     # epsmax = np.sqrt((ramax - ray[0]) / ray[2])
     # print('ramax, epsmax = ', ramax, epsmax)
     # epsmax simply set
-    epsmax = .5
-    # plotting.plot_mode_image(ana, mode, harm_c, eps=epsmax, plot_ords=True)
+    epsmax = 5.58
+    plotting.plot_mode_image(ana, mode, harm_c, eps=epsmax, plot_ords=False)
 
-    plotting.plot_mode_profiles(ana, mode, harm_c, plot_theory=True)
+    # plotting.plot_mode_profiles(ana, mode, harm_c, plot_theory=False)
 
-    # nterms = qtop.shape[0]
-    # eps = np.linspace(0, epsmax, num=20)
-    # vdm = np.vander(eps, nterms, increasing=True)
-    # rayl = np.dot(vdm, ray)
-    # nuss = np.dot(vdm, qtop)
-    # meant = np.dot(vdm, moyt)
-    # fig, axe = plt.subplots(2, 1, sharex=True)
-    # axe[0].plot(rayl, nuss)
-    # axe[0].set_ylabel('Nusselt number', fontsize=FTSZ)
-    # axe[0].set_xlabel('Rayleigh number', fontsize=FTSZ)
-    # axe[1].plot(rayl, meant)
-    # axe[1].set_xlabel('Rayleigh number', fontsize=FTSZ)
-    # axe[1].set_ylabel('Mean T', fontsize=FTSZ)
-    # plt.savefig('Ra-Nu-Tmean.pdf', format='PDF')
+    nterms = qtop.shape[0]
+    eps = np.linspace(0, epsmax, num=20)
+    vdm = np.vander(eps, nterms, increasing=True)
+    rayl = np.dot(vdm, ray)
+    nuss = np.dot(vdm, qtop)
+    meant = np.dot(vdm, moyt)
+    fig, axe = plt.subplots(2, 1, sharex=True)
+    axe[0].plot(rayl, nuss)
+    axe[0].set_ylabel('Nusselt number', fontsize=FTSZ)
+    axe[0].set_xlabel('Rayleigh number', fontsize=FTSZ)
+    axe[1].plot(rayl, meant)
+    axe[1].set_xlabel('Rayleigh number', fontsize=FTSZ)
+    axe[1].set_ylabel('Mean T', fontsize=FTSZ)
+    plt.savefig('Ra-Nu-Tmean.pdf', format='PDF')
 else:
     ana = LinearAnalyzer(pblm, ncheb=20)
     ra_c, harm_c = ana.critical_ra(ra_comp=ra_comp)
     print('Rac, kc = ', ra_c, harm_c)
-    print('Wavelength = ', 2 * np.pi / harm_c)
     plotting.plot_fastest_mode(ana, harm_c, ra_c, ra_comp, plot_theory=False)
-    plotting.plot_ran_harm(ana, harm_c)
-    # plotting.plot_ran_harm(ana, harm_c, ra_comp)
+    plotting.plot_ran_harm(ana, harm_c, ra_comp)
     if eta_c is not None:
         plotting.plot_viscosity(pblm)
 

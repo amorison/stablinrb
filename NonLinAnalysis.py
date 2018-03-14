@@ -12,6 +12,7 @@ from analyzer import LinearAnalyzer, NonLinearAnalyzer
 from physics import PhysicalProblem, compo_smo
 from plotting import plot_fastest_mode, plot_ran_harm
 from misc import normalize_modes
+from collections import OrderedDict
 
 # plt.rc('font', family='Helvetica')
 mpl.rc('font',**{'family':'sans-serif','sans-serif':['Helvetica']})
@@ -32,19 +33,29 @@ def fmt(x):
     else:
         return r'${}$'.format(a)
 
+linestyles =[
+                 (0, (1, 4)),
+                 (0, (1, 1)),
+                 (0, (5, 8)),
+                 (0, (5, 1)),
+                 (0, (3, 5, 1, 5)),
+                 (0, (3, 1, 1, 1)),
+                 (0, (3, 10, 1, 10, 1, 10)),
+                 (0, (3, 5, 1, 5, 1, 5)),
+                 (0, (3, 1, 1, 1, 1, 1))]
 
 # Font and markers size
-FTSZ = 16
+FTSZ = 14
 MSIZE = 3
 
 # Controls
 PLOT_NURA = False
 PLOT_COEF_NU = False
 PLOT_COEFT = False
-PLOT_BOTTOP = False
-PLOT_BOT_ONLY = False
-PLOT_TEMP = False
-PLOT_BOTTOP_BOTONLY = True
+PLOT_BOTTOP = True
+PLOT_BOT_ONLY = True
+PLOT_TEMP = True
+PLOT_BOTTOP_BOTONLY = False
 COMPUTE = False
 
 # file to read from
@@ -144,11 +155,13 @@ if PLOT_BOTTOP:
     axe[0].legend(loc='upper right', fontsize=FTSZ)
     # right Nu - Ra for a subset
     maxnu = 5
+    iline = 0
     for i, phi in reversed(list(enumerate(phinum))):
         if np.log10(phi) - np.int(np.log10(phi)) == 0 and np.log10(phi) <= 3:
             rayl = np.array([1, 1 + (maxnu - 1) / coef_nu[i]]) * ray[i, 0]
             nutab = np.array([1, maxnu])
-            axe[1].plot(rayl, nutab, label=r'$\Phi = $' + fmt(phi))
+            axe[1].plot(rayl, nutab, linestyle=linestyles[iline], label=r'$\Phi = $' + fmt(phi))
+            iline += 1
     axe[1].set_xlabel(r'$\mbox{\textit{Ra}}$', fontsize=FTSZ)
     axe[1].set_ylabel(r'$\mbox{\textit{Nu}}$', fontsize=FTSZ)
     axe[1].yaxis.set_label_position("right")
@@ -157,7 +170,7 @@ if PLOT_BOTTOP:
     axe[1].legend(loc='lower right', fontsize=FTSZ-2)
 
     plt.tight_layout(pad=1, w_pad=0, h_pad=0)
-    plt.savefig('HFcoeff_NuRa_BotTop.pdf')
+    plt.savefig('HFcoeff_NuRa_BotTop.pdf', bbox_inches='tight')
     plt.close(fig)
 
 if PLOT_BOT_ONLY:
@@ -175,11 +188,13 @@ if PLOT_BOT_ONLY:
     axe[0].legend(loc='lower right', fontsize=FTSZ)
     # right Nu - Ra for a subset
     maxnu = 5
+    iline = 0
     for i, phi in reversed(list(enumerate(phinum))):
         if np.log10(phi) - np.int(np.log10(phi)) == 0 and np.log10(phi) <= 3:
             rayl = np.array([1, 1 + (maxnu - 1) / coef_nub[i]]) * rayb[i, 0]
             nutab = np.array([1, maxnu])
-            axe[1].plot(rayl, nutab, label=r'$\Phi = $' + fmt(phi))
+            axe[1].plot(rayl, nutab, linestyle=linestyles[iline], label=r'$\Phi = $' + fmt(phi))
+            iline += 1
     axe[1].set_xlabel(r'$\mbox{\textit{Ra}}$', fontsize=FTSZ)
     axe[1].set_ylabel(r'$\mbox{\textit{Nu}}$', fontsize=FTSZ)
     axe[1].yaxis.set_label_position("right")
@@ -188,7 +203,7 @@ if PLOT_BOT_ONLY:
     axe[1].legend(loc='lower right', fontsize=FTSZ-2)
 
     plt.tight_layout(pad=0, w_pad=0, h_pad=0)
-    plt.savefig('HFcoeff_NuRa_BotOnly.pdf')
+    plt.savefig('HFcoeff_NuRa_BotOnly.pdf', bbox_inches='tight')
     plt.close(fig)
 
 if PLOT_TEMP:
@@ -207,11 +222,13 @@ if PLOT_TEMP:
     axe[0].legend(loc='upper right', fontsize=FTSZ)
     # right Nu - Ra for a subset
     maxnu = 5
+    iline = 0
     for i, phi in reversed(list(enumerate(phinum))):
         if np.log10(phi) - np.int(np.log10(phi)) == 0 and np.log10(phi) <= 3:
             raylb = np.array([1, 1 + (maxnu - 1) / coef_nub[i]]) * rayb[i, 0]
             meant = np.array([0, coef_t[i] * (raylb[1] - rayb[i, 0]) / rayb[i, 0]]) + 0.5
-            axe[1].plot(raylb, meant, label=r'$\Phi = $' + fmt(phi))
+            axe[1].plot(raylb, meant, linestyle=linestyles[iline], label=r'$\Phi = $' + fmt(phi))
+            iline += 1
     axe[1].set_xlabel(r'$\mbox{\textit{Ra}}$', fontsize=FTSZ)
     axe[1].set_ylabel(r'$\langle T\rangle$', fontsize=FTSZ)
     axe[1].yaxis.set_label_position("right")
@@ -219,7 +236,7 @@ if PLOT_TEMP:
     axe[1].legend(loc='upper right', fontsize=FTSZ)
 
     plt.tight_layout(pad=0, w_pad=0, h_pad=0)
-    plt.savefig('Tcoeff_NuT_BotOnly.pdf')
+    plt.savefig('Tcoeff_NuT_BotOnly.pdf', bbox_inches='tight')
     plt.close(fig)
 
 if PLOT_NURA:
@@ -288,7 +305,7 @@ if PLOT_COEF_NU:
     axe.semilogx(phinum, coef_nub, 'o', markersize=MSIZE, label=r'$\Phi^+=\infty, \quad \Phi^-$ varying')
     plt.legend(loc='lower right', fontsize=FTSZ)
     # plt.tight_layout(pad=0, w_pad=0, h_pad=0)
-    plt.savefig('HF_coeff_both.pdf')
+    plt.savefig('HF_coeff_both.pdf', bbox_inches='tight')
     plt.close(fig)
 
 if PLOT_COEFT:
@@ -299,7 +316,7 @@ if PLOT_COEFT:
     plt.xlabel(r'$\Phi^-$', fontsize=FTSZ)
     plt.ylabel(r'$\langle T \rangle$ coefficient', fontsize=FTSZ)
     axe.semilogx(phinum, coef_t, 'o', markersize=MSIZE)
-    plt.savefig('meanT_coeff.pdf')
+    plt.savefig('meanT_coeff.pdf', bbox_inches='tight')
     plt.close(fig)
     
 if PLOT_BOTTOP_BOTONLY:
@@ -363,5 +380,5 @@ if PLOT_BOTTOP_BOTONLY:
     print('closed d Nub/dRab = ', coef_nub[0]/rayb[0, 0])
 
     plt.tight_layout(pad=0, w_pad=0, h_pad=0)
-    plt.savefig('HFcoeff_NuRa_BotOnly_Both.pdf')
+    plt.savefig('HFcoeff_NuRa_BotOnly_Both.pdf', bbox_inches='tight')
     plt.close(fig)
