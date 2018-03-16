@@ -80,7 +80,7 @@ def cartesian_matrices_0(self, ra_num):
     # print('ra = ', ra_num)
     # print('dz1 =', dz1)
     # print('dz2 =', dz2)
-    print('lmat = ', matlab.double(lmat.tolist()))
+    # print('lmat = ', matlab.double(lmat.tolist()))
         
     return lmat, pgint, tgint, pgall, tgall, igw
 

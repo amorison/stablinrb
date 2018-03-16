@@ -13,6 +13,7 @@ import matplotlib.pyplot as plt
 # import seaborn as sns
 from analyzer import LinearAnalyzer, NonLinearAnalyzer
 from physics import PhysicalProblem
+import os.path
 
 mpl.rc('font',**{'family':'sans-serif','sans-serif':['Helvetica']})
 ## for Palatino and other serif fonts use:
@@ -26,11 +27,12 @@ FTSZ = 12
 MSIZE = 3
 
 # range of exploration in phi
-PLOT_K_RA = False
-PLOT_KSIGMA = True
+PLOT_K_RA = True
+PLOT_KSIGMA = False
 PLOT_RAMAX = False
+COMPUTE = True
 # type of colorscale
-GREYSCALE = False
+GREYSCALE = True
 
 # scientific format for text
 def fmt(x):
@@ -53,10 +55,23 @@ cmax = 0.5
 cmin = 0.2
 
 def gscale(ppp):
-    """grey color scale depending on phi"""
-    ccc = cmin
-    ccc += (np.log10(ppp) - np.log10(phimin)) / (np.log10(phimax) - np.log10(phimin)) * (cmax - cmin)
-    return np.str(ccc)
+    """grey color scale depending on phi
+    
+    if nphi = 3, settle for a colored scheme that still works in grey
+    uses a color scheme obtained from http://colorbrewer2.org/#type=sequential&scheme=OrRd&n=3
+    """
+    if nphi==3:
+        if ppp==phimax:
+            col = '#fee8c8'
+        elif ppp==phimin:
+            col = '#e34a33'
+        else:
+            col = '#fdbb84'
+        return col
+    else:
+        ccc = cmin
+        ccc += (np.log10(ppp) - np.log10(phimin)) / (np.log10(phimax) - np.log10(phimin)) * (cmax - cmin)
+        return np.str(ccc)
 
 kplus0 = np.zeros(phitot.shape)
 kminus0 = np.zeros(phitot.shape)
@@ -77,7 +92,7 @@ pblm = PhysicalProblem(
 ana = LinearAnalyzer(pblm, ncheb=20)
 
 # number epsilon values to plot
-neps = 4
+neps = 100
 # number of wavenumber values for the plot
 nwkn = 200
 
@@ -86,44 +101,48 @@ fig2, axe2 = plt.subplots(1, 1)
 
 
 for n, phi in enumerate(phitot):
-    # compute the range of exploration in ra
+    # compute or read the range of exploration in ra
     # min is the critical Ra for translation
     # max is Ra beyond which translation is always stable
     
     print('phi =', phi)
-    phit = phi
-    phib = phi
-    ana.phys.phi_top = phit
-    ana.phys.phi_bot = phib
+    filename = 'kx_epsmax_phi'+np.str(phi).replace('.', '-')+'.dat'
+    # compute = not os.path.isfile(filename) or PLOT_KSIGMA
 
-    # turn off the translation mode to find initial guess
-    ana.phys.ref_state_translation = False
-    # first determine the linear stability without translation
-    ra_def, kguess = ana.critical_ra()
-    # turn on the translation mode
-    ana.phys.ref_state_translation = True
+    if COMPUTE :
+        phit = phi
+        phib = phi
+        ana.phys.phi_top = phit
+        ana.phys.phi_bot = phib
 
-    rtr = 12 * (phit + phib)
-    smax0[n], kmax0[n], kminus0[n], kplus0[n] = ana.critical_harm(rtr, kguess)
-    ramax[n], hmax[n], ramin, hmin, smin = ana.max_ra_trans_instab(hguess=kguess, eps=1e-3)
-    epsm[n] = (ramax[n] - 24 * phi) / (24 * phi)
+        # turn off the translation mode to find initial guess
+        ana.phys.ref_state_translation = False
+        # first determine the linear stability without translation
+        ra_def, kguess = ana.critical_ra()
+        # turn on the translation mode
+        ana.phys.ref_state_translation = True
 
-    if PLOT_K_RA or PLOT_KSIGMA:
+        rtr = 12 * (phit + phib)
+        smax0[n], kmax0[n], kminus0[n], kplus0[n] = ana.critical_harm(rtr, kguess)
+        ramax[n], hmax[n], ramin, hmin, smin = ana.max_ra_trans_instab(hguess=kguess, eps=1e-3)
+        epsm[n] = (ramax[n] - 24 * phi) / (24 * phi)
+
+        if PLOT_K_RA or PLOT_KSIGMA:
         # range of exploration in Ra
-        epsmax = (ramax[n] - ramin) / ramin
-        if neps > 5:
-            epsilon = np.concatenate((np.linspace(0, epsmax/10, neps/2),\
+            epsmax = (ramax[n] - ramin) / ramin
+            if neps > 5:
+                epsilon = np.concatenate((np.linspace(0, epsmax/10, neps/2),\
                                     np.linspace(epsmax/10, epsmax, neps/2)))
-        else:
-            epsilon = np.linspace(0, epsmax, neps)
-        kmax = np.zeros(epsilon.shape)
-        sigmax = np.zeros(epsilon.shape) - 1
-        kplus = np.zeros(epsilon.shape)
-        kminus = np.zeros(epsilon.shape)
-        ran = np.zeros(epsilon.shape)
+            else:
+                epsilon = np.linspace(0, epsmax, neps)
+            kmax = np.zeros(epsilon.shape)
+            sigmax = np.zeros(epsilon.shape) - 1
+            kplus = np.zeros(epsilon.shape)
+            kminus = np.zeros(epsilon.shape)
+            ran = np.zeros(epsilon.shape)
 
 
-    # initialisation of arrays
+        # initialisation of arrays
     if PLOT_KSIGMA:
         # range of exploration in wave-number
         wnmin = np.max([np.floor(np.log10(kminus0[n])), -4])
@@ -134,7 +153,8 @@ for n, phi in enumerate(phitot):
         fig1, axe = plt.subplots(1, 1)
 
     # loop on the Rayleigh number values
-    if PLOT_KSIGMA or PLOT_K_RA:
+    # if PLOT_KSIGMA or PLOT_K_RA:
+    if COMPUTE:
         for j, eps in enumerate(epsilon):
             print('j, eps =', j, eps)
             ran[j] = rtr*(1+eps)
@@ -149,31 +169,35 @@ for n, phi in enumerate(phitot):
                 for i, kxn in enumerate(wkn):
                     sigma[i] = ana.eigval(kxn, ran[j])
                 axe.semilogx(wkn, np.real(sigma), label=r'$\varepsilon = $'+fmt(eps))
+            if PLOT_K_RA:
+                ktot = np.concatenate((kminus, np.flipud(kplus)))
+                # ratot = np.concatenate((ran, np.flipud(ran)))
+                eptot = np.concatenate((epsilon, np.flipud(epsilon)))
+                with open(filename, 'w') as fich:
+                    fmt = '{:15.6e}'*2 + '\n'
+                    for i in range(neps):
+                        fich.write(fmt.format(ktot[i], eptot[i]))
             if np.real(sigmax[j]) < 0:
                 break
+    elif os.path.isfile(filename) and PLOT_K_RA:
+        print('reading from file ', filename)
+        resu = np.loadtxt(filename)
+        (ktot, eptot) = (resu[0], resu[1])
 
     if PLOT_KSIGMA:
 
         axe.set_xlabel(r'$k$', fontsize=FTSZ+2)
         axe.set_ylabel(r'$Re(\sigma)$', fontsize=FTSZ+2)
-        plt.legend(loc='upper center', ncol=2, fontsize=FTSZ)
+        plt.legend(loc='upper left', ncol=2, fontsize=FTSZ)
         axe.xaxis.grid(True, 'major')
         axe.yaxis.grid(True, 'major')
-        axe.set_ylim([-0.2, 0.4])
+        axe.set_ylim([-0.2, 0.2])
         plt.savefig('sigmaRaN' + np.str(ana._ncheb) +\
                         'Top' + np.str(phit).replace('.', '-') +\
                         'Bot' + np.str(phib).replace('.', '-') + '.pdf')
         plt.close(fig1)
 
     if PLOT_K_RA:
-        ktot = np.concatenate((kminus, np.flipud(kplus)))
-        ratot = np.concatenate((ran, np.flipud(ran)))
-        eptot = np.concatenate((epsilon, np.flipud(epsilon)))
-        with open('kx_epsmax_phi'+np.str(phi).replace('.', '-')+'.dat', 'w') as fich:
-            fmt = '{:15.6e}'*2 + '\n'
-            for i in range(nphi):
-                fich.write(fmt.format(ktot[i], eptot[i]))
-
         axe2.semilogx(kmax, epsilon, '--', c='k')
         if GREYSCALE:
             axe2.fill_between(ktot, 0, eptot, color=gscale(phi), alpha=0.5, label=r'Unstable translation, $\Phi=%.2f$' %phi)
@@ -185,7 +209,11 @@ if PLOT_K_RA:
     axe2.set_xlabel(r'$k$', fontsize=FTSZ+2)
     axe2.set_ylabel(r'$(\mbox{\textit{Ra}}-\mbox{\textit{Ra}}_c)/\mbox{\textit{Ra}}_c$', fontsize=FTSZ+2)
     axe2.legend(loc='upper left', fontsize=FTSZ)
-    plt.savefig('kxEpsilonTransN' + np.str(ana._ncheb) + '.pdf')
+    if GREYSCALE:
+        name = 'kxEpsilonTransN' + np.str(ana._ncheb) + '_grey.pdf'
+    else:
+        name = 'kxEpsilonTransN' + np.str(ana._ncheb) + '_color.pdf'
+    plt.savefig(name)
     plt.close(fig2)
 
 if PLOT_RAMAX:

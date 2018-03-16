@@ -9,6 +9,7 @@ from mpl_toolkits.axisartist.grid_finder import FixedLocator, \
     MaxNLocator, DictFormatter
 # import seaborn as sns
 import matplotlib as mpl
+from mpl_toolkits.axes_grid1 import make_axes_locatable
 
 mpl.rc('font',**{'family':'sans-serif','sans-serif':['Helvetica']})
 mpl.rc('text', usetex=True)
@@ -16,6 +17,7 @@ plt.rcParams['contour.negative_linestyle'] = 'solid'
 
 mpl.rcParams['pdf.fonttype'] = 42
 
+mypal = 'inferno'
 
 # Font and markers size
 FTSZ = 10
@@ -46,8 +48,9 @@ def image_mode(xgr, zgr, t2d, u2d, w2d, harm, filename, notbare=True):
     # prepare plot. 1 temperature anomaly
     fig = plt.figure(dpi=dpi)
     axis = fig.add_subplot(111)
+    ax = plt.gca()
     # plot temperature
-    surf = plt.pcolormesh(xgr, zgr, t2d, cmap='RdBu_r', linewidth=0,)
+    surf = plt.pcolormesh(xgr, zgr, t2d, cmap=mypal, rasterized=True, linewidth=0, shading='gouraud')
     plt.axis([xgr.min(), xgr.max(), zgr.min(), zgr.max()])
     # stream function
     speed = np.sqrt(u2d**2+w2d**2)
@@ -59,13 +62,16 @@ def image_mode(xgr, zgr, t2d, u2d, w2d, harm, filename, notbare=True):
         axis.tick_params(axis='both', which='major', labelsize=FTSZ)
         axis.set_xlabel(r'$x$', fontsize=FTSZ+2)
         axis.set_ylabel(r'$z$', fontsize=FTSZ+2)
-        cbar = plt.colorbar(surf, aspect=20)
-        cbar.set_label(r'$\theta$')
+        divider = make_axes_locatable(ax)
+        cax = divider.append_axes("right", size="5%", pad=0.2)
+        cbar = plt.colorbar(surf, cax=cax)
+        cbar.set_label(r'$T$')
     if harm > 0.6:
         fig.set_figwidth(9)
         axis.set_aspect('equal')
     else:
         fig.set_size_inches(9, 2)
+    axis.set_adjustable('box')
     plt.savefig(filename, bbox_inches='tight', format='PDF')
     plt.close(fig)
 
@@ -263,9 +269,9 @@ def plot_mode_profiles(analyzer, mode, harm, name=None, plot_theory=False):
         axe[2].plot(np.real(t_mode), rad_cheb, 'o')
         axe[2].set_xlabel(r'$\Theta$', fontsize=FTSZ)
         axe[3].plot(np.real(p_mode), rad_cheb, 'o')
-        if nord == 2 and nharm == 0:
-            print('p_mode = ', np.real(p_mode))
-            print('p20 theorique =', p20(rad_cheb, phitop))
+        # if nord == 2 and nharm == 0:
+            # print('p_mode = ', np.real(p_mode))
+            # print('p20 theorique =', p20(rad_cheb, phitop))
         axe[3].set_xlabel(r'$P$', fontsize=FTSZ)
 
         if plot_theory:
@@ -483,7 +489,7 @@ def plot_fastest_mode(analyzer, harm, ra_num, ra_comp=None,
 
         # plot Temperature
         surf = axis.pcolormesh(phi_mesh, rad_mesh, t_field,
-                               cmap='RdBu_r', shading='gouraud')
+                               cmap=mypal, rasterized=True, shading='gouraud')
         # plot stream lines
         axis.contour(phi_mesh, rad_mesh, psi_field)
         axis.set_axis_off()
