@@ -67,7 +67,7 @@ cases_bcs = 'closed', r'$\Phi^+=10^{-2}$', r'$\Phi^+=\Phi^-=10^{-2}$'
 cases_bulk = 'both', 'both_frozen', 'onlyTemp'
 bcs_meta = {
     cases_bcs[0]:
-        BndInfo('b', 'open at top and bottom ($\Phi^+=\Phi^-=10^{-2}$)'),
+        BndInfo('b', 'closed ($\Phi^+=\Phi^-=\infty$)'),
     cases_bcs[1]:
         BndInfo('g', 'open at top ($\Phi^+=10^{-2}, \Phi^-=\infty$)'),
     cases_bcs[2]:
