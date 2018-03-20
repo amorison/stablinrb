@@ -61,6 +61,13 @@ class BndInfo(typing.NamedTuple):
     color: str
     legend: str
 
+
+def stokes_time(pnt, thickness):
+    """Compute Stokes timescale."""
+    pnt.h_crystal = thickness
+    return pnt.eta / (pnt.delta_rho * pnt.g * pnt.h_crystal)
+
+
 bodies = EARTH, MARS, MOON
 
 cases_bcs = 'closed', r'$\Phi^+=10^{-2}$', r'$\Phi^+=\Phi^-=10^{-2}$'
@@ -99,16 +106,22 @@ for body in bodies:
                 data_case[grp]['tau'] = h5f[grp]['tau'].value
                 data_case[grp]['thickness'] = h5f[grp]['thickness'].value
 
+stokes = {}
+for body in bodies:
+    st_vec = np.vectorize(lambda t: stokes_time(body, t))
+    stokes[body.name] = st_vec(data['both'][body.name]['closed']['thickness'])
+
 fig, axis = plt.subplots(ncols=len(bodies), figsize=(16, 4), sharey=True)
 for iplot, body in enumerate(bodies):
     axis[iplot].grid(axis='y', ls=':')
     thick_smo = data_smo[body.name]['thicknessSMO']
     cline, = axis[iplot].semilogy(thick_smo / 1e3,
                                   data_smo[body.name]['timeSMO'],
-                                  color='k', label='Crystallization time')
-    dline, = axis[iplot].semilogy(thick_smo / 1e3, thick_smo**2 / body.kappa,
-                                  color='k', linestyle='--',
-                                  label='Diffusive timescale')
+                                  color='k', linewidth=1,
+                                  label='Crystallization time')
+    tsline, = axis[iplot].semilogy(
+        data['both'][body.name]['closed']['thickness'] / 1e3,
+        stokes[body.name], color='k', linestyle='--', linewidth=1)
     for case_bulk, data_bulk in data.items():
         for case_bcs, meta_bcs in bcs_meta.items():
             if case_bcs in data_bulk[body.name]:
@@ -145,11 +158,31 @@ for case_bcs, meta_bcs in bcs_meta.items():
         linewidths=[data[b]['linewidth'] for b in cases_bulk],
         colors=[meta_bcs.color] * 3))
     llbl.append(meta_bcs.legend)
-llc.extend([cline, dline])
-llbl.extend(['Crystallization time', 'Diffusive timescale'])
+llc.extend([cline, tsline])
+llbl.extend(['Crystallization time', 'Stokes time'])
 axis[0].legend(llc, llbl,
                handler_map={type(llc[0]): HandlerDashedLines()},
                handleheight=2,
                bbox_to_anchor=(0.3, -0.5), loc="lower left", ncol=3)
 plt.subplots_adjust(wspace=0.05)
 savefig(fig, 'destabTimeAll.pdf')
+
+fit_expnt = 2
+fig, axis = plt.subplots(ncols=len(bodies), figsize=(16, 4), sharey=True)
+for ipl, body in enumerate(bodies):
+    case_data = data[cases_bulk[0]][body.name]
+    for case_bcs, meta_bcs in bcs_meta.items():
+        if case_bcs not in case_data:
+            continue
+        axis[ipl].loglog(stokes[body.name], case_data[case_bcs]['tau'],
+                         color=meta_bcs.color)
+        st_min = stokes[body.name][0]
+        st_max = stokes[body.name][-1]
+        fit_min = case_data[case_bcs]['tau'][0]
+        fit_max = fit_min * (st_max / st_min)**fit_expnt
+        axis[ipl].loglog((st_min, st_max), (fit_min, fit_max),
+                         color=meta_bcs.color, linestyle='--', linewidth=1)
+    axis[ipl].set_xlabel('Stokes time')
+axis[0].set_ylabel('LSA timescale')
+plt.subplots_adjust(wspace=0.05)
+savefig(fig, 'destab_stokes.pdf')

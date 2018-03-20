@@ -91,6 +91,13 @@ class Planet(SimpleNamespace):
         """Dimensionless SMO thickness"""
         return (self.r_tot - self.r_ext) / self.d_crystal
 
+    @property
+    def delta_rho(self):
+        """Density contrast contributing to instability."""
+        return (self.alpha * self.delta_temp()
+                + self.beta * (self.composition(self.r_int)
+                               - self.composition(self.r_ext)))
+
     def tau(self, growth_rate):
         """Dimensional time from dimensionless growth rate"""
         return self.d_crystal**2 / (self.kappa * growth_rate)
