@@ -65,7 +65,13 @@ class BndInfo(typing.NamedTuple):
 def stokes_time(pnt, thickness):
     """Compute Stokes timescale."""
     pnt.h_crystal = thickness
-    return pnt.eta / (pnt.delta_rho * pnt.g * pnt.h_crystal)
+    return pnt.eta * pnt.thick_smo**2 / (pnt.delta_rho * pnt.g * pnt.h_crystal**3)
+
+
+def stokes_time_th(pnt, thickness):
+    """Compute thermal Stokes timescale."""
+    pnt.h_crystal = thickness
+    return pnt.eta * pnt.thick_smo**2 / (pnt.d_rho_t * pnt.g * pnt.h_crystal**3)
 
 
 bodies = EARTH, MARS, MOON
@@ -107,9 +113,13 @@ for body in bodies:
                 data_case[grp]['thickness'] = h5f[grp]['thickness'].value
 
 stokes = {}
+stokes_th = {}
 for body in bodies:
     st_vec = np.vectorize(lambda t: stokes_time(body, t))
-    stokes[body.name] = st_vec(data['both'][body.name]['closed']['thickness'])
+    st_vec_th = np.vectorize(lambda t: stokes_time_th(body, t))
+    thick = data['both'][body.name]['closed']['thickness']
+    stokes[body.name] = st_vec(thick)
+    stokes_th[body.name] = st_vec_th(thick)
 
 fig, axis = plt.subplots(ncols=len(bodies), figsize=(16, 4), sharey=True)
 for iplot, body in enumerate(bodies):
@@ -167,22 +177,28 @@ axis[0].legend(llc, llbl,
 plt.subplots_adjust(wspace=0.05)
 savefig(fig, 'destabTimeAll.pdf')
 
-fit_expnt = 2
-fig, axis = plt.subplots(ncols=len(bodies), figsize=(16, 4), sharey=True)
-for ipl, body in enumerate(bodies):
-    case_data = data[cases_bulk[0]][body.name]
-    for case_bcs, meta_bcs in bcs_meta.items():
-        if case_bcs not in case_data:
+for fit_expnt, bulk_case in zip((1, 1, 1), cases_bulk):
+    fig, axis = plt.subplots(ncols=len(bodies) - (bulk_case == 'onlyTemp'),
+                             figsize=(16, 4), sharey=True)
+    for ipl, body in enumerate(bodies):
+        if body is MOON and bulk_case == 'onlyTemp':
             continue
-        axis[ipl].loglog(stokes[body.name], case_data[case_bcs]['tau'],
-                         color=meta_bcs.color)
-        st_min = stokes[body.name][0]
-        st_max = stokes[body.name][-1]
-        fit_min = case_data[case_bcs]['tau'][0]
-        fit_max = fit_min * (st_max / st_min)**fit_expnt
-        axis[ipl].loglog((st_min, st_max), (fit_min, fit_max),
-                         color=meta_bcs.color, linestyle='--', linewidth=1)
-    axis[ipl].set_xlabel('Stokes time')
-axis[0].set_ylabel('LSA timescale')
-plt.subplots_adjust(wspace=0.05)
-savefig(fig, 'destab_stokes.pdf')
+        case_data = data[bulk_case][body.name]
+        stokes_case = (stokes[body.name] if bulk_case != 'onlyTemp'
+                       else stokes_th[body.name])
+        for case_bcs, meta_bcs in bcs_meta.items():
+            if case_bcs not in case_data:
+                continue
+            tau = case_data[case_bcs]['tau']
+            axis[ipl].loglog(stokes[body.name][tau<1e99], tau[tau<1e99],
+                             color=meta_bcs.color)
+            st_min = stokes[body.name][tau<1e99][0]
+            st_max = stokes[body.name][-1]
+            fit_min = tau[tau<1e99][0]
+            fit_max = fit_min * (st_max / st_min)**fit_expnt
+            axis[ipl].loglog((st_min, st_max), (fit_min, fit_max),
+                             color=meta_bcs.color, linestyle='--', linewidth=1)
+        axis[ipl].set_xlabel('Stokes time')
+    axis[0].set_ylabel('LSA timescale')
+    plt.subplots_adjust(wspace=0.05)
+    savefig(fig, 'destab_stokes_{}.pdf'.format(bulk_case))
