@@ -92,11 +92,20 @@ class Planet(SimpleNamespace):
         return (self.r_tot - self.r_ext) / self.d_crystal
 
     @property
+    def d_rho_t(self):
+        """Density contrast due to superadiabatic temperature."""
+        return self.alpha * self.delta_temp()
+
+    @property
+    def d_rho_c(self):
+        """Density contrast due to composition."""
+        return self.beta * (self.composition(self.r_int)
+                            - self.composition(self.r_ext))
+
+    @property
     def delta_rho(self):
         """Density contrast contributing to instability."""
-        return (self.alpha * self.delta_temp()
-                + self.beta * (self.composition(self.r_int)
-                               - self.composition(self.r_ext)))
+        return self.d_rho_t + self.d_rho_c
 
     def tau(self, growth_rate):
         """Dimensional time from dimensionless growth rate"""
