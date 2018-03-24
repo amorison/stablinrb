@@ -65,13 +65,13 @@ class BndInfo(typing.NamedTuple):
 def stokes_time(pnt, thickness):
     """Compute Stokes timescale."""
     pnt.h_crystal = thickness
-    return pnt.eta * pnt.thick_smo**2 / (pnt.delta_rho * pnt.g * pnt.h_crystal**3)
+    return pnt.eta * pnt.d_crystal**2 / (pnt.delta_rho * pnt.g * pnt.h_crystal**3)
 
 
 def stokes_time_th(pnt, thickness):
     """Compute thermal Stokes timescale."""
     pnt.h_crystal = thickness
-    return pnt.eta * pnt.thick_smo**2 / (pnt.d_rho_t * pnt.g * pnt.h_crystal**3)
+    return pnt.eta * pnt.d_crystal**2 / (pnt.d_rho_t * pnt.g * pnt.h_crystal**3)
 
 
 bodies = EARTH, MARS, MOON
