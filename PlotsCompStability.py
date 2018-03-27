@@ -190,10 +190,10 @@ for fit_expnt, bulk_case in zip((1, 1, 1), cases_bulk):
             if case_bcs not in case_data:
                 continue
             tau = case_data[case_bcs]['tau']
-            axis[ipl].loglog(stokes[body.name][tau<1e99], tau[tau<1e99],
+            axis[ipl].loglog(stokes_case[tau<1e99], tau[tau<1e99],
                              color=meta_bcs.color)
-            st_min = stokes[body.name][tau<1e99][0]
-            st_max = stokes[body.name][-1]
+            st_min = stokes_case[tau<1e99][0]
+            st_max = stokes_case[-1]
             fit_min = tau[tau<1e99][0]
             fit_max = fit_min * (st_max / st_min)**fit_expnt
             axis[ipl].loglog((st_min, st_max), (fit_min, fit_max),
