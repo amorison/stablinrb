@@ -199,6 +199,12 @@ for fit_expnt, bulk_case in zip((1, 1, 1), cases_bulk):
             axis[ipl].loglog((st_min, st_max), (fit_min, fit_max),
                              color=meta_bcs.color, linestyle='--', linewidth=1)
         axis[ipl].set_xlabel('Stokes time')
+        st_min, st_max = axis[ipl].get_xlim()
+        tau_min, tau_max = axis[ipl].get_ylim()
+        axis[ipl].annotate(body.name,
+                           xy=(np.sqrt(st_min * st_max),
+                               (tau_min**14 * tau_max)**(1/15)),
+                           fontsize=18, ha='center')
     axis[0].set_ylabel('LSA timescale')
     plt.subplots_adjust(wspace=0.05)
     savefig(fig, 'destab_stokes_{}.pdf'.format(bulk_case))
