@@ -145,7 +145,8 @@ for iplot, body in enumerate(bodies):
                 ls=data_bulk['linestyle'], linewidth=data_bulk['linewidth'],
                 color=meta_bcs.color, label=meta_bcs.legend)
     axis[iplot].set_xlabel('Thickness of solid mantle (km)')
-    axis[iplot].annotate(body.name, xy=(thick_smo[-1] / 2e3, 3e4),
+    axis[iplot].annotate(body.name,
+                         xy=(0.5, 0.05), xycoords='axes fraction',
                          fontsize=18, ha='center')
 axis[0].set_ylim([1e4, 1e19])
 axis[0].set_ylabel('Time')
@@ -199,11 +200,8 @@ for fit_expnt, bulk_case in zip((1, 1, 1), cases_bulk):
             axis[ipl].loglog((st_min, st_max), (fit_min, fit_max),
                              color=meta_bcs.color, linestyle='--', linewidth=1)
         axis[ipl].set_xlabel('Stokes time')
-        st_min, st_max = axis[ipl].get_xlim()
-        tau_min, tau_max = axis[ipl].get_ylim()
         axis[ipl].annotate(body.name,
-                           xy=(np.sqrt(st_min * st_max),
-                               (tau_min**14 * tau_max)**(1/15)),
+                           xy=(0.5, 0.05), xycoords='axes fraction',
                            fontsize=18, ha='center')
     axis[0].set_ylabel('LSA timescale')
     plt.subplots_adjust(wspace=0.05)
