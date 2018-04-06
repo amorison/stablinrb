@@ -174,6 +174,41 @@ def time_intersection(ana, pnt, crystallized, time, eps=1e-3):
     return np.interp(h_cryst, crystallized, time)
 
 
+def explo_part_coef(pnt, ana, crystallized, time, outfile):
+    """Plot time at which destab = cooling time"""
+    fig, axt = plt.subplots(1, 1)
+    part_coefs = np.linspace(0.01, 0.99, 20)
+    for phi_bot, phi_top in phi_vals:
+        col, phi_str = _phi_col_lbl(phi_top, phi_bot)
+        with h5py.File(outfile, 'a') as h5f:
+            if phi_str in h5f:
+                print('Reading destab X cooling from {}/{}'.
+                      format(outfile, phi_str))
+                tau_vals = h5f[phi_str]['tau'].value
+            else:
+                grp = h5f.create_group(phi_str)
+                ana.phys.phi_top = phi_top
+                ana.phys.phi_bot = phi_bot
+                tau_vals = []
+                for pcoef in part_coefs:
+                    pnt.part = pcoef
+                    tau_val = time_intersection(ana, pnt, crystallized, time)
+                    tau_vals.append(tau_val)
+                    print(pcoef, tau_val)
+                tau_vals = np.array(tau_vals)
+                grp['tau'] = tau_vals
+                grp['part_coef'] = part_coefs
+        axt.semilogy(part_coefs, tau_vals / 3.15e10,
+                     color=col, label=_PHI_LBL[phi_str])
+    axt.set_xlabel(r'Partition coefficient $D$')
+    axt.set_ylabel(r'Time (kyr)')
+    axt.legend()
+    tmin, tmax = axt.get_ylim()
+    hmin = np.interp(tmin*3.15e10, time, crystallized)
+    hmax = np.interp(tmax*3.15e10, time, crystallized)
+    savefig(fig, 'CoolingDestab_D')
+
+
 def plot_min_time(pnt, ana, crystallized, time, outfile):
     """Plot time at which destab = cooling time"""
     fig, axt = plt.subplots(1, 1)
@@ -300,4 +335,5 @@ if __name__ == '__main__':
     #    ana.phys.phi_bot = phi_bot
     #    ana.phys.phi_top = phi_top
     #    plot_modes(ana, pnt, 2 * pnt.d_crystal / 3)
+    explo_part_coef(pnt, ana, crystallized, time, out_dir / 'interTime_D.h5')
     #plot_composition(pnt)#, crystallized, time)
