@@ -10,6 +10,7 @@ import misc
 from analyzer import LinearAnalyzer
 from physics import PhysicalProblem
 from planets import EARTH as pnt
+import plotting
 
 # Font and markers size
 FTSZ = 14
@@ -48,6 +49,13 @@ def _phi_col_lbl(phi_top, phi_bot):
         phi_str = r'$\Phi^+=\Phi^-=10^{-2}$'
         col = 'r'
     return col, phi_str
+
+
+_PHI_LBL = {
+    'closed': 'closed',
+    r'$\Phi^+=10^{-2}$': 'open at top',
+    r'$\Phi^+=\Phi^-=10^{-2}$': 'open at top and bottom',
+}
 
 
 def plot_destab(pnt, ana, crystallized, time, outfile):
@@ -191,7 +199,7 @@ def plot_min_time(pnt, ana, crystallized, time, outfile):
                 grp['tau'] = tau_vals
                 grp['eta_logs'] = eta_logs
         axt.loglog(10**eta_logs, tau_vals / 3.15e10,
-                   color=col, label=phi_str)
+                   color=col, label=_PHI_LBL[phi_str])
     axt.set_xlabel(r'Viscosity $\eta$')
     axt.set_ylabel(r'Time (kyr)')
     axt.legend()
@@ -203,6 +211,13 @@ def plot_min_time(pnt, ana, crystallized, time, outfile):
     axh.set_ylim(hmin * 1e-3, hmax * 1e-3)
     axh.set_ylabel(r'Crystallized thickness (km)')
     savefig(fig, 'CoolingDestab')
+
+
+def plot_modes(ana, pnt, thickness):
+    """Plot fastest growing mode at a give thickness."""
+    update_thickness(ana, pnt, thickness)
+    sigma, harm = ana.fastest_mode(pnt.rayleigh, pnt.ra_comp)
+    plotting.plot_fastest_mode(ana, harm, pnt.rayleigh, pnt.ra_comp)
 
 
 def plot_cooling_time(pnt, crystallized, time):
@@ -280,4 +295,9 @@ if __name__ == '__main__':
 
     plot_min_time(pnt, ana, crystallized, time, out_dir / 'interTime.h5')
     plot_destab(pnt, ana, crystallized, time, out_dir / 'DestabTime.h5')
+
+    #for phi_bot, phi_top in phi_vals:
+    #    ana.phys.phi_bot = phi_bot
+    #    ana.phys.phi_top = phi_top
+    #    plot_modes(ana, pnt, 2 * pnt.d_crystal / 3)
     #plot_composition(pnt)#, crystallized, time)
