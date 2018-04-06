@@ -95,6 +95,8 @@ data = {
                     'label': 'Composition + Temperature'},
     cases_bulk[2]: {'linestyle': '-.', 'linewidth': 1,
                     'label': 'Temperature + Moving Frame'},
+    'onlyCompo': {'linestyle': '--', 'linewidth': 1,
+                  'label': 'Composition + Moving Frame'},
 }
 
 for body in bodies:
@@ -206,3 +208,18 @@ for fit_expnt, bulk_case in zip((1, 1, 1), cases_bulk):
     axis[0].set_ylabel('LSA timescale')
     plt.subplots_adjust(wspace=0.05)
     savefig(fig, 'destab_stokes_{}.pdf'.format(bulk_case))
+
+fig, axis = plt.subplots(ncols=len(bodies), figsize=(16, 4), sharey=True)
+for iplot, body in enumerate(bodies):
+    for case_bcs, meta_bcs in bcs_meta.items():
+        if case_bcs not in data['onlyTemp'][body.name]:
+            continue
+        data_temp = data['onlyTemp'][body.name][case_bcs]
+        data_compo = data['onlyCompo'][body.name][case_bcs]
+        axis[iplot].semilogy(
+            data_compo['thickness'] / 1e3,
+            data_compo['tau'] / data_temp['tau'],
+            color=meta_bcs.color, label=meta_bcs.legend)
+    axis[iplot].set_ylim(ymin=1e-3, ymax=1e1)
+plt.subplots_adjust(wspace=0.05)
+savefig(fig, 'Compo_Temp.pdf')
