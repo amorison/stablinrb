@@ -26,6 +26,8 @@ MSIZE = 3
 
 # scientific format for text
 def fmt(x):
+    if x is None:
+        return r'\infty'
     a, b = '{:.2e}'.format(x).split('e')
     b = int(b)
     if b:
@@ -495,17 +497,17 @@ def plot_fastest_mode(analyzer, harm, ra_num, ra_comp=None,
         axis.set_axis_off()
         fig.set_size_inches(9, 9)
         if plot_text:
-            axis.text(0.5, 0.58, r'$Ra_c={}$'.format(fmt(ra_num)),
+            axis.text(0.5, 0.58, r'$Ra={}$'.format(fmt(ra_num)),
                       fontsize=25, transform=axis.transAxes,
                       verticalalignment='center', horizontalalignment='center')
             axis.text(0.5, 0.5, r'$\Phi^+={}$'.format(fmt(analyzer.phys.phi_top)),
                       fontsize=25, transform=axis.transAxes,
                       verticalalignment='center', horizontalalignment='center')
-            axis.text(0.5, 0.42, r'$\Phi^-={}$'.format(fmt(analyzer.phys.phi_top)),
+            axis.text(0.5, 0.42, r'$\Phi^-={}$'.format(fmt(analyzer.phys.phi_bot)),
                       fontsize=25, transform=axis.transAxes,
                       verticalalignment='center', horizontalalignment='center')
         filename = '_'.join((name, 'mode.pdf'))
-        plt.savefig(filename, bbox_inches='tight', format='PDF')
+        plt.savefig(filename, bbox_inches='tight', format='PDF', transparent=True)
         plt.close(fig)
 
     else:
