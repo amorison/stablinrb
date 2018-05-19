@@ -1,4 +1,4 @@
-import dmsuite.dmsuite as dm
+import dmsuite as dm
 import numpy as np
 import numpy.ma as ma
 from scipy import linalg
