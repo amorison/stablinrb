@@ -1,4 +1,4 @@
-import dmsuite.dmsuite as dm
+import dmsuite as dm
 from misc import normalize_modes
 import numpy as np
 from scipy.special import sph_harm
