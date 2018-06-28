@@ -178,7 +178,8 @@ def explo_part_coef(pnt, ana, crystallized, time, outfile):
     """Plot time at which destab = cooling time"""
     fig, axt = plt.subplots(1, 1)
     part_coefs = np.linspace(0.01, 0.99, 20)
-    for phi_bot, phi_top in phi_vals:
+    is_moon = int(pnt.name == 'Moon')
+    for phi_bot, phi_top in phi_vals[is_moon:]:
         col, phi_str = _phi_col_lbl(phi_top, phi_bot)
         with h5py.File(outfile, 'a') as h5f:
             if phi_str in h5f:
@@ -200,19 +201,21 @@ def explo_part_coef(pnt, ana, crystallized, time, outfile):
                 grp['part_coef'] = part_coefs
         axt.semilogy(part_coefs, tau_vals / 3.15e10,
                      color=col, label=_PHI_LBL[phi_str])
+    axt.annotate(pnt.name,
+                 xy=(0.5, 0.15), xycoords='axes fraction',
+                 fontsize=18, ha='center')
     axt.set_xlabel(r'Partition coefficient $D$')
     axt.set_ylabel(r'Time (kyr)')
     axt.legend()
-    tmin, tmax = axt.get_ylim()
-    hmin = np.interp(tmin*3.15e10, time, crystallized)
-    hmax = np.interp(tmax*3.15e10, time, crystallized)
+    if is_moon:
+        axt.set_ylim(ymax=5)
     savefig(fig, 'CoolingDestab_D')
 
 
 def plot_min_time(pnt, ana, crystallized, time, outfile):
     """Plot time at which destab = cooling time"""
     fig, axt = plt.subplots(1, 1)
-    eta_logs = np.linspace(15, 18, 10)
+    eta_logs = np.linspace(15, 18, 2)
     for phi_bot, phi_top in phi_vals:
         col, phi_str = _phi_col_lbl(phi_top, phi_bot)
         with h5py.File(outfile, 'a') as h5f:
@@ -328,12 +331,11 @@ if __name__ == '__main__':
                         frozen_time=FROZEN_TIME),
         ncheb=24)
 
-    plot_min_time(pnt, ana, crystallized, time, out_dir / 'interTime.h5')
-    plot_destab(pnt, ana, crystallized, time, out_dir / 'DestabTime.h5')
-
     #for phi_bot, phi_top in phi_vals:
     #    ana.phys.phi_bot = phi_bot
     #    ana.phys.phi_top = phi_top
     #    plot_modes(ana, pnt, 2 * pnt.d_crystal / 3)
+    #plot_destab(pnt, ana, crystallized, time, out_dir / 'DestabTime.h5')
+    #plot_min_time(pnt, ana, crystallized, time, out_dir / 'interTime.h5')
     explo_part_coef(pnt, ana, crystallized, time, out_dir / 'interTime_D.h5')
     #plot_composition(pnt)#, crystallized, time)

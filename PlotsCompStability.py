@@ -193,24 +193,25 @@ for fit_expnt, bulk_case in zip((1, 1, 1), cases_bulk):
             if case_bcs not in case_data:
                 continue
             tau = case_data[case_bcs]['tau']
-            axis[ipl].loglog(stokes_case[tau<1e99], tau[tau<1e99],
+            axis[ipl].loglog(stokes_case[tau<1e99] / 3.15e13,
+                             tau[tau<1e99] / 3.15e13,
                              color=meta_bcs.color)
-            st_min = stokes_case[tau<1e99][0]
-            st_max = stokes_case[-1]
-            fit_min = tau[tau<1e99][0]
+            st_min = stokes_case[tau<1e99][0] / 3.15e13
+            st_max = stokes_case[-1] / 3.15e13
+            fit_min = tau[tau<1e99][0] / 3.15e13
             fit_max = fit_min * (st_max / st_min)**fit_expnt
             axis[ipl].loglog((st_min, st_max), (fit_min, fit_max),
                              color=meta_bcs.color, linestyle='--', linewidth=1)
-        axis[ipl].set_xlabel('Stokes time')
+        axis[ipl].set_xlabel('Stokes time (Myr)')
         axis[ipl].annotate(body.name,
                            xy=(0.5, 0.05), xycoords='axes fraction',
                            fontsize=18, ha='center')
-    axis[0].set_ylabel('LSA timescale')
+    axis[0].set_ylabel('LSA timescale (Myr)')
     plt.subplots_adjust(wspace=0.05)
     savefig(fig, 'destab_stokes_{}.pdf'.format(bulk_case))
 
-fig, axis = plt.subplots(ncols=len(bodies), figsize=(16, 4), sharey=True)
-for iplot, body in enumerate(bodies):
+fig, axis = plt.subplots(ncols=len(bodies)-1, figsize=(16, 4), sharey=True)
+for iplot, body in enumerate(bodies[:-1]):
     for case_bcs, meta_bcs in bcs_meta.items():
         if case_bcs not in data['onlyTemp'][body.name]:
             continue
@@ -220,6 +221,11 @@ for iplot, body in enumerate(bodies):
             data_compo['thickness'] / 1e3,
             data_compo['tau'] / data_temp['tau'],
             color=meta_bcs.color, label=meta_bcs.legend)
-    axis[iplot].set_ylim(ymin=1e-3, ymax=1e1)
+    axis[iplot].set_xlabel('Crystallized thickness (km)')
+    axis[iplot].set_ylim(ymin=1e-2, ymax=5)
+    axis[iplot].annotate(body.name,
+                         xy=(0.5, 0.95), xycoords='axes fraction',
+                         fontsize=18, ha='center', va='top')
+axis[0].set_ylabel(r'$\tau_C/\tau_T$')
 plt.subplots_adjust(wspace=0.05)
 savefig(fig, 'Compo_Temp.pdf')
