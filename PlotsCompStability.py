@@ -80,11 +80,11 @@ cases_bcs = 'closed', r'$\Phi^+=10^{-2}$', r'$\Phi^+=\Phi^-=10^{-2}$'
 cases_bulk = 'both', 'both_frozen', 'onlyTemp'
 bcs_meta = {
     cases_bcs[0]:
-        BndInfo('b', 'closed ($\Phi^+=\Phi^-=\infty$)'),
+        BndInfo('b', 'non-penetrative ($\Phi^+=\Phi^-=\infty$)'),
     cases_bcs[1]:
-        BndInfo('g', 'open at top ($\Phi^+=10^{-2}, \Phi^-=\infty$)'),
+        BndInfo('g', 'flow-through at top ($\Phi^+=10^{-2}, \Phi^-=\infty$)'),
     cases_bcs[2]:
-        BndInfo('r', 'open at top and bottom ($\Phi^+=\Phi^-=10^{-2}$)'),
+        BndInfo('r', 'flow-through at top and bottom ($\Phi^+=\Phi^-=10^{-2}$)'),
 }
 
 data_smo = {}
@@ -95,16 +95,25 @@ data = {
                     'label': 'Composition + Temperature'},
     cases_bulk[2]: {'linestyle': '-.', 'linewidth': 1,
                     'label': 'Temperature + Moving Frame'},
-    'onlyCompo': {'linestyle': '--', 'linewidth': 1,
-                  'label': 'Composition + Moving Frame'},
+    #'onlyCompo': {'linestyle': '--', 'linewidth': 1,
+    #              'label': 'Composition + Moving Frame'},
 }
+data_part = {}
 
 for body in bodies:
     data_smo[body.name] = {}
+    data_part[body.name] = {}
     bodir = pathlib.Path(body.name)
     with h5py.File(bodir / 'CoolingSMO.h5', 'r') as h5f:
         data_smo[body.name]['thicknessSMO'] = h5f['thickness'].value
         data_smo[body.name]['timeSMO'] = h5f['time'].value
+    with h5py.File(bodir / 'both' / 'interTime_D.h5', 'r') as h5f:
+        for grp in h5f:
+            if grp not in cases_bcs:
+                continue
+            data_part[body.name][grp] = {}
+            data_part[body.name][grp]['tau'] = h5f[grp]['tau'].value
+            data_part[body.name][grp]['part_coef'] = h5f[grp]['part_coef'].value
     for case in data:
         data[case][body.name] = {}
         data_case = data[case][body.name]
@@ -229,3 +238,25 @@ for iplot, body in enumerate(bodies[:-1]):
 axis[0].set_ylabel(r'$\tau_C/\tau_T$')
 plt.subplots_adjust(wspace=0.05)
 savefig(fig, 'Compo_Temp.pdf')
+
+fig, axis = plt.subplots(nrows=len(bodies), figsize=(6, 16), sharex=True)
+for iplot, body in enumerate(bodies):
+    for case_bcs, meta_bcs in bcs_meta.items():
+        if case_bcs not in data_part[body.name]:
+            continue
+        if body is MOON and case_bcs=='closed':
+            continue
+        axis[iplot].semilogy(
+            data_part[body.name][case_bcs]['part_coef'],
+            data_part[body.name][case_bcs]['tau'] / 3.15e10,
+            color=meta_bcs.color)
+    axis[iplot].set_ylabel('Time (kyr)')
+    axis[iplot].annotate(body.name,
+                         xy=(0.5, 0.15), xycoords='axes fraction',
+                         fontsize=18, ha='center')
+    if body is MOON:
+        axis[iplot].set_ylim(ymax=5)
+axis[-1].set_xlabel(r'Partition coefficient $D$')
+axis[-1].set_xlim(xmin=0, xmax=1)
+plt.subplots_adjust(hspace=0.05)
+savefig(fig, 'part_coef.pdf')
