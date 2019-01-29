@@ -109,21 +109,21 @@ for body in bodies:
     data_part[body.name] = {}
     bodir = pathlib.Path(body.name)
     with h5py.File(bodir / 'CoolingSMO.h5', 'r') as h5f:
-        data_smo[body.name]['thicknessSMO'] = h5f['thickness'].value
-        data_smo[body.name]['timeSMO'] = h5f['time'].value
+        data_smo[body.name]['thicknessSMO'] = h5f['thickness'][()]
+        data_smo[body.name]['timeSMO'] = h5f['time'][()]
     with h5py.File(bodir / 'both' / 'interTime_D.h5', 'r') as h5f:
         for grp in h5f:
             data_part[body.name][grp] = {}
-            data_part[body.name][grp]['h'] = h5f[grp]['h'].value
-            data_part[body.name][grp]['part_coef'] = h5f[grp]['part_coef'].value
+            data_part[body.name][grp]['h'] = h5f[grp]['h'][()]
+            data_part[body.name][grp]['part_coef'] = h5f[grp]['part_coef'][()]
     for case in data:
         data[case][body.name] = {}
         data_case = data[case][body.name]
         with h5py.File(bodir / case / 'DestabTime.h5', 'r') as h5f:
             for grp in h5f:
                 data_case[grp] = {}
-                data_case[grp]['tau'] = h5f[grp]['tau'].value
-                data_case[grp]['thickness'] = h5f[grp]['thickness'].value
+                data_case[grp]['tau'] = h5f[grp]['tau'][()]
+                data_case[grp]['thickness'] = h5f[grp]['thickness'][()]
 
 stokes = {}
 stokes_th = {}
