@@ -219,6 +219,21 @@ for fit_expnt, bulk_case in zip((1, 1, 1), cases_bulk):
                            fontsize=18, ha='center')
     axis[0].set_ylabel('LSA timescale (Myr)')
     plt.subplots_adjust(wspace=0.05)
+
+    dummy_line = [[(0, 0)]]
+    llc = []
+    llbl = []
+    for case_bcs, meta_bcs in bcs_meta.items():
+        llc.append(mcol.LineCollection(
+            dummy_line,
+            linestyles=['-'],
+            linewidths=[2],
+            colors=[meta_bcs.color]))
+        llbl.append(meta_bcs.legend)
+    axis[0].legend(llc, llbl,
+                   handler_map={type(llc[0]): HandlerDashedLines()},
+                   handleheight=2,
+                   bbox_to_anchor=(0.7, -0.7), loc="lower left", ncol=1)
     savefig(fig, 'destab_stokes_{}.pdf'.format(bulk_case))
 
 fig, axis = plt.subplots(ncols=len(bodies)-1, figsize=(11, 4), sharey=True)
@@ -233,12 +248,27 @@ for iplot, body in enumerate(bodies[:-1]):
             data_compo['tau'] / data_temp['tau'],
             color=meta_bcs.color, label=meta_bcs.legend)
     axis[iplot].set_xlabel('Thickness of solid mantle (km)')
-    axis[iplot].set_ylim(ymin=1e-2, ymax=5)
+    axis[iplot].set_ylim(bottom=1e-2, top=5)
     axis[iplot].annotate(body.name,
                          xy=(0.5, 0.95), xycoords='axes fraction',
                          fontsize=18, ha='center', va='top')
 axis[0].set_ylabel(r'$\tau_C/\tau_T$')
 plt.subplots_adjust(wspace=0.05)
+
+dummy_line = [[(0, 0)]]
+llc = []
+llbl = []
+for case_bcs, meta_bcs in bcs_meta.items():
+    llc.append(mcol.LineCollection(
+        dummy_line,
+        linestyles=['-'],
+        linewidths=[2],
+        colors=[meta_bcs.color]))
+    llbl.append(meta_bcs.legend)
+axis[0].legend(llc, llbl,
+               handler_map={type(llc[0]): HandlerDashedLines()},
+               handleheight=2,
+               bbox_to_anchor=(0.3, -0.7), loc="lower left", ncol=1)
 savefig(fig, 'Compo_Temp.pdf')
 
 fig, axis = plt.subplots(nrows=len(bodies)-1, figsize=(6, 11), sharex=True)
