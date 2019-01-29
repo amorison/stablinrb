@@ -3,6 +3,7 @@ import pathlib
 import typing
 
 import h5py
+import matplotlib as mpl
 import matplotlib.pyplot as plt
 from matplotlib.legend_handler import HandlerLineCollection
 import matplotlib.collections as mcol
@@ -11,6 +12,9 @@ import numpy as np
 
 from planets import EARTH, MOON, MARS
 from misc import savefig
+
+
+mpl.rcParams['font.size'] = 14
 
 
 class HandlerDashedLines(HandlerLineCollection):
@@ -95,8 +99,8 @@ data = {
                     'label': 'Composition + Temperature'},
     cases_bulk[2]: {'linestyle': '-.', 'linewidth': 1,
                     'label': 'Temperature + Moving Frame'},
-    #'onlyCompo': {'linestyle': '--', 'linewidth': 1,
-    #              'label': 'Composition + Moving Frame'},
+    'onlyCompo': {'linestyle': '--', 'linewidth': 1,
+                  'label': 'Composition + Moving Frame'},
 }
 data_part = {}
 
@@ -109,10 +113,8 @@ for body in bodies:
         data_smo[body.name]['timeSMO'] = h5f['time'].value
     with h5py.File(bodir / 'both' / 'interTime_D.h5', 'r') as h5f:
         for grp in h5f:
-            if grp not in cases_bcs:
-                continue
             data_part[body.name][grp] = {}
-            data_part[body.name][grp]['tau'] = h5f[grp]['tau'].value
+            data_part[body.name][grp]['h'] = h5f[grp]['h'].value
             data_part[body.name][grp]['part_coef'] = h5f[grp]['part_coef'].value
     for case in data:
         data[case][body.name] = {}
@@ -137,7 +139,7 @@ for iplot, body in enumerate(bodies):
     axis[iplot].grid(axis='y', ls=':')
     thick_smo = data_smo[body.name]['thicknessSMO']
     cline, = axis[iplot].semilogy(thick_smo / 1e3,
-                                  data_smo[body.name]['timeSMO'],
+                                  data_smo[body.name]['timeSMO'][-1] - data_smo[body.name]['timeSMO'],
                                   color='k', linewidth=1,
                                   label='Crystallization time')
     tsline, = axis[iplot].semilogy(
@@ -185,7 +187,7 @@ llbl.extend(['Crystallization time', 'Stokes time'])
 axis[0].legend(llc, llbl,
                handler_map={type(llc[0]): HandlerDashedLines()},
                handleheight=2,
-               bbox_to_anchor=(0.3, -0.5), loc="lower left", ncol=3)
+               bbox_to_anchor=(-0.3, -0.7), loc="lower left", ncol=3)
 plt.subplots_adjust(wspace=0.05)
 savefig(fig, 'destabTimeAll.pdf')
 
@@ -219,7 +221,7 @@ for fit_expnt, bulk_case in zip((1, 1, 1), cases_bulk):
     plt.subplots_adjust(wspace=0.05)
     savefig(fig, 'destab_stokes_{}.pdf'.format(bulk_case))
 
-fig, axis = plt.subplots(ncols=len(bodies)-1, figsize=(16, 4), sharey=True)
+fig, axis = plt.subplots(ncols=len(bodies)-1, figsize=(11, 4), sharey=True)
 for iplot, body in enumerate(bodies[:-1]):
     for case_bcs, meta_bcs in bcs_meta.items():
         if case_bcs not in data['onlyTemp'][body.name]:
@@ -230,7 +232,7 @@ for iplot, body in enumerate(bodies[:-1]):
             data_compo['thickness'] / 1e3,
             data_compo['tau'] / data_temp['tau'],
             color=meta_bcs.color, label=meta_bcs.legend)
-    axis[iplot].set_xlabel('Crystallized thickness (km)')
+    axis[iplot].set_xlabel('Thickness of solid mantle (km)')
     axis[iplot].set_ylim(ymin=1e-2, ymax=5)
     axis[iplot].annotate(body.name,
                          xy=(0.5, 0.95), xycoords='axes fraction',
@@ -239,24 +241,38 @@ axis[0].set_ylabel(r'$\tau_C/\tau_T$')
 plt.subplots_adjust(wspace=0.05)
 savefig(fig, 'Compo_Temp.pdf')
 
-fig, axis = plt.subplots(nrows=len(bodies), figsize=(6, 16), sharex=True)
-for iplot, body in enumerate(bodies):
+fig, axis = plt.subplots(nrows=len(bodies)-1, figsize=(6, 11), sharex=True)
+for iplot, body in enumerate(bodies[:-1]):
     for case_bcs, meta_bcs in bcs_meta.items():
         if case_bcs not in data_part[body.name]:
             continue
-        if body is MOON and case_bcs=='closed':
-            continue
-        axis[iplot].semilogy(
-            data_part[body.name][case_bcs]['part_coef'],
-            data_part[body.name][case_bcs]['tau'] / 3.15e10,
+        part_coef = data_part[body.name][case_bcs]['part_coef']
+        hsolid = data_part[body.name][case_bcs]['h']
+        # avoid faulty cases where the intersction is not found correctly
+        slc = hsolid > 1e4
+        axis[iplot].plot(
+            part_coef[slc], hsolid[slc] / 1e3,
             color=meta_bcs.color)
-    axis[iplot].set_ylabel('Time (kyr)')
+    axis[iplot].set_ylabel('Thickness of solid mantle (km)')
     axis[iplot].annotate(body.name,
                          xy=(0.5, 0.15), xycoords='axes fraction',
                          fontsize=18, ha='center')
-    if body is MOON:
-        axis[iplot].set_ylim(ymax=5)
 axis[-1].set_xlabel(r'Partition coefficient $D$')
-axis[-1].set_xlim(xmin=0, xmax=1)
+axis[-1].set_xlim(left=0, right=1)
 plt.subplots_adjust(hspace=0.05)
+
+dummy_line = [[(0, 0)]]
+llc = []
+llbl = []
+for case_bcs, meta_bcs in bcs_meta.items():
+    llc.append(mcol.LineCollection(
+        dummy_line,
+        linestyles=['-'],
+        linewidths=[2],
+        colors=[meta_bcs.color]))
+    llbl.append(meta_bcs.legend)
+axis[-1].legend(llc, llbl,
+                handler_map={type(llc[0]): HandlerDashedLines()},
+                handleheight=2,
+                bbox_to_anchor=(-0.2, -0.5), loc="lower left", ncol=1)
 savefig(fig, 'part_coef.pdf')

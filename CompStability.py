@@ -9,7 +9,7 @@ import matplotlib.pyplot as plt
 import misc
 from analyzer import LinearAnalyzer
 from physics import PhysicalProblem
-from planets import EARTH as pnt
+from planets import MOON as pnt
 import plotting
 
 # Font and markers size
@@ -139,16 +139,17 @@ def _time_diff(h_cryst, pnt, ana, crystallized, time):
     return cooling - destab
 
 
-def time_intersection(ana, pnt, crystallized, time, eps=1e-3):
-    """Research time at which destab = cooling time"""
+def h_intersection(ana, pnt, crystallized, time, eps=1e-3):
+    """Research h_cr at which destab = cooling time of SMO"""
+    time = time[-1] - time  # cooling of rest of SMO
     h_min = crystallized[1]
     h_max = crystallized[-1]
     if _sigma(h_min, pnt, ana) < 0 and _sigma(h_max, pnt, ana) < 0:
         # never unstable
         return np.nan
-    elif _time_diff(h_max, pnt, ana, crystallized, time) < 0:
-        # not unstable enough to be faster than crystallization
-        return np.nan
+    #elif _time_diff(h_max, pnt, ana, crystallized, time) < 0:
+    #    # not unstable enough to be faster than crystallization
+    #    return np.nan
 
     if _sigma(h_min, pnt, ana) < 0:
         # search thickness beyond which sigma > 0
@@ -171,13 +172,13 @@ def time_intersection(ana, pnt, crystallized, time, eps=1e-3):
             h_min = h_cryst
         else:
             h_max = h_cryst
-    return np.interp(h_cryst, crystallized, time)
+    return h_cryst
 
 
 def explo_part_coef(pnt, ana, crystallized, time, outfile):
     """Plot time at which destab = cooling time"""
     fig, axt = plt.subplots(1, 1)
-    part_coefs = np.linspace(0.01, 0.99, 20)
+    part_coefs = np.linspace(0.01, 0.99, 100)
     is_moon = int(pnt.name == 'Moon')
     for phi_bot, phi_top in phi_vals[is_moon:]:
         col, phi_str = _phi_col_lbl(phi_top, phi_bot)
@@ -185,35 +186,35 @@ def explo_part_coef(pnt, ana, crystallized, time, outfile):
             if phi_str in h5f:
                 print('Reading destab X cooling from {}/{}'.
                       format(outfile, phi_str))
-                tau_vals = h5f[phi_str]['tau'].value
+                h_vals = h5f[phi_str]['h'].value
             else:
                 grp = h5f.create_group(phi_str)
                 ana.phys.phi_top = phi_top
                 ana.phys.phi_bot = phi_bot
-                tau_vals = []
+                h_vals = []
                 for pcoef in part_coefs:
                     pnt.part = pcoef
-                    tau_val = time_intersection(ana, pnt, crystallized, time)
-                    tau_vals.append(tau_val)
-                    print(pcoef, tau_val)
-                tau_vals = np.array(tau_vals)
-                grp['tau'] = tau_vals
+                    h_val = h_intersection(ana, pnt, crystallized, time)
+                    h_vals.append(h_val)
+                    print(pcoef, h_val)
+                h_vals = np.array(h_vals)
+                grp['h'] = h_vals
                 grp['part_coef'] = part_coefs
-        axt.semilogy(part_coefs, tau_vals / 3.15e10,
-                     color=col, label=_PHI_LBL[phi_str])
+        axt.plot(part_coefs, h_vals / 1.e3,
+                 color=col, label=_PHI_LBL[phi_str])
     axt.annotate(pnt.name,
                  xy=(0.5, 0.15), xycoords='axes fraction',
                  fontsize=18, ha='center')
     axt.set_xlabel(r'Partition coefficient $D$')
-    axt.set_ylabel(r'Time (kyr)')
+    axt.set_ylabel(r'Solid thickness (km)')
     axt.legend()
-    if is_moon:
-        axt.set_ylim(ymax=5)
+    #if is_moon:
+    #    axt.set_ylim(ymax=5)
     savefig(fig, 'CoolingDestab_D')
 
 
 def plot_min_time(pnt, ana, crystallized, time, outfile):
-    """Plot time at which destab = cooling time"""
+    """Plot solid thickness at which destab = cooling time"""
     fig, axt = plt.subplots(1, 1)
     eta_logs = np.linspace(15, 18, 2)
     for phi_bot, phi_top in phi_vals:
@@ -222,32 +223,28 @@ def plot_min_time(pnt, ana, crystallized, time, outfile):
             if phi_str in h5f:
                 print('Reading destab X cooling from {}/{}'.
                       format(outfile, phi_str))
-                tau_vals = h5f[phi_str]['tau'].value
+                h_vals = h5f[phi_str]['h'].value
             else:
                 grp = h5f.create_group(phi_str)
                 ana.phys.phi_top = phi_top
                 ana.phys.phi_bot = phi_bot
-                tau_vals = []
+                h_vals = []
                 for eta in eta_logs:
                     pnt.eta = 10**eta
-                    tau_val = time_intersection(ana, pnt, crystallized, time)
-                    tau_vals.append(tau_val)
-                    print(eta, tau_val)
-                tau_vals = np.array(tau_vals)
-                grp['tau'] = tau_vals
+                    h_val = time_intersection(ana, pnt, crystallized, time)
+                    h_vals.append(h_val)
+                    print(eta, h_val)
+                h_vals = np.array(h_vals)
+                grp['h'] = h_vals
                 grp['eta_logs'] = eta_logs
-        axt.loglog(10**eta_logs, tau_vals / 3.15e10,
+        axt.loglog(10**eta_logs, h_vals / 1e3,
                    color=col, label=_PHI_LBL[phi_str])
     axt.set_xlabel(r'Viscosity $\eta$')
-    axt.set_ylabel(r'Time (kyr)')
+    axt.set_ylabel(r'Thickness of solid (km)')
     axt.legend()
     tmin, tmax = axt.get_ylim()
     hmin = np.interp(tmin*3.15e10, time, crystallized)
     hmax = np.interp(tmax*3.15e10, time, crystallized)
-    axh = axt.twinx()
-    axh.set_yscale('log')
-    axh.set_ylim(hmin * 1e-3, hmax * 1e-3)
-    axh.set_ylabel(r'Crystallized thickness (km)')
     savefig(fig, 'CoolingDestab')
 
 
@@ -308,7 +305,7 @@ if __name__ == '__main__':
     out_dir.mkdir(parents=True, exist_ok=True)
 
     pnt.compo_effects = COMPO_EFFECTS
-    h_crystal_max = pnt.r_eut - pnt.r_int - (10e3 if pnt.name != 'Moon' else 1e2)
+    h_crystal_max = pnt.r_eut - pnt.r_int #- (10e3 if pnt.name != 'Moon' else 1e2)
     h_crystal_vals = np.logspace(np.log10(5) + 3, np.log10(h_crystal_max), 2000)
     phi_vals = [(None, None), (None, 1e-2), (1e-2, 1e-2)]
     if pnt.name != 'Earth':
