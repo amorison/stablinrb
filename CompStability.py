@@ -9,7 +9,7 @@ import matplotlib.pyplot as plt
 import misc
 from analyzer import LinearAnalyzer
 from physics import PhysicalProblem
-from planets import MOON as pnt
+from planets import EARTH as pnt
 import plotting
 
 # Font and markers size
@@ -290,6 +290,35 @@ def plot_composition(pnt):
     savefig(fig, 'CompoTime')
 
 
+def all_modes(ana, pnt):
+    """Stability of multiple modes"""
+    modes = range(1, 16)
+    phivals = 10**np.linspace(-4, 4, 50)
+    ana.phys.phi_bot = None
+
+    thicks = pnt.r_tot - pnt.r_int
+    thicks = (thicks / 3, 2 * thicks / 3)
+    lbls = (r'$\Gamma=1/3$', r'$\Gamma=2/3$')
+    fig, axis = plt.subplots(len(thicks), 1, sharex=True, figsize=(6.4, 6.8))
+    plt.subplots_adjust(hspace=0.05)
+    for iplt, thick in enumerate(thicks):
+        axis[iplt].set_prop_cycle(lw=[2] + [1] * 14, ls=['-', '--', ':'] * 5)
+        update_thickness(ana, pnt, thick)
+        for mode in modes:
+            time = []
+            for phi in phivals:
+                ana.phys.phi_top = phi
+                time.append(pnt.tau(ana.eigval(mode, pnt.rayleigh, pnt.ra_comp)) / 3.15e7)
+            color = plt.cm.viridis((mode - modes[0]) / (modes[-1] - modes[0]))
+            axis[iplt].loglog(phivals, time, label=str(mode), color=color)
+        axis[iplt].annotate(lbls[iplt], xy=(0.2, 0.95), xycoords='axes fraction',
+                            fontsize=15, ha='center', va='top')
+        axis[iplt].set_ylabel(r'Destabilization timescale $\tau$ (year)')
+    axis[-1].set_xlabel(r'Phase change number $\Phi^+$')
+    axis[-1].legend(bbox_to_anchor=(0.1, -0.5), loc="lower left", ncol=5)
+    savefig(fig, 'AllModes')
+
+
 if __name__ == '__main__':
 
     suffix = '_frozen' if FROZEN_TIME else ''
@@ -334,5 +363,6 @@ if __name__ == '__main__':
     #    plot_modes(ana, pnt, 2 * pnt.d_crystal / 3)
     #plot_destab(pnt, ana, crystallized, time, out_dir / 'DestabTime.h5')
     #plot_min_time(pnt, ana, crystallized, time, out_dir / 'interTime.h5')
-    explo_part_coef(pnt, ana, crystallized, time, out_dir / 'interTime_D.h5')
+    #explo_part_coef(pnt, ana, crystallized, time, out_dir / 'interTime_D.h5')
+    all_modes(ana, pnt)
     #plot_composition(pnt)#, crystallized, time)
