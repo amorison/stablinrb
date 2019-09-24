@@ -9,9 +9,10 @@ import itertools
 import numpy as np
 import matplotlib as mpl
 import matplotlib.pyplot as plt
-import seaborn as sns
 from analyzer import LinearAnalyzer
 from physics import PhysicalProblem, visco_Arrhenius
+
+mpl.rc('text', usetex=True)
 
 # Font and markers size
 FTSZ = 14
@@ -20,9 +21,9 @@ MSIZE = 5
 ngamma = 200
 gamma_min = 0.3
 gamma_max = 0.85
-phi_top = None
+phi_top = 1.e-2
 phi_bot = 1.e-2
-eta_c = 10**5
+eta_c = None
 
 ana = LinearAnalyzer(
     phys=PhysicalProblem(
@@ -50,7 +51,7 @@ for l_harm in l_vals:
         rans_l[l_harm-1, igam] = ran_p
 
 # define discrete colormap
-cmap = plt.cm.jet
+cmap = plt.cm.viridis
 norm = mpl.colors.BoundaryNorm(np.append(l_vals, l_max + 1) - 0.5, cmap.N)
 
 # plot Ra_n(gamma) for each harmonic degree
@@ -86,14 +87,8 @@ axis[0].set_ylim([np.min(ra_min),
 axis[0].tick_params(labelsize=FTSZ)
 axis[1].tick_params(labelsize=FTSZ)
 
-if phi_bot is not None:
-    title = r'$\Phi^-={}$, '.format(phi_bot)
-else:
-    title = 'Closed bottom, '
-if phi_top is not None:
-    title += r'$\Phi^+={}$'.format(phi_top)
-else:
-    title += 'Closed top'
+title = r'$\Phi^-={}$, '.format(phi_bot if phi_bot is not None else r'\infty')
+title += r'$\Phi^+={}$'.format(phi_top if phi_top is not None else r'\infty')
 if eta_c is not None:
     title += r', $\eta_0/\eta_\gamma'
     eta_om = int(round(np.log10(eta_c)))
@@ -104,4 +99,4 @@ if eta_c is not None:
 axis[0].set_title(title, fontsize=FTSZ*1.2)
 
 plt.tight_layout()
-plt.savefig('track_lmin.pdf', format='PDF')
+plt.savefig('track_lminOO.pdf', format='PDF', bbox_inches='tight')
