@@ -15,13 +15,14 @@ mpl.rc('font',**{'family':'sans-serif','sans-serif':['Helvetica']})
 mpl.rc('text', usetex=True)
 plt.rcParams['contour.negative_linestyle'] = 'solid'
 
+# mpl.rcParams['font.size'] = 16
 mpl.rcParams['pdf.fonttype'] = 42
 
 mypal = 'inferno'
 
 # Font and markers size
-FTSZ = 10
-MSIZE = 3
+FTSZ = 13
+MSIZE = 5
 
 
 # scientific format for text
@@ -427,14 +428,14 @@ def plot_fastest_mode(analyzer, harm, ra_num, ra_comp=None,
     if plot_theory:
         axis[1].plot(-2 * rad, rad)
     else:
-        axis[1].plot(u_interp / t_max / u_max, rad)
+        axis[1].plot(np.real(u_interp / t_max / u_max), rad)
     axis[1].plot(np.real(u_norm), rad_cheb, 'o')
     axis[1].set_xlabel(r'$U/(%.3fi)$' %(np.imag(u_max)), fontsize=FTSZ)
     # vertical velocity
     if plot_theory:
         axis[2].plot(np.ones(rad.shape), rad)
     else:
-        axis[2].plot(w_interp / t_max / w_max, rad)
+        axis[2].plot(np.real(w_interp / t_max / w_max), rad)
     axis[2].plot(np.real(w_norm), rad_cheb, 'o')
     axis[2].set_xlabel(r'$W/(%.3f)$' %(np.real(w_max)), fontsize=FTSZ)
     # temperature
@@ -528,7 +529,8 @@ def plot_fastest_mode(analyzer, harm, ra_num, ra_comp=None,
         image_mode(xgr, zgr, t2d, u2d, w2d, harm, filename, notbare)
 
 
-def plot_ran_harm(analyzer, harm, ra_comp=None, name=None):
+def plot_ran_harm(analyzer, harm, ra_comp=None, name=None,
+                      hmin=None, hmax=None):
     """Plot neutral Ra vs harmonic around given harm"""
     if name is None:
         name = analyzer.phys.name()
@@ -562,7 +564,9 @@ def plot_ran_harm(analyzer, harm, ra_comp=None, name=None):
     else:
         kxmin = harm
         ramin = analyzer.neutral_ra(kxmin, ra_comp=ra_comp)
-        wnum = np.linspace(kxmin/2, kxmin*1.5, 50)
+        hhmin = kxmin/2 if hmin == None else hmin
+        hhmax = 1.5 * kxmin if hmax == None else hmax
+        wnum = np.linspace(hhmin, hhmax, 50)
         rayl = [analyzer.neutral_ra(wnum[0], ramin, ra_comp)]
         for i, kk in enumerate(wnum[1:]):
             ra2 = analyzer.neutral_ra(kk, rayl[i], ra_comp)
