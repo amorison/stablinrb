@@ -1,5 +1,3 @@
-[![Code Health](https://landscape.io/github/labrosse/StabLinRB/master/landscape.svg?style=flat)](https://landscape.io/github/labrosse/StabLinRB/master)
-
 # StabLinRB
 ======
 
