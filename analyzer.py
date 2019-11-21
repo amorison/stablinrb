@@ -24,6 +24,8 @@ def cartesian_matrices_0(self, ra_num):
     freeslip_top = self.phys.freeslip_top
     freeslip_bot = self.phys.freeslip_bot
     heat_flux_top = self.phys.heat_flux_top
+    biot_top = self.phys.biot_top
+    biot_bot = self.phys.biot_bot
     heat_flux_bot = self.phys.heat_flux_bot
 
     # pressure
@@ -35,8 +37,9 @@ def cartesian_matrices_0(self, ra_num):
         ip0 = 1
         ipn = ncheb - 1
     # temperature
-    it0 = 0 if (heat_flux_top is not None) else 1
-    itn = ncheb if (heat_flux_bot is not None) else ncheb - 1
+    it0 = 0 if (heat_flux_top is not None or biot_top is not None) else 1
+    itn = ncheb if (heat_flux_bot is not None or
+                    biot_bot is not None) else ncheb - 1
     # global indices and slices in the solution containing only P and T
     _, igf, slall, slint, slgall, slgint = build_slices([(ip0, ipn),
                                                          (it0, itn)],
@@ -188,6 +191,10 @@ def cartesian_matrices(self, wnk, ra_num, ra_comp=None):
         lmat[itg(it0), tgall] = dz1[it0, tall]
     elif heat_flux_bot is not None:
         lmat[itg(itn), tgall] = dz1[itn, tall]
+    if self.phys.biot_top is not None:
+        lmat[itg(it0), tgall] = (self.phys.biot_top * one + dr1)[it0, tall]
+    if self.phys.biot_bot is not None:
+        lmat[itg(itn), tgall] = (self.phys.biot_bot * one + dr1)[itn, tall]
 
     lmat[tgint, tgall] = lapl[tint, tall]
 
@@ -392,6 +399,10 @@ def spherical_matrices(self, l_harm, ra_num=None, ra_comp=None):
             lmat[itg(it0), tgall] = dr1[it0, tall]
         elif heat_flux_bot is not None:
             lmat[itg(itn), tgall] = dr1[itn, tall]
+        if self.phys.biot_top is not None:
+            lmat[itg(it0), tgall] = (self.phys.biot_top * one + dr1)[it0, tall]
+        if self.phys.biot_bot is not None:
+            lmat[itg(itn), tgall] = (self.phys.biot_bot * one + dr1)[itn, tall]
 
         lmat[tgint, tgall] = lapl[tint, tall]
         if not self.phys.frozen_time and self.phys.cooling_smo is not None:
@@ -535,8 +546,10 @@ class Analyser:
                 self.phys.grad_ref_temperature is None):
             # handling of arbitrary grad_ref_temperature is only implemented
             # in spherical geometry
-            i_0 = 0 if (heat_flux_top is not None) else 1
-            i_n = ncheb if (heat_flux_bot is not None) else ncheb - 1
+            i_0 = 0 if (heat_flux_top is not None or
+                        self.phys.biot_top is not None) else 1
+            i_n = ncheb if (heat_flux_bot is not None or
+                            self.phys.biot_bot is not None) else ncheb - 1
             i0n.append((i_0, i_n))
         if self.phys.composition is not None or self.phys.lewis is not None:
             i0n.append((1, ncheb - 1))

@@ -9,6 +9,7 @@ class PhysicalProblem:
                  phi_top=None, phi_bot=None,
                  freeslip_top=True, freeslip_bot=True,
                  heat_flux_top=None, heat_flux_bot=None,
+                 biot_top=None, biot_bot=None,
                  lewis=None, composition=None,
                  prandtl=None,
                  grad_ref_temperature='conductive',
@@ -45,6 +46,8 @@ class PhysicalProblem:
         self.freeslip_bot = freeslip_bot
         self.heat_flux_top = heat_flux_top
         self.heat_flux_bot = heat_flux_bot
+        self.biot_top = biot_top
+        self.biot_bot = biot_bot
         self.lewis = lewis
         self.composition = composition
         self.prandtl = prandtl
