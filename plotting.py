@@ -7,7 +7,6 @@ import mpl_toolkits.axisartist.floating_axes as floating_axes
 from matplotlib.projections import PolarAxes
 from mpl_toolkits.axisartist.grid_finder import FixedLocator, \
     MaxNLocator, DictFormatter
-# import seaborn as sns
 import matplotlib as mpl
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 
@@ -442,7 +441,7 @@ def plot_fastest_mode(analyzer, harm, ra_num, ra_comp=None,
     if plot_theory:
         axis[3].plot(1-4*rad**2, rad)
     else:
-        axis[3].plot(t_interp / t_max, rad)
+        axis[3].plot(np.real(t_interp / t_max), rad)
     axis[3].plot(np.real(t_norm), rad_cheb, 'o')
     axis[3].set_xlabel(r'$T$', fontsize=FTSZ)
     filename = '_'.join((name, 'mode_prof.pdf'))
