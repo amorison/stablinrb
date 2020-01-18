@@ -1,7 +1,5 @@
-*.pyc
 *.pdf
 *.swp
-dmsuite/
 Earth/
 Mars/
 Moon/
