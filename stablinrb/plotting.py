@@ -1,5 +1,4 @@
 import dmsuite as dm
-from misc import normalize_modes
 import numpy as np
 from scipy.special import sph_harm
 import matplotlib.pyplot as plt
@@ -9,6 +8,8 @@ from mpl_toolkits.axisartist.grid_finder import FixedLocator, \
     MaxNLocator, DictFormatter
 import matplotlib as mpl
 from mpl_toolkits.axes_grid1 import make_axes_locatable
+
+from .misc import normalize_modes
 
 mpl.rc('font',**{'family':'sans-serif','sans-serif':['Helvetica']})
 mpl.rc('text', usetex=True)

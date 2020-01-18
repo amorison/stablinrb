@@ -1,5 +1,5 @@
-# StabLinRB
-======
+StabLinRB
+=========
 
 Computes the linear stability in the Rayleigh-Bénard problem.
 

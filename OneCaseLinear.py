@@ -8,9 +8,9 @@ Additionnally, it plots the critical Ra as function of wavenumber
 around the minimal value and the fastest growing mode.
 """
 
-from analyzer import LinearAnalyzer
-from physics import PhysicalProblem
-import plotting
+from stablinrb.analyzer import LinearAnalyzer
+from stablinrb.physics import PhysicalProblem
+import stablinrb.plotting as plotting
 
 # Define the physical problem.
 # Adjust the parameters and conditions here.

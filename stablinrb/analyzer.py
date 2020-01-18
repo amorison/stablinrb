@@ -4,8 +4,9 @@ import numpy.ma as ma
 from scipy import linalg
 from numpy.linalg import solve, lstsq
 import matplotlib.pyplot as plt
-from physics import PhysicalProblem, wtran
-from misc import build_slices, normalize_modes
+
+from .physics import PhysicalProblem, wtran
+from .misc import build_slices, normalize_modes
 
 
 def cartesian_matrices_0(self, ra_num):
