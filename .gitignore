@@ -1,6 +1,3 @@
 *.pdf
 *.swp
-Earth/
-Mars/
-Moon/
 __pycache__/
