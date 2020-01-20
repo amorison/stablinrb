@@ -152,7 +152,12 @@ class PhysicalProblem:
         self._composition = value
 
 def wtran(eps):
-    """translation velocity as function of the reduced Rayleigh number"""
+    """translation velocity as function of the reduced Rayleigh number
+
+    Only relevant for finite phase-change number at both boundaries.
+    Used to compute thestability of the translation solution wrt deforming
+    modes. See Labrosse et al (JFM, 2018) for details.
+    """
     if eps <= 0:
         wtr = 0
         wtrs = 0
@@ -171,18 +176,15 @@ def wtran(eps):
         wtrs = 2 * np.sqrt(15 * eps)
         fus = func(wtrs, eps)
         if fus * ful > 0:
-            # print('warning in wtran: ',eps, wtrs, fus, wtrl, ful)
+            # Both approximate solutions must be close. Choose the
+            # closest.
             if np.abs(fus) < np.abs(ful):
                 wguess = wtrs
             else:
                 wguess = wtrl
             wtr = wguess
-            # wtr = newton(func, wguess, fprime=dfunc, args=(eps))
-            # if eps < 1.e-2:
-                # wtr = wtrs
-                # print('setting wtr = wtrs= ', wtrs)
-        # complete solution
         else:
+            # Complete solution by bracketing (Brentq).
             wtr = brentq(func, wtrs, wtrl, args=(eps))
     return wtr, wtrs, wtrl
 
@@ -190,7 +192,7 @@ def wtran(eps):
 def compo_smo(thick_tot, partition_coef, c_0=None):
     """Composition profile
 
-    Computed in the case of a rapidly crystalizing smo
+    Computed in the case of a rapidly crystalizing smo.
     """
     # only written in cartesian
     if c_0 is None:

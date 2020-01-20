@@ -14,9 +14,12 @@ import stablinrb.plotting as plotting
 
 # Define the physical problem.
 # Adjust the parameters and conditions here.
+# See physics.py for all the options
 pblm = PhysicalProblem(
-    freeslip_top=True,
-    freeslip_bot=True)
+    gamma = None, # aspect ratio for spherical shell. None for cartesian (default).
+    freeslip_top=True, # mechanical BC at top. True is default.
+    freeslip_bot=True # mechanical BC at bottom. True is default.
+    )
 
 ana = LinearAnalyzer(pblm, ncheb=10)
 # Find the critical Ra and wavenumber and print.
