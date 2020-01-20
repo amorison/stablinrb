@@ -12,6 +12,7 @@ temperature-velocity maps.
 The present code uses the Chebyshev differentiation matrices. It was
 developed as part of a project which led to several publications in
 which the details of the method can be found:
+
 - Labrosse, S., Morison, A., Deguen, R., and
   Alboussière, T. Rayleigh-Bénard convection in a creeping solid with a
   phase change at either or both horizontal boundaries. J. Fluid Mech.,
