@@ -17,6 +17,11 @@ which the details of the method can be found:
   Alboussière, T. Rayleigh-Bénard convection in a creeping solid with a
   phase change at either or both horizontal boundaries. J. Fluid Mech.,
   846:5–36, 2018.
+ 
+For the cartesian geometry and 
+  
 - Morison, A., Labrosse, S., Deguen, R., and Alboussière, T. Timescale
   of overturn in a magma ocean cumulate. Earth Planet. Sci. Lett.,
   516:25 – 36, 2019.
+
+For the spherical shell geometry.
