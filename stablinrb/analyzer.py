@@ -31,7 +31,7 @@ def cartesian_matrices_0(self, ra_num):
 
     # pressure
     if phi_top is not None and phi_bot is not None:
-        # only that case a translating vertical velocity is possible
+        # only in that case a translating vertical velocity is possible
         ip0 = 0
         ipn = ncheb
     else:
@@ -80,23 +80,15 @@ def cartesian_matrices_0(self, ra_num):
         lmat[igw, igw] = phi_top + phi_bot
         lmat[igw, 0] = 1
         lmat[igw, ipn] = -1
-
-    # print('ra = ', ra_num)
-    # print('dz1 =', dz1)
-    # print('dz2 =', dz2)
-    # print('lmat = ', matlab.double(lmat.tolist()))
         
     return lmat, pgint, tgint, pgall, tgall, igw
 
 def cartesian_matrices(self, wnk, ra_num, ra_comp=None):
-    """Build left and right matrices in cartesian case"""
+    """Build left- and right-hand-side matrices in cartesian geometry case"""
+    # parameters
     ncheb = self._ncheb
     zphys = self.rad
     h_int = self.phys.h_int
-    dz1, dz2 = self.dr1, self.dr2
-    one = np.identity(ncheb+1)  # identity
-    dh1 = 1j * wnk * one  # horizontal derivative
-    lapl = dz2 - wnk**2 * one  # laplacian
     phi_top = self.phys.phi_top
     phi_bot = self.phys.phi_bot
     freeslip_top = self.phys.freeslip_top
@@ -112,6 +104,15 @@ def cartesian_matrices(self, wnk, ra_num, ra_comp=None):
     thetar = self.phys.thetar
     if comp_terms and ra_comp is None:
         raise ValueError("ra_comp must be specified for compositional problem")
+
+    # first and second order z-derivatives
+    dz1, dz2 = self.dr1, self.dr2
+    # Identity matrix
+    one = np.identity(ncheb+1)
+    # horizontal derivative
+    dh1 = 1j * wnk * one
+    # Laplace operator
+    lapl = dz2 - wnk**2 * one  
 
     # global indices and slices
     i0n, igf, slall, slint, slgall, slgint = self._slices()
@@ -183,9 +184,6 @@ def cartesian_matrices(self, wnk, ra_num, ra_comp=None):
         # phase change at bot
         lmat[iwg(iwn), pgall] = -one[iwn, pall]
         lmat[iwg(iwn), wgall] = -phi_bot * one[iwn, wall] + 2 * dz1[iwn, wall]
-
-    # T equations
-    # laplacian(T) - u.grad(T_conductive) = sigma T
 
     # Neumann boundary condition if imposed flux
     if heat_flux_top is not None:
@@ -465,7 +463,6 @@ class Analyser:
         # get differentiation matrices
         self._ncheb = ncheb
         self._nnonlin = nnonlin
-        # dm should be modified to go from 0 to ncheb
         self._zcheb, self._ddm = dm.chebdif(self._ncheb+1, 2)
         # rescaling to thickness 1 (cheb space is of thickness 2)
         self.dr1 = self._ddm[0,:,:] * 2  # first r-derivative
@@ -1216,36 +1213,6 @@ class NonLinearAnalyzer(Analyser):
             for ll in range(1, ii):
                 self.ntermprod(ll, ii - ll, harm_c)
 
-            # check the shape of nx1x1
-            # if ii == 2:
-            #     rr = self.rad[tall]
-            #     # 20 mode
-            #     fig, axe = plt.subplots(1, 3, sharey=True)
-            #     ord0 = - rr / 4
-            #     axe[0].plot(np.real(self.ntermt[1]), rr, 'o')
-            #     axe[0].plot(ord0, rr)
-            #     ord1 = (9 * rr / 2048 + 27 * rr ** 3 / 512) * phi_top
-            #     axe[1].plot(np.real(self.ntermt[1]) - ord0, rr, 'o')
-            #     axe[1].plot(ord1, rr)
-            #     ord2 = (- rr * 873 / 524288 + rr ** 3 * 2073 / 131072) * phi_top ** 2
-            #     axe[2].plot(np.real(self.ntermt[1]) -ord0 - ord1, rr, 'o')
-            #     axe[2].plot(ord2, rr)
-            #     plt.savefig('nx1x1_20.pdf')
-            #     plt.close(fig)
-            #     # 22 mode
-            #     fig, axe = plt.subplots(1, 3, sharey=True)
-            #     ord0 = - rr / 4
-            #     axe[0].plot(np.real(self.ntermt[2]), rr, 'o')
-            #     axe[0].plot(ord0, rr)
-            #     ord1 = (27 * rr / 2048 + 9 * rr ** 3 / 512) * phi_top
-            #     axe[1].plot(np.real(self.ntermt[2]) - ord0, rr, 'o')
-            #     axe[1].plot(ord1, rr)
-            #     ord2 = (rr * 549 / 524288 - 177 * rr ** 3 / 131072) * phi_top ** 2
-            #     axe[2].plot(np.real(self.ntermt[2]) -ord0 - ord1, rr, 'o')
-            #     axe[2].plot(ord2, rr)
-            #     plt.savefig('nx1x1_22.pdf')
-            #     plt.close(fig)
-
             # compute Ra_{ii-1} if ii is odd (otherwise keep it 0).
             if yii == 1:
                 # only term in harm_c from nterm contributes
@@ -1266,14 +1233,6 @@ class NonLinearAnalyzer(Analyser):
                     prof = np.real(wwloc * ttloc)
                     self.ratot[ii-1] += self.ratot[2 * jj] * self.integz(prof)
                 self.ratot[ii-1] /= xcmxc
-                # tests
-                # wwloc = self._insert_boundaries(self.full_w[3], iw0, iwn)
-                # ttloc = self._insert_boundaries(self.full_t[0], it0, itn)
-                # uuloc = self._insert_boundaries(self.full_u[3], iu0, iun)
-                # prof = -1j * uuloc * np.conj(ttloc) ** 2
-                # print('prod1 = ', self.integz(prof))
-                # prof = wwloc * np.conj(ttloc) * dt_c
-                # print('prod2 = ', self.integz(prof))
 
             # add mterm to nterm to get rhs
             imin = self.indexmat(ii, harmm=yii)[3]
@@ -1299,19 +1258,12 @@ class NonLinearAnalyzer(Analyser):
                 ind = self.indexmat(ii, harmm=harmjj)[3]
                 if harmjj == 0 : # special treatment for 0 modes.
                     # should be possible to avoid the use of a rhs0
-                    rhs0 = np.zeros(lmat0.shape[1]) #* (1 + 1j)
+                    rhs0 = np.zeros(lmat0.shape[1], dtype=complex)
                     rhs0[tgall0] = self.rhs[ind, tgall]
-                    # eigva = linalg.eigvals(lmat0)
-                    # print('eig lmat0 =', np.sort(np.real(eigva)))
-                    print('rhs0 = ', rhs0)
-                    print('-z/4 = ', - self.rad[tall] / 4)
                     
                     sol = solve(lmat0, rhs0)
-                    print('sol0 = ', sol)
                     self.full_sol[ind, pgint] = sol[pgint0]
-                    print('p20 = ', sol[pgint0])
                     self.full_sol[ind, tgint] = sol[tgint0]
-                    print('t20 = ', sol[tgint0])                    
                     # compute coefficient ii in meant
                     # factor to account for the complex conjugate
                     prot = self._insert_boundaries(2 * np.real(sol[tgint0]), it0, itn)
@@ -1329,21 +1281,12 @@ class NonLinearAnalyzer(Analyser):
                     # print('harm, eig lmat0 =', harmjj, np.sort(np.real(eigva)))
                     if harmjj == 1:
                         # matrix is singular. Solve using least square
-                        self.full_sol[ind] = lstsq(lmat[harmjj - 1], self.rhs[ind])[0]
+                        self.full_sol[ind] = lstsq(lmat[harmjj - 1], self.rhs[ind], rcond=None)[0]
                         # remove the contribution proportional to X1, if it exists
                         for jj in range(2):
                             dp1 = self.dotprod(1, ii, 1)
                             self.full_sol[ind] -= dp1 / norm_x1 * self.full_sol[0]
-                            print('jj, dp1 =', jj, dp1)
                     else:
                         self.full_sol[ind] = solve(lmat[harmjj - 1], self.rhs[ind])
-                        
-                        # self.symmetrize(ind)
-                        # check if this is still a solution
-                        # aaa = (np.dot(lmat[harmjj - 1], self.full_sol[ind]) - self.rhs[ind]) #/ self.rhs[ind]
-                        # print('max error = ', np.abs(aaa).max(),  self.rhs[ind].max())
-                        # dp1 = self.dotprod(1, ii, 1)
-                        # self.full_sol[ind] -= dp1 / norm_x1 * self.full_sol[0]
-                        # print('dp1 =', dp1)
-                        
+
         return harm_c, self.ratot, self.full_sol, meant, qtop
