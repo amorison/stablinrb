@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 """
 Finds critical Rayleigh number for only one case.
-
 Minimal example which computes the minimum critical Rayleigh 
 number and the associated wavenumber. 
 Additionnally, it plots the critical Ra as function of wavenumber 
@@ -29,4 +28,3 @@ print('Rac, kc = ', ra_c, harm_c)
 # Compute figures if needed.
 plotting.plot_fastest_mode(ana, harm_c, ra_c)
 plotting.plot_ran_harm(ana, harm_c)
-

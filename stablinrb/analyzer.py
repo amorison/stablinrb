@@ -417,10 +417,10 @@ def spherical_matrices(self, l_harm, ra_num=None, ra_comp=None):
             # reference is conductive profile
             grad_tcond = h_int / 3
             if heat_flux_bot is not None:
-                grad_tcond -= ((1 + lam_r)**2 * heat_flux_bot +
+                grad_tcond -= (-(1 + lam_r)**2 * heat_flux_bot +
                                h_int * (1 + lam_r)**3 / 3) * np.diag(orl3)
             elif heat_flux_top is not None:
-                grad_tcond -= ((2 + lam_r)**2 * heat_flux_top +
+                grad_tcond -= (-(2 + lam_r)**2 * heat_flux_top +
                                h_int * (2 + lam_r)**3 / 3) * np.diag(orl3)
             else:
                 grad_tcond -= ((h_int / 6 * (3 + 2 * lam_r) - 1) *
