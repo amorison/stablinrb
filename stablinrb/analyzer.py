@@ -22,6 +22,14 @@ def cartesian_matrices_0(self, ra_num):
     one = np.identity(ncheb + 1)  # identity
     phi_top = self.phys.phi_top
     phi_bot = self.phys.phi_bot
+    if self.phys.C_top is not None:
+        C_top = self.phys.C_top
+    else:
+        C_top = 0
+    if self.phys.C_bot is not None:
+        C_bot = self.phys.C_bot
+    else:
+        C_bot = 0
     freeslip_top = self.phys.freeslip_top
     freeslip_bot = self.phys.freeslip_bot
     heat_flux_top = self.phys.heat_flux_top
@@ -266,6 +274,14 @@ def spherical_matrices(self, l_harm, ra_num=None, ra_comp=None):
     lapl = dr2 + 2 * np.dot(orl1, dr1) - lh2 * orl2  # laplacian
     phi_top = self.phys.phi_top
     phi_bot = self.phys.phi_bot
+    if self.phys.C_top is not None:
+        C_top = self.phys.C_top
+    else:
+        C_top = 0
+    if self.phys.C_bot is not None:
+        C_bot = self.phys.C_bot
+    else:
+        C_bot = 0
     freeslip_top = self.phys.freeslip_top
     freeslip_bot = self.phys.freeslip_bot
 
@@ -327,7 +343,7 @@ def spherical_matrices(self, l_harm, ra_num=None, ra_comp=None):
     if phi_top is not None:
         # free-slip at top
         lmat[ipg(ip0), pgall] = dr2[ip0, pall] + \
-            (lh2 - 2) * orl2[ip0, pall]
+            (lh2 * (1 + C_top) - 2) * orl2[ip0, pall]
     else:
         # no radial velocity, Dirichlet condition but
         # need to keep boundary point to ensure free-slip
@@ -339,14 +355,14 @@ def spherical_matrices(self, l_harm, ra_num=None, ra_comp=None):
     if phi_bot is not None:
         # free-slip at bot
         lmat[ipg(ipn), pgall] = dr2[ipn, pall] + \
-            (lh2 - 2) * orl2[ipn, pall]
+            (lh2 * (1 - C_bot) - 2) * orl2[ipn, pall]
     else:
         lmat[ipg(ipn), pgall] = one[ipn, pall]
 
     # Q equations
     # normal stress continuity at top
     if phi_top is not None:
-        lmat[iqg(iq0), pgall] = lh2 * (self.phys.phi_top *
+        lmat[iqg(iq0), pgall] = lh2 * ((phi_top - 2 * C_top * (1 - gamma)) *
             orl1[iq0, pall] - 2 * np.dot(eta_r, orl2)[iq0, pall] +
             2 * np.dot(eta_r, np.dot(orl1, dr1))[iq0, pall])
         lmat[iqg(iq0), qgall] = -eta_r[iq0, qall] - \
@@ -374,7 +390,7 @@ def spherical_matrices(self, l_harm, ra_num=None, ra_comp=None):
         lmat[qgint, cgall] = - ra_comp * orl1[qint, call]
     # normal stress continuity at bot
     if phi_bot is not None:
-        lmat[iqg(iqn), pgall] = lh2 * (-self.phys.phi_bot *
+        lmat[iqg(iqn), pgall] = lh2 * ( - (phi_bot- 2 * C_bot * (1 - gamma) / gamma) *
             orl1[iqn, pall] - 2 * np.dot(eta_r, orl2)[iqn, pall] +
             2 * np.dot(eta_r, np.dot(orl1, dr1))[iqn, pall])
         lmat[iqg(iqn), qgall] = -eta_r[iqn, qall] - \

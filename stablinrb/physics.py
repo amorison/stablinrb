@@ -7,6 +7,7 @@ class PhysicalProblem:
 
     def __init__(self, gamma=None, h_int=0,
                  phi_top=None, phi_bot=None,
+                 C_top=None, C_bot=None,
                  freeslip_top=True, freeslip_bot=True,
                  heat_flux_top=None, heat_flux_bot=None,
                  biot_top=None, biot_bot=None,
@@ -30,6 +31,7 @@ class PhysicalProblem:
 
         Boundary conditions:
         phi_*: phase change number, no phase change if None
+        C_*: Chambat's parameter for phase change. Set to 0 if None
         freeslip_*: whether free-slip of rigid if no phase change
         heat_flux_*: heat flux, Dirichlet condition if None
         prandtl: None if infinite
@@ -42,6 +44,8 @@ class PhysicalProblem:
         self.h_int = h_int
         self.phi_top = phi_top
         self.phi_bot = phi_bot
+        self.C_top = C_top
+        self.C_bot = C_bot
         self.freeslip_top = freeslip_top
         self.freeslip_bot = freeslip_bot
         self.heat_flux_top = heat_flux_top
@@ -78,12 +82,18 @@ class PhysicalProblem:
         if self.phi_top is not None:
             name.append('phiT')
             name.append(np.str(self.phi_top).replace('.', '-'))
+            if self.C_top is not None:
+                name.append('CT')
+                name.append(np.str(self.C_top).replace('.', '-'))
         else:
             name.append(
                 'freeT' if self.freeslip_top else 'rigidT')
         if self.phi_bot is not None:
             name.append('phiB')
             name.append(np.str(self.phi_bot).replace('.', '-'))
+            if self.C_bot is not None:
+                name.append('CB')
+                name.append(np.str(self.C_bot).replace('.', '-'))
         else:
             name.append(
                 'freeB' if self.freeslip_bot else 'rigidB')
