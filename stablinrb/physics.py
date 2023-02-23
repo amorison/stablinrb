@@ -76,24 +76,24 @@ class PhysicalProblem:
         name = []
         if self.spherical:
             name.append('sph')
-            name.append(np.str(self.gamma).replace('.', '-'))
+            name.append(str(self.gamma).replace('.', '-'))
         else:
             name.append('cart')
         if self.phi_top is not None:
             name.append('phiT')
-            name.append(np.str(self.phi_top).replace('.', '-'))
+            name.append(str(self.phi_top).replace('.', '-'))
             if self.C_top is not None:
                 name.append('CT')
-                name.append(np.str(self.C_top).replace('.', '-'))
+                name.append(str(self.C_top).replace('.', '-'))
         else:
             name.append(
                 'freeT' if self.freeslip_top else 'rigidT')
         if self.phi_bot is not None:
             name.append('phiB')
-            name.append(np.str(self.phi_bot).replace('.', '-'))
+            name.append(str(self.phi_bot).replace('.', '-'))
             if self.C_bot is not None:
                 name.append('CB')
-                name.append(np.str(self.C_bot).replace('.', '-'))
+                name.append(str(self.C_bot).replace('.', '-'))
         else:
             name.append(
                 'freeB' if self.freeslip_bot else 'rigidB')

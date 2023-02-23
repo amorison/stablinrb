@@ -292,7 +292,7 @@ def spherical_matrices(self, l_harm, ra_num=None, ra_comp=None):
     temp_terms = grad_ref_temperature is not None
 
     if self.phys.eta_r is not None:
-        eta_r = np.diag(np.vectorize(self.phys.eta_r)(np.diag(rad)))
+        eta_r = np.diag(np.vectorize(self.phys.eta_r)(np.diag(ral)))
     else:
         eta_r = one
 
@@ -376,8 +376,8 @@ def spherical_matrices(self, l_harm, ra_num=None, ra_comp=None):
         deta_dr = np.diag(np.dot(dr1, np.diag(eta_r)))
         d2eta_dr2 = np.diag(np.dot(dr2, np.diag(eta_r)))
         lmat[qgint, pgall] = (2 * (lh2 - 1) *
-            (np.dot(orad2, d2eta_dr2) - np.dot(orad3, deta_dr)) -
-            2 * np.dot(np.dot(orad1, d2eta_dr2) - np.dot(orad2, deta_dr), dr1)
+            (np.dot(orl2, d2eta_dr2) - np.dot(orl3, deta_dr)) -
+            2 * np.dot(np.dot(orl1, d2eta_dr2) - np.dot(orl2, deta_dr), dr1)
             )[qint, pall]
         lmat[qgint, qgall] = (np.dot(eta_r, lapl) + d2eta_dr2 +
             2 * np.dot(deta_dr, dr1))[qint, qall]
@@ -479,7 +479,7 @@ class Analyser:
         # get differentiation matrices
         self._ncheb = ncheb
         self._nnonlin = nnonlin
-        self._zcheb, self._ddm = dm.chebdif(self._ncheb+1, 2)
+        self._zcheb, self._ddm = dm.chebdif(self._ncheb, 2)
         # rescaling to thickness 1 (cheb space is of thickness 2)
         self.dr1 = self._ddm[0,:,:] * 2  # first r-derivative
         self.dr2 = self._ddm[1,:,:] * 4  # second r-derivative
