@@ -1,3 +1,7 @@
+/build
+/stablinrb.egg-info
+/stablinrb/_version.py
+
 *.pdf
 *.swp
 __pycache__/
