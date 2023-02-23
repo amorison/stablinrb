@@ -17,42 +17,43 @@ linear operator non-hermitian.
 
 See Labrosse et al (J. Fluid Mech. 2018) for details.
 """
-import numpy as np
 import matplotlib as mpl
 import matplotlib.pyplot as plt
-from stablinrb.analyzer import LinearAnalyzer, NonLinearAnalyzer
-from stablinrb.physics import PhysicalProblem, compo_smo, visco_Arrhenius
-from stablinrb.misc import normalize_modes
+import numpy as np
+
 import stablinrb.plotting as stabplt
+from stablinrb.analyzer import LinearAnalyzer, NonLinearAnalyzer
+from stablinrb.misc import normalize_modes
+from stablinrb.physics import PhysicalProblem, compo_smo, visco_Arrhenius
 
 # include tex fonts in pdf
-mpl.rc('font',**{'family':'sans-serif','sans-serif':['Helvetica']})
-mpl.rc('text', usetex=True)
-mpl.rcParams['pdf.fonttype'] = 42
+mpl.rc("font", **{"family": "sans-serif", "sans-serif": ["Helvetica"]})
+mpl.rc("text", usetex=True)
+mpl.rcParams["pdf.fonttype"] = 42
 
 # Font and markers size
 FTSZ = 11
 
 pblm = PhysicalProblem(
-    gamma=None, # Non-linear analysis is not available in spherical shell geom
+    gamma=None,  # Non-linear analysis is not available in spherical shell geom
     freeslip_top=True,
     freeslip_bot=True,
-    )
+)
 
 ana = NonLinearAnalyzer(pblm, ncheb=30, nnonlin=2)
 harm_c, ray, mode, moyt, qtop = ana.nonlinana()
 
-print('Critical wavenumber kc = ', harm_c)
-print('Coefficients of development in Rayleigh = ', ray)
+print("Critical wavenumber kc = ", harm_c)
+print("Coefficients of development in Rayleigh = ", ray)
 coef_nu = ray[0] * qtop[2] / ray[2]
-print('Nusselt  = 1 + %.2f (Ra - Rc) / Rc' %(coef_nu))
+print("Nusselt  = 1 + %.2f (Ra - Rc) / Rc" % (coef_nu))
 
 coef_t = moyt[2] * ray[0] / ray[2]
-print('Mean temperature = 0.5 + %.2f (Ra - Rc) / Rc' %(coef_t))
+print("Mean temperature = 0.5 + %.2f (Ra - Rc) / Rc" % (coef_t))
 
 # plot the solution for a given finite value of the reduced Rayleigh number
 epsmax = 5.58
-print('Plotting the temperature and velocity for Ra = %.2f' %(ray[0] * (1 + epsmax)))
+print("Plotting the temperature and velocity for Ra = %.2f" % (ray[0] * (1 + epsmax)))
 stabplt.plot_mode_image(ana, mode, harm_c, eps=epsmax, plot_ords=False)
 
 # plot Nusselt number and mean temperature as function of the Rayleigh number
@@ -64,10 +65,9 @@ nuss = np.dot(vdm, qtop)
 meant = np.dot(vdm, moyt)
 fig, axe = plt.subplots(2, 1, sharex=True)
 axe[0].plot(rayl, nuss)
-axe[0].set_ylabel(r'$\mathrm{Nu}$', fontsize=FTSZ)
+axe[0].set_ylabel(r"$\mathrm{Nu}$", fontsize=FTSZ)
 axe[1].plot(rayl, meant)
-axe[1].set_xlabel(r'$\mathrm{Ra}$', fontsize=FTSZ)
-axe[1].set_ylabel(r'$\langle T\rangle$', fontsize=FTSZ)
+axe[1].set_xlabel(r"$\mathrm{Ra}$", fontsize=FTSZ)
+axe[1].set_ylabel(r"$\langle T\rangle$", fontsize=FTSZ)
 axe[1].set_ylim([0.4, 0.6])
-plt.savefig('Ra-Nu-Tmean.pdf', format='PDF')
-
+plt.savefig("Ra-Nu-Tmean.pdf", format="PDF")
