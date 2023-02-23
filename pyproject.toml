@@ -38,5 +38,23 @@ dependencies = [
 include = ["stablinrb"]
 namespaces = false
 
+[tool.setuptools.package-data]
+stablinrb = ["py.typed"]
+
 [tool.setuptools_scm]
 write_to = "stablinrb/_version.py"
+
+[tool.mypy]
+disallow_untyped_defs = false
+
+[[tool.mypy.overrides]]
+module = [
+    "matplotlib.*",
+    "mpl_toolkits.*",
+    "scipy.*",
+]
+ignore_missing_imports = true
+
+[tool.isort]
+profile = "black"
+multi_line_output = 3
