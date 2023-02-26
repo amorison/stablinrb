@@ -18,7 +18,9 @@ if typing.TYPE_CHECKING:
 
     from numpy.typing import NDArray
 
-    from .analyzer import Analyser, LinearAnalyzer, NonLinearAnalyzer, PhysicalProblem
+    from .analyzer import Analyser, LinearAnalyzer
+    from .nonlin import NonLinearAnalyzer
+    from .physics import PhysicalProblem
 
 mpl.rc("font", **{"family": "sans-serif", "sans-serif": ["Helvetica"]})
 mpl.rc("text", usetex=True)

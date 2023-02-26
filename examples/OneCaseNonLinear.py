@@ -22,8 +22,8 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 import stablinrb.plotting as stabplt
-from stablinrb.analyzer import LinearAnalyzer, NonLinearAnalyzer
 from stablinrb.misc import normalize_modes
+from stablinrb.nonlin import NonLinearAnalyzer
 from stablinrb.physics import PhysicalProblem, compo_smo, visco_Arrhenius
 
 # include tex fonts in pdf

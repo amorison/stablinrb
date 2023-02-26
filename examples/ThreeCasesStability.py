@@ -8,7 +8,7 @@ import matplotlib as mpl
 import matplotlib.pyplot as plt
 import numpy as np
 
-from stablinrb.analyzer import LinearAnalyzer, NonLinearAnalyzer
+from stablinrb.analyzer import LinearAnalyzer
 from stablinrb.misc import normalize_modes
 from stablinrb.physics import PhysicalProblem, compo_smo, visco_Arrhenius
 
