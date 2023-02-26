@@ -124,8 +124,6 @@ def plot_mode_image(
     if name is None:
         name = analyzer.phys.name()
 
-    rad_cheb = analyzer.rad
-
     # Define plot space
     n_rad = 100
     n_phi = 400  # could depends on wavelength
@@ -138,20 +136,22 @@ def plot_mode_image(
     u2dl = np.zeros((n_rad, n_phi))
     w2dl = np.zeros((n_rad, n_phi))
 
-    cheb_space = np.linspace(-1, 1, n_rad)
     rad = np.linspace(-1 / 2, 1 / 2, n_rad)
 
     # 2D cartesian box
     # make a version with the total temperature
     xvar = np.linspace(0, 2 * np.pi / harm, n_phi)
     xgr, zgr = np.meshgrid(xvar, rad)
-    rad_cheb = analyzer.rad
 
     # conduction solution
     tcond = 0.5 - zgr
 
     nmodes = mode.shape[0]
 
+    cheb_sampling = ChebyshevSampling(
+        degree=analyzer.rad.size - 1,
+        positions=np.linspace(-1, 1, n_rad),
+    )
     for i in range(nmodes):
         nord, nharm = analyzer.indexmat(nmodes, ind=i)[1:3]
 
@@ -160,10 +160,6 @@ def plot_mode_image(
         )
 
         # interpolate and normalize according to vertical velocity
-        cheb_sampling = ChebyshevSampling(
-            degree=rad_cheb.size - 1,
-            positions=cheb_space,
-        )
         u_interp = cheb_sampling.apply_on(u_mode)
         w_interp = cheb_sampling.apply_on(w_mode)
         t_interp = cheb_sampling.apply_on(t_mode)
@@ -509,10 +505,9 @@ def plot_fastest_mode(
     # interpolation
     n_rad = 100
     n_phi = 400  # could depends on wavelength
-    cheb_space = np.linspace(-1, 1, n_rad)
     cheb_sampling = ChebyshevSampling(
         degree=rad_cheb.size - 1,
-        positions=cheb_space,
+        positions=np.linspace(-1, 1, n_rad),
     )
     if spherical:
         rad = np.linspace(1, 2, n_rad)
