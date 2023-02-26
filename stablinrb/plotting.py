@@ -156,44 +156,20 @@ def plot_mode_image(analyzer, mode, harm, eps=1, name=None, plot_ords=False):
         w2d += w2dl
         if plot_ords:
             # individual contributions
-            filename = "_".join(
-                (
-                    name,
-                    "mode_theta_ord-"
-                    + np.str(nord)
-                    + "_nharm-"
-                    + np.str(nharm)
-                    + ".pdf",
-                )
-            )
+            filename = f"{name}_mode_theta_ord-{nord}_nharm-{nharm}.pdf"
             image_mode(xgr, zgr, t2dl, u2dl, w2dl, harm, filename)
             # parial sum
-            filename = "_".join(
-                (
-                    name,
-                    "mode_theta_ordd-"
-                    + np.str(nord)
-                    + "_nharm-"
-                    + np.str(nharm)
-                    + ".pdf",
-                )
-            )
+            filename = f"{name}_mode_theta_ordd-{nord}_nharm-{nharm}.pdf"
             image_mode(xgr, zgr, t2d, u2d, w2d, harm, filename)
 
     # Plot 1: temperature anomaly
-    filename = "_".join(
-        (name, "mode_theta_eps-" + np.str(eps) + "_ord-" + np.str(nord) + ".pdf")
-    )
+    filename = f"{name}_mode_theta_eps-{eps}_ord-{nord}.pdf"
     image_mode(xgr, zgr, t2d, u2d, w2d, harm, filename)
 
     # Plot 2: total temperature
     t2d += tcond
-    filename = "_".join(
-        (name, "mode_T_eps-" + np.str(eps) + "_ord-" + np.str(nord) + ".pdf")
-    )
+    filename = f"{name}_mode_T_eps-{eps}_ord-{nord}.pdf"
     image_mode(xgr, zgr, t2d, u2d, w2d, harm, filename)
-
-    return
 
 
 def w11(rad, phi):
@@ -352,10 +328,7 @@ def plot_mode_profiles(analyzer, mode, harm, name=None, plot_theory=False):
                         / (pik2**3 - (9 * np.pi**2 + harm**2) ** 3),
                         rad_cheb,
                     )
-                plt.savefig(
-                    name + "_n-" + np.str(nord) + "_l-" + np.str(nharm) + ".pdf",
-                    format="PDF",
-                )
+                plt.savefig(f"name_n-{nord}_l-{nharm}.pdf")
                 plt.close(fig)
             if (phitop is not None and phitop <= 10) and (phibot == phitop):
                 if nord == 1 and nharm == 1:
@@ -372,10 +345,7 @@ def plot_mode_profiles(analyzer, mode, harm, name=None, plot_theory=False):
                     axe[3].plot(
                         p11(rad_cheb, phitop)[0] + p11(rad_cheb, phitop)[1], rad_cheb
                     )
-                    plt.savefig(
-                        name + "_n-" + np.str(nord) + "_l-" + np.str(nharm) + ".pdf",
-                        format="PDF",
-                    )
+                    plt.savefig(f"name_n-{nord}_l-{nharm}.pdf")
                     plt.close(fig)
                     # next order : new figure
                     fig, axe = plt.subplots(1, 4, sharey=True)
@@ -404,16 +374,7 @@ def plot_mode_profiles(analyzer, mode, harm, name=None, plot_theory=False):
                     )
                     axe[3].plot(p11(rad_cheb, phitop)[1], rad_cheb)
                     # save
-                    plt.savefig(
-                        name
-                        + "ord1_n-"
-                        + np.str(nord)
-                        + "_l-"
-                        + np.str(nharm)
-                        + ".pdf",
-                        format="PDF",
-                        transparent=True,
-                    )
+                    plt.savefig(f"name_ord1_n-{nord}_l-{nharm}.pdf", transparent=True)
                     plt.close(fig)
                     # next order : new figure
                     fig, axe = plt.subplots(1, 4, sharey=True)
@@ -459,50 +420,27 @@ def plot_mode_profiles(analyzer, mode, harm, name=None, plot_theory=False):
                     axe[3].plot(p11(rad_cheb, phitop)[2], rad_cheb)
                     axe[3].set_xlabel(r"$P$", fontsize=FTSZ)
                     # save
-                    plt.savefig(
-                        name
-                        + "ord2_n-"
-                        + np.str(nord)
-                        + "_l-"
-                        + np.str(nharm)
-                        + ".pdf",
-                        format="PDF",
-                        transparent=True,
-                    )
+                    plt.savefig(f"name_ord2_n-{nord}_l-{nharm}.pdf", transparent=True)
                     plt.close(fig)
                 if nord == 2 and nharm == 0:
                     axe[0].plot(np.zeros(rad_cheb.shape), rad_cheb)
                     axe[1].plot(np.zeros(rad_cheb.shape), rad_cheb)
                     axe[2].plot(t20(rad_cheb, phitop)[0], rad_cheb)
                     axe[3].plot(p20(rad_cheb, phitop), rad_cheb)
-                    plt.savefig(
-                        name + "_n-" + np.str(nord) + "_l-" + np.str(nharm) + ".pdf",
-                        format="PDF",
-                    )
+                    plt.savefig(f"name_n-{nord}_l-{nharm}.pdf")
                     plt.close(fig)
                 if nord == 2 and nharm == 2:
                     axe[0].plot(w22(rad_cheb, phitop)[0], rad_cheb)
                     axe[1].plot(u22(rad_cheb, phitop)[0], rad_cheb)
                     axe[2].plot(t22(rad_cheb, phitop)[0], rad_cheb)
-                    plt.savefig(
-                        name + "_n-" + np.str(nord) + "_l-" + np.str(nharm) + ".pdf",
-                        format="PDF",
-                    )
+                    plt.savefig(f"name_n-{nord}_l-{nharm}.pdf")
                     plt.close(fig)
                 if nord >= 3:
-                    plt.savefig(
-                        name + "_n-" + np.str(nord) + "_l-" + np.str(nharm) + ".pdf",
-                        format="PDF",
-                    )
+                    plt.savefig(f"name_n-{nord}_l-{nharm}.pdf")
                     plt.close(fig)
         else:
-            plt.savefig(
-                name + "_n-" + np.str(nord) + "_l-" + np.str(nharm) + ".pdf",
-                format="PDF",
-            )
+            plt.savefig(f"name_n-{nord}_l-{nharm}.pdf")
             plt.close(fig)
-
-    return
 
 
 def plot_fastest_mode(
