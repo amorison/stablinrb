@@ -1,4 +1,7 @@
-import matplotlib.pyplot as plt
+from __future__ import annotations
+
+import typing
+
 import numpy as np
 import numpy.ma as ma
 from dmsuite.poly_diff import Chebyshev
@@ -6,10 +9,19 @@ from numpy.linalg import lstsq, solve
 from scipy import linalg
 
 from .misc import build_slices, normalize_modes
-from .physics import PhysicalProblem, wtran
+from .physics import wtran
+
+if typing.TYPE_CHECKING:
+    from typing import Callable, Optional, Sequence
+
+    from numpy.typing import NDArray
+
+    from .physics import PhysicalProblem
 
 
-def cartesian_matrices_0(self, ra_num):
+def cartesian_matrices_0(
+    self: NonLinearAnalyzer, ra_num: float
+) -> tuple[NDArray, slice, slice, slice, slice, int]:
     """LHS matrix for x-independent forcing
 
     When the RHS is independent of x, the solution also is,
@@ -88,7 +100,9 @@ def cartesian_matrices_0(self, ra_num):
     return lmat, pgint, tgint, pgall, tgall, igw
 
 
-def cartesian_matrices(self, wnk, ra_num, ra_comp=None):
+def cartesian_matrices(
+    self: Analyser, wnk: float, ra_num: float, ra_comp: Optional[float] = None
+) -> tuple[NDArray, NDArray]:
     """Build left- and right-hand-side matrices in cartesian geometry case"""
     # parameters
     ncheb = self._ncheb
@@ -184,6 +198,7 @@ def cartesian_matrices(self, wnk, ra_num, ra_comp=None):
     else:
         lmat[wgint, tgall] = ra_num * one[wint, tall]
     if comp_terms:
+        assert ra_comp is not None
         lmat[wgint, cgall] = ra_comp * one[wint, call]
     if phi_bot is not None:
         # phase change at bot
@@ -196,9 +211,9 @@ def cartesian_matrices(self, wnk, ra_num, ra_comp=None):
     elif heat_flux_bot is not None:
         lmat[itg(itn), tgall] = dz1[itn, tall]
     if self.phys.biot_top is not None:
-        lmat[itg(it0), tgall] = (self.phys.biot_top * one + dr1)[it0, tall]
+        lmat[itg(it0), tgall] = (self.phys.biot_top * one + dz1)[it0, tall]
     if self.phys.biot_bot is not None:
-        lmat[itg(itn), tgall] = (self.phys.biot_bot * one + dr1)[itn, tall]
+        lmat[itg(itn), tgall] = (self.phys.biot_bot * one + dz1)[itn, tall]
 
     lmat[tgint, tgall] = lapl[tint, tall]
 
@@ -243,7 +258,12 @@ def cartesian_matrices(self, wnk, ra_num, ra_comp=None):
     return lmat, rmat
 
 
-def spherical_matrices(self, l_harm, ra_num=None, ra_comp=None):
+def spherical_matrices(
+    self: Analyser,
+    l_harm: int,
+    ra_num: Optional[float] = None,
+    ra_comp: Optional[float] = None,
+) -> tuple[NDArray, NDArray]:
     """Build left and right matrices in spherical case"""
     gamma = self.phys.gamma
     rad = self.rad
@@ -386,8 +406,10 @@ def spherical_matrices(self, l_harm, ra_num=None, ra_comp=None):
         # laplacian(Q) - RaT/r = 0
         lmat[qgint, qgall] = lapl[qint, qall]
     if temp_terms:
+        assert ra_num is not None
         lmat[qgint, tgall] = -ra_num * orl1[qint, tall]
     if comp_terms:
+        assert ra_comp is not None
         lmat[qgint, cgall] = -ra_comp * orl1[qint, call]
     # normal stress continuity at bot
     if phi_bot is not None:
@@ -477,7 +499,7 @@ def spherical_matrices(self, l_harm, ra_num=None, ra_comp=None):
 class Analyser:
     """Define various elements common to both analysers"""
 
-    def __init__(self, phys, ncheb=15, nnonlin=2):
+    def __init__(self, phys: PhysicalProblem, ncheb: int = 15, nnonlin: int = 2):
         """Create a generic analyzer
 
         phys is the PhysicalProblem
@@ -506,7 +528,7 @@ class Analyser:
         self.phys = phys
         self.phys.bind_to(self)
 
-    def _insert_boundaries(self, mode, im0, imn):
+    def _insert_boundaries(self, mode: NDArray, im0: int, imn: int) -> NDArray:
         """Insert zero at boundaries of mode if needed
 
         This need to be done when Dirichlet BCs are applied
@@ -518,12 +540,12 @@ class Analyser:
         return mode
 
     @property
-    def phys(self):
+    def phys(self) -> PhysicalProblem:
         """Property holding the physical problem"""
         return self._phys
 
     @phys.setter
-    def phys(self, phys_obj):
+    def phys(self, phys_obj: PhysicalProblem) -> None:
         """Change analyzed physical problem"""
         # Chebyshev polynomials are -1 < z < 1
         if phys_obj.spherical:
@@ -535,7 +557,16 @@ class Analyser:
             self.rad = self._zcheb / 2
         self._phys = phys_obj
 
-    def _slices(self):
+    def _slices(
+        self,
+    ) -> tuple[
+        Sequence[tuple[int, int]],
+        Sequence[Callable],
+        Sequence[slice],
+        Sequence[slice],
+        Sequence[slice],
+        Sequence[slice],
+    ]:
         """slices defining the different parts of the global matrix"""
         ncheb = self._ncheb
         phi_top = self.phys.phi_top
@@ -582,14 +613,18 @@ class Analyser:
             i0n.append((1, ncheb - 1))
         return build_slices(i0n, ncheb)
 
-    def matrices(self, harm, ra_num, ra_comp=None):
+    def matrices(
+        self, harm: float, ra_num: float, ra_comp: Optional[float] = None
+    ) -> tuple[NDArray, NDArray]:
         """Build left and right matrices"""
         if self.phys.spherical:
-            return spherical_matrices(self, harm, ra_num, ra_comp)
+            return spherical_matrices(self, int(harm), ra_num, ra_comp)
         else:
             return cartesian_matrices(self, harm, ra_num, ra_comp)
 
-    def eigval(self, harm, ra_num, ra_comp=None):
+    def eigval(
+        self, harm: float, ra_num: float, ra_comp: Optional[float] = None
+    ) -> np.floating:
         """Compute the max eigenvalue
 
         harm: wave number
@@ -600,7 +635,9 @@ class Analyser:
         eigvals = linalg.eigvals(lmat, rmat)
         return np.max(np.real(ma.masked_invalid(eigvals)))
 
-    def eigvec(self, harm, ra_num, ra_comp=None):
+    def eigvec(
+        self, harm: float, ra_num: float, ra_comp: Optional[float] = None
+    ) -> tuple[np.complexfloating, NDArray]:
         """Compute the max eigenvalue and associated eigenvector
 
         harm: wave number
@@ -612,7 +649,9 @@ class Analyser:
         iegv = np.argmax(np.real(ma.masked_invalid(eigvals)))
         return eigvals[iegv], eigvecs[:, iegv]
 
-    def _split_mode_cartesian(self, eigvec, apply_bc=False):
+    def _split_mode_cartesian(
+        self, eigvec: NDArray, apply_bc: bool = False
+    ) -> tuple[NDArray, NDArray, NDArray, NDArray]:
         """Split 1D cartesian mode into (p, u, w, t) tuple
 
         Optionally apply boundary conditions
@@ -642,7 +681,9 @@ class Analyser:
             # c_mode should be added in case of composition
         return (p_mode, u_mode, w_mode, t_mode)
 
-    def _split_mode_spherical(self, eigvec, l_harm, apply_bc=False):
+    def _split_mode_spherical(
+        self, eigvec: NDArray, l_harm: int, apply_bc: bool = False
+    ) -> tuple[NDArray, NDArray, NDArray, NDArray]:
         """Split 1D spherical mode into (p, u, w, t) tuple
 
         Optionally apply boundary conditions
@@ -685,14 +726,18 @@ class Analyser:
 
         return (p_mode, up_mode, ur_mode, t_mode)
 
-    def split_mode(self, eigvec, harm, apply_bc=False):
+    def split_mode(
+        self, eigvec: NDArray, harm: float, apply_bc: bool = False
+    ) -> tuple[NDArray, NDArray, NDArray, NDArray]:
         """Generic splitting function"""
         if self.phys.spherical:
-            return self._split_mode_spherical(eigvec, harm, apply_bc)
+            return self._split_mode_spherical(eigvec, int(harm), apply_bc)
         else:
             return self._split_mode_cartesian(eigvec, apply_bc)
 
-    def _join_mode_cartesian(self, mode):
+    def _join_mode_cartesian(
+        self, mode: tuple[NDArray, NDArray, NDArray, NDArray]
+    ) -> NDArray:
         """concatenate (p, u, w, t) mode into 1D cartesian eigvec"""
         # global indices and slices
         i0n, igf, slall, slint, slgall, slgint = self._slices()
@@ -724,7 +769,13 @@ class LinearAnalyzer(Analyser):
     phase change at either or both boundaries.
     """
 
-    def neutral_ra(self, harm, ra_guess=600, ra_comp=None, eps=1.0e-8):
+    def neutral_ra(
+        self,
+        harm: int,
+        ra_guess: float = 600,
+        ra_comp: Optional[float] = None,
+        eps: float = 1.0e-8,
+    ) -> float:
         """Find Ra which gives neutral stability of a given harmonic
 
         harm is the wave number k or spherical harmonic degree
@@ -756,11 +807,14 @@ class LinearAnalyzer(Analyser):
 
         return (ra_min * sigma_max - ra_max * sigma_min) / (sigma_max - sigma_min)
 
-    def fastest_mode(self, ra_num, ra_comp=None, harm=2):
+    def fastest_mode(
+        self, ra_num: float, ra_comp: Optional[float] = None, harm: float = 2
+    ) -> tuple[float, float]:
         """Find the fastest growing mode at a given Ra"""
 
         if self.phys.spherical:
-            harms = range(max(1, harm - 10), harm + 10)
+            harm = int(harm)
+            harms = np.array(range(max(1, harm - 10), harm + 10))
         else:
             eps = [0.1, 0.01]
             harms = np.linspace(harm * (1 - 2 * eps[0]), harm * (1 + eps[0]), 3)
@@ -773,13 +827,13 @@ class LinearAnalyzer(Analyser):
                 if harms[0] != 1 and sigma[0] > sigma[1]:
                     hs_smaller = range(max(1, harms[0] - 10), harms[0])
                     s_smaller = [self.eigval(h, ra_num, ra_comp) for h in hs_smaller]
-                    harms = range(hs_smaller[0], harms[-1] + 1)
+                    harms = np.array(range(hs_smaller[0], harms[-1] + 1))
                     sigma = s_smaller + sigma
                     max_found = False
                 if sigma[-1] > sigma[-2]:
                     hs_greater = range(harms[-1] + 1, harms[-1] + 10)
                     s_greater = [self.eigval(h, ra_num, ra_comp) for h in hs_greater]
-                    harms = range(harms[0], hs_greater[-1] + 1)
+                    harms = np.array(range(harms[0], hs_greater[-1] + 1))
                     sigma = sigma + s_greater
                     max_found = False
             imax = np.argmax(sigma)
@@ -798,9 +852,9 @@ class LinearAnalyzer(Analyser):
                     hmax = -0.5 * pol[1] / pol[0]
                     smax = sigma[1]
 
-        return smax, hmax
+        return float(smax), float(hmax)
 
-    def ran_l_mins(self):
+    def ran_l_mins(self) -> tuple[tuple[int, float], tuple[int, float]]:
         """Find neutral Rayleigh of mode giving square cells and of mode l=1"""
         if not self.phys.spherical:
             raise ValueError("ran_l_mins expects a spherical problem")
@@ -827,7 +881,9 @@ class LinearAnalyzer(Analyser):
         ran_mod2 = ranlast
         return ((1, ran_mod1), (l_mod2, ran_mod2))
 
-    def critical_harm(self, ranum, hguess, eps=1e-4):
+    def critical_harm(
+        self, ranum: float, hguess: float, eps: float = 1e-4
+    ) -> tuple[float, float, float, float]:
         """Find the wavenumbers giving a zero growth rate for a given Ra
 
         ranum is the Rayleigh number
@@ -863,7 +919,7 @@ class LinearAnalyzer(Analyser):
             else:
                 kmin = kplus
                 smin = splus
-        kplus = (kmin * smax - kmax * smin) / (smax - smin)
+        kplus = float((kmin * smax - kmax * smin) / (smax - smin))
 
         # search zero on the minus side
         kmin = hmax / 2
@@ -889,11 +945,13 @@ class LinearAnalyzer(Analyser):
             else:
                 kmax = kminus
                 smax = sminus
-        kminus = (kmin * smax - kmax * smin) / (smax - smin)
+        kminus = float((kmin * smax - kmax * smin) / (smax - smin))
 
         return sigmax, hmax, kminus, kplus
 
-    def max_ra_trans_instab(self, hguess=2, eps=1e-5):
+    def max_ra_trans_instab(
+        self, hguess: float = 2, eps: float = 1e-5
+    ) -> tuple[float, float, float, float, float]:
         """find maximum Ra that allows instability of the translation mode
 
         hguess: initial guess for the wavenumber of fastest growing mode
@@ -934,7 +992,9 @@ class LinearAnalyzer(Analyser):
         hstab = self.fastest_mode(rastab, harm=hmin)[1]
         return rastab, hstab, ra0, harm0, sig0
 
-    def critical_ra(self, harm=2, ra_guess=600, ra_comp=None):
+    def critical_ra(
+        self, harm: float = 2, ra_guess: float = 600, ra_comp: Optional[float] = None
+    ) -> tuple[float, float]:
         """Find the harmonic with the lowest neutral Ra
 
         harm is an optional initial guess
@@ -943,7 +1003,8 @@ class LinearAnalyzer(Analyser):
         # find 3 values of Ra for 3 different harmonics
         eps = [0.1, 0.01]
         if self.phys.spherical:
-            harms = range(max(1, harm - 10), harm + 10)
+            harm = int(harm)
+            harms = np.array(range(max(1, harm - 10), harm + 10))
         else:
             harms = np.linspace(harm * (1 - eps[0]), harm * (1 + 2 * eps[0]), 3)
         ray = [self.neutral_ra(h, ra_guess, ra_comp) for h in harms]
@@ -957,7 +1018,7 @@ class LinearAnalyzer(Analyser):
                     ray_smaller = [
                         self.neutral_ra(h, ray[0], ra_comp) for h in hs_smaller
                     ]
-                    harms = range(hs_smaller[0], harms[-1] + 1)
+                    harms = np.array(range(hs_smaller[0], harms[-1] + 1))
                     ray = ray_smaller + ray
                     min_found = False
                 if ray[-1] < ray[-2]:
@@ -965,7 +1026,7 @@ class LinearAnalyzer(Analyser):
                     ray_greater = [
                         self.neutral_ra(h, ray[-1], ra_comp) for h in hs_greater
                     ]
-                    harms = range(harms[0], hs_greater[-1] + 1)
+                    harms = np.array(range(harms[0], hs_greater[-1] + 1))
                     ray = ray + ray_greater
                     min_found = False
             imin = np.argmin(ray)
@@ -997,7 +1058,7 @@ class NonLinearAnalyzer(Analyser):
     phase change at either or both boundaries.
     """
 
-    def integz(self, prof):
+    def integz(self, prof: NDArray) -> NDArray:
         """Integral on the -1/2 <= z <= 1/2 interval"""
         ncheb = self._ncheb
         invcp = self._invcp
@@ -1009,12 +1070,14 @@ class NonLinearAnalyzer(Analyser):
         intz = (
             -1
             / 2
-            * np.sum(spec[i] * 2 / (i**2 - 1) for i in range(len(spec)) if i % 2 == 0)
+            * np.sum(spec[i] * 2 / (i**2 - 1) for i in range(len(spec)) if i % 2 == 0)  # type: ignore
         )
         # factor 1/2 is to account for the interval -1/2 < z < 1/2
         return intz
 
-    def indexmat(self, order, ind=1, harmm=None):
+    def indexmat(
+        self, order: int, ind: int = 1, harmm: Optional[int] = None
+    ) -> tuple[int, int, int, int]:
         """Indices of the matrix of modes for non-linear analysis
 
         Returns
@@ -1027,23 +1090,23 @@ class NonLinearAnalyzer(Analyser):
         nmax = 0
         ordn = 0
         harm = 0
-        harms = np.array([], dtype=np.int)
-        ordns = np.array([], dtype=np.int)
+        harms = np.array([], dtype=np.int64)
+        ordns = np.array([], dtype=np.int64)
         index = 0
         for n in range(1, order + 1):
             if n % 2 == 0:
-                jj = np.int(n / 2)
+                jj = int(n / 2)
                 indices = np.array([i for i in range(0, n + 1, 2)])
                 harms = np.concatenate((harms, indices))
                 ordns = np.concatenate(
-                    (ordns, n * np.ones(indices.shape, dtype=np.int))
+                    (ordns, n * np.ones(indices.shape, dtype=np.int64))
                 )
             else:
-                jj = np.int((n - 1) / 2)
+                jj = int((n - 1) / 2)
                 indices = np.array([i for i in range(1, n + 1, 2)])
                 harms = np.concatenate((harms, indices))
                 ordns = np.concatenate(
-                    (ordns, n * np.ones(indices.shape, dtype=np.int))
+                    (ordns, n * np.ones(indices.shape, dtype=np.int64))
                 )
             nmax += jj + 1
             if ordn == 0 and ordns.shape[0] >= ind + 1:
@@ -1056,7 +1119,7 @@ class NonLinearAnalyzer(Analyser):
                     index += len(indices)
         return nmax, ordn, harm, index
 
-    def dotprod(self, ord1, ord2, harm):
+    def dotprod(self, ord1: int, ord2: int, harm: int) -> NDArray:
         """dot product of two modes in the full solution
 
         serves to remove the first order solution from any mode
@@ -1096,13 +1159,13 @@ class NonLinearAnalyzer(Analyser):
             prof[tall] = np.conj(self.full_t[ind1]) * self.full_t[ind2]
             dprod += rac * self.integz(prof)
         else:
-            dprod = 0
+            dprod = np.asarray(0)
         # Complex conjugate needed to get the full dot product. CHECK!
         # no because otherwise we loose the phase, needed to remove the contribution
         # from mode 1 in other modes
         return dprod  # + np.conj(dprod)
 
-    def ntermprod(self, mle, mri, harm):
+    def ntermprod(self, mle: int, mri: int, harm: float) -> None:
         """One non-linear term on the RHS
 
         input : orders of the two modes to be combined, mle (left) and mri (right)
@@ -1162,9 +1225,8 @@ class NonLinearAnalyzer(Analyser):
                         1j * harm * (2 * lr + yri) * np.conj(uloc[tall]) * tloc[tall]
                         + np.conj(wloc[tall]) * dtr[tall]
                     )
-        return
 
-    def symmetrize(self, ind):
+    def symmetrize(self, ind: int) -> None:
         """Make the solution symmetric with respect to z -> -z
 
         ind: index of the mode in the full solution
@@ -1174,9 +1236,7 @@ class NonLinearAnalyzer(Analyser):
         self.full_w[ind] = 0.5 * (self.full_w[ind] + np.flipud(self.full_w[ind]))
         self.full_t[ind] = 0.5 * (self.full_t[ind] + np.flipud(self.full_t[ind]))
 
-        return
-
-    def nonlinana(self):
+    def nonlinana(self) -> tuple[float, NDArray, NDArray, NDArray, NDArray]:
         """Ra2 and X2"""
         ncheb = self._ncheb
         nnonlin = self._nnonlin
