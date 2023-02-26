@@ -1,7 +1,7 @@
-import dmsuite as dm
 import matplotlib.pyplot as plt
 import numpy as np
 import numpy.ma as ma
+from dmsuite.poly_diff import Chebyshev
 from numpy.linalg import lstsq, solve
 from scipy import linalg
 
@@ -487,10 +487,11 @@ class Analyser:
         # get differentiation matrices
         self._ncheb = ncheb
         self._nnonlin = nnonlin
-        self._zcheb, self._ddm = dm.chebdif(self._ncheb, 2)
+        cheb = Chebyshev(degree=ncheb)
+        self._zcheb = cheb.nodes
         # rescaling to thickness 1 (cheb space is of thickness 2)
-        self.dr1 = self._ddm[0, :, :] * 2  # first r-derivative
-        self.dr2 = self._ddm[1, :, :] * 4  # second r-derivative
+        self.dr1 = cheb.at_order(1) * 2  # first r-derivative
+        self.dr2 = cheb.at_order(2) * 4  # second r-derivative
 
         # weights
         self._invcp = np.ones(ncheb + 1)

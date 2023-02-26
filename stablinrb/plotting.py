@@ -1,8 +1,8 @@
-import dmsuite as dm
 import matplotlib as mpl
 import matplotlib.pyplot as plt
 import mpl_toolkits.axisartist.floating_axes as floating_axes
 import numpy as np
+from dmsuite.interp import ChebyshevSampling
 from matplotlib.projections import PolarAxes
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 from mpl_toolkits.axisartist.grid_finder import DictFormatter, FixedLocator, MaxNLocator
@@ -132,10 +132,14 @@ def plot_mode_image(analyzer, mode, harm, eps=1, name=None, plot_ords=False):
         )
 
         # interpolate and normalize according to vertical velocity
-        p_interp = dm.chebint(p_mode, cheb_space)
-        u_interp = dm.chebint(u_mode, cheb_space)
-        w_interp = dm.chebint(w_mode, cheb_space)
-        t_interp = dm.chebint(t_mode, cheb_space)
+        cheb_sampling = ChebyshevSampling(
+            degree=rad_cheb.size - 1,
+            positions=cheb_space,
+        )
+        p_interp = cheb_sampling.apply_on(p_mode)
+        u_interp = cheb_sampling.apply_on(u_mode)
+        w_interp = cheb_sampling.apply_on(w_mode)
+        t_interp = cheb_sampling.apply_on(t_mode)
 
         # horizontal dependence
         modx = np.exp(1j * harm * nharm * xvar)
@@ -535,15 +539,19 @@ def plot_fastest_mode(
     n_rad = 100
     n_phi = 400  # could depends on wavelength
     cheb_space = np.linspace(-1, 1, n_rad)
+    cheb_sampling = ChebyshevSampling(
+        degree=rad_cheb.size - 1,
+        positions=cheb_space,
+    )
     if spherical:
         rad = np.linspace(1, 2, n_rad)
-        psi_interp = dm.chebint(psi_mode, cheb_space)
+        psi_interp = cheb_sampling.apply_on(psi_mode)
     else:
         rad = np.linspace(-1 / 2, 1 / 2, n_rad)
-    p_interp = dm.chebint(p_mode, cheb_space)
-    u_interp = dm.chebint(u_mode, cheb_space)
-    w_interp = dm.chebint(w_mode, cheb_space)
-    t_interp = dm.chebint(t_mode, cheb_space)
+    p_interp = cheb_sampling.apply_on(p_mode)
+    u_interp = cheb_sampling.apply_on(u_mode)
+    w_interp = cheb_sampling.apply_on(w_mode)
+    t_interp = cheb_sampling.apply_on(t_mode)
 
     # normalization with max of T and then
     # element of max modulus of each vector
