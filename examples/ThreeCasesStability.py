@@ -16,16 +16,14 @@ FTSZ = 11
 MSIZE = 2
 GAMMA = 10 / 11
 
-# Define the first physical problem
-pblm = PhysicalProblem(gamma=None, freeslip_top=False, freeslip_bot=False)
-
-# create the analyser instance
-ana = LinearAnalyzer(pblm, ncheb=20)
+# rigid--rigid case
+ana = LinearAnalyzer(
+    phys=PhysicalProblem(freeslip_top=False, freeslip_bot=False),
+    ncheb=20,
+)
 
 hmax = 7.0
 nharm = 100
-
-# rigid--rigid case
 hmin = 1.0
 wnum = np.linspace(hmin, hmax, nharm)
 
@@ -50,8 +48,10 @@ plt.plot(
 )
 
 # Free--rigid case
-# Modifies the relevant physical parameter
-ana.phys.freeslip_top = True
+ana = LinearAnalyzer(
+    phys=PhysicalProblem(freeslip_top=True, freeslip_bot=False),
+    ncheb=20,
+)
 hmin = 0.7
 wnum = np.linspace(hmin, hmax, nharm)
 
@@ -76,7 +76,10 @@ plt.plot(
 )
 
 # Free--free case
-ana.phys.freeslip_bot = True
+ana = LinearAnalyzer(
+    phys=PhysicalProblem(freeslip_top=True, freeslip_bot=True),
+    ncheb=20,
+)
 hmin = 0.5
 wnum = np.linspace(hmin, hmax, nharm)
 

@@ -448,8 +448,14 @@ class Analyser:
             for p in range(ncheb + 1):
                 self._tmat[n, p] = (-1) ** n * np.cos(n * p * np.pi / ncheb)
 
-        self.phys = phys
-        self.phys.bind_to(self)
+        # Chebyshev polynomials are -1 < z < 1
+        if phys.spherical:
+            # physical space is 1 < r < 2
+            self.rad = (self._zcheb + 3) / 2
+        else:
+            # physical space is -1/2 < z < 1/2
+            self.rad = self._zcheb / 2
+        self._phys = phys
 
     def _insert_boundaries(self, mode: NDArray, im0: int, imn: int) -> NDArray:
         """Insert zero at boundaries of mode if needed
@@ -466,18 +472,6 @@ class Analyser:
     def phys(self) -> PhysicalProblem:
         """Property holding the physical problem"""
         return self._phys
-
-    @phys.setter
-    def phys(self, phys_obj: PhysicalProblem) -> None:
-        """Change analyzed physical problem"""
-        # Chebyshev polynomials are -1 < z < 1
-        if phys_obj.spherical:
-            # physical space is 1 < r < 2
-            self.rad = (self._zcheb + 3) / 2
-        else:
-            # physical space is -1/2 < z < 1/2
-            self.rad = self._zcheb / 2
-        self._phys = phys_obj
 
     def _slices(
         self,
