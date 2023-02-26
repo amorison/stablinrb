@@ -158,6 +158,7 @@ def cartesian_matrices(
     # the same as that of d2w and depends on bcsw.
 
     if translation:
+        assert phi_bot is not None and phi_top is not None
         rtr = 12 * (phi_top + phi_bot)
         wtrans = wtran((ra_num - rtr) / rtr)[0]
 
@@ -266,6 +267,7 @@ def spherical_matrices(
 ) -> tuple[NDArray, NDArray]:
     """Build left and right matrices in spherical case"""
     gamma = self.phys.gamma
+    assert gamma is not None
     rad = self.rad
     dr1, dr2 = self.dr1, self.dr2
 
@@ -447,7 +449,9 @@ def spherical_matrices(
 
         lmat[tgint, tgall] = lapl[tint, tall]
         if not self.phys.frozen_time and self.phys.cooling_smo is not None:
-            grad_ref_temp_top = grad_ref_temperature(np.diag(rad)[0])
+            # TYPE SAFETY: there is an implicit assumption that grad_ref_temperature is a callable
+            # with those options
+            grad_ref_temp_top = grad_ref_temperature(np.diag(rad)[0])  # type: ignore
             lmat[tgint, tgall] += (
                 w_smo * (np.dot(rad - one, dr1) + grad_ref_temp_top * one)[tint, tall]
             )
@@ -458,7 +462,7 @@ def spherical_matrices(
         # then multiply by l(l+1)
         if grad_ref_temperature == "conductive":
             # reference is conductive profile
-            grad_tcond = h_int / 3
+            grad_tcond = h_int / 3 * np.ones(rad.shape[0])
             if heat_flux_bot is not None:
                 grad_tcond -= (
                     -((1 + lam_r) ** 2) * heat_flux_bot + h_int * (1 + lam_r) ** 3 / 3
@@ -472,7 +476,9 @@ def spherical_matrices(
                     (h_int / 6 * (3 + 2 * lam_r) - 1) * (2 + lam_r) * (1 + lam_r)
                 ) * np.diag(orl3)
         else:
-            grad_tcond = np.dot(orl1, -grad_ref_temperature(np.diag(rad)))
+            # TYPE SAFETY: there is an implicit assumption that grad_ref_temperature is a callable
+            # if not "conductive"
+            grad_tcond = np.dot(orl1, -grad_ref_temperature(np.diag(rad)))  # type: ignore
         lmat[tgint, pgall] = np.diag(lh2 * grad_tcond)[tint, pall]
 
         rmat[tgint, tgall] = one[tint, tall]
@@ -720,6 +726,7 @@ class Analyser:
             t_mode = self._insert_boundaries(t_mode, it0, itn)
 
         gamma = self.phys.gamma
+        assert gamma is not None
         orl1 = (1 - gamma) / ((1 - gamma) * self.rad + 2 * gamma - 1)
         ur_mode = l_harm * (l_harm + 1) * p_mode * orl1
         up_mode = 1j * l_harm * (np.dot(self.dr1, p_mode) + p_mode * orl1)
@@ -861,6 +868,7 @@ class LinearAnalyzer(Analyser):
         lmax = 2
         rans = [self.neutral_ra(h) for h in (1, 2)]
         ranp, ran = rans
+        assert self.phys.gamma is not None
         while ran <= ranp or lmax <= np.pi / (1 - self.phys.gamma):
             lmax += 1
             ranp = ran
@@ -958,6 +966,7 @@ class LinearAnalyzer(Analyser):
         eps: precision of the zero finding
         """
         # minimum value: the critcal one for translation
+        assert self.phys.phi_top is not None and self.phys.phi_bot is not None
         ramin = 12 * (self.phys.phi_top + self.phys.phi_bot)
         ramax = 2 * ramin
         smin, hmin = self.fastest_mode(ramin, harm=hguess)
@@ -1130,7 +1139,9 @@ class NonLinearAnalyzer(Analyser):
         ord1 and ord2 must have the same parity or the product is zero
         (no common harmonics)
         """
-        rac = self.ratot[0]
+        # TYPE SAFETY: there is an implicit assumption on call order to other methods
+        # so that ratot and full_* modes are known when calling this function.
+        rac = self.ratot[0]  # type: ignore
         ncheb = self._ncheb
 
         # get indices
@@ -1144,19 +1155,19 @@ class NonLinearAnalyzer(Analyser):
             ind1 = self.indexmat(ord1, harmm=harm)[3]
             ind2 = self.indexmat(ord2, harmm=harm)[3]
             # pressure part
-            prof[pall] = np.conj(self.full_p[ind1]) * self.full_p[ind2]
+            prof[pall] = np.conj(self.full_p[ind1]) * self.full_p[ind2]  # type: ignore
             dprod = self.integz(prof)
             # horizontal velocity part
             prof = np.zeros(ncheb + 1) * (1 + 0j)
-            prof[uall] = np.conj(self.full_u[ind1]) * self.full_u[ind2]
+            prof[uall] = np.conj(self.full_u[ind1]) * self.full_u[ind2]  # type: ignore
             dprod += self.integz(prof)
             # vertical velocity part
             prof = np.zeros(ncheb + 1) * (1 + 0j)
-            prof[wall] = np.conj(self.full_w[ind1]) * self.full_w[ind2]
+            prof[wall] = np.conj(self.full_w[ind1]) * self.full_w[ind2]  # type: ignore
             dprod += self.integz(prof)
             # temperature part
             prof = np.zeros(ncheb + 1) * (1 + 0j)
-            prof[tall] = np.conj(self.full_t[ind1]) * self.full_t[ind2]
+            prof[tall] = np.conj(self.full_t[ind1]) * self.full_t[ind2]  # type: ignore
             dprod += rac * self.integz(prof)
         else:
             dprod = np.asarray(0)
@@ -1189,12 +1200,14 @@ class NonLinearAnalyzer(Analyser):
         (lle, yle) = divmod(mle, 2)
         (lri, yri) = divmod(mri, 2)
         # compute the sum
+        # TYPE SAFETY: there is an implicit assumption on call order to other methods
+        # so that ntermt and full_* modes are known when calling this function.
         for lr in range(lri + 1):
             # outer loop on the right one to avoid computing
             # radial derivative several times
             # index for the right mode in matrix
             indri = self.indexmat(mri, harmm=2 * lr + yri)[3]
-            tloc[tall] = self.full_t[indri]
+            tloc[tall] = self.full_t[indri]  # type: ignore
             dtr = np.dot(self.dr1, tloc)
             for ll in range(lle + 1):
                 # index for the left mode in matrix
@@ -1203,9 +1216,9 @@ class NonLinearAnalyzer(Analyser):
                 nharmm = 2 * (ll + lr) + yle + yri
                 iind = self.indexmat(nmo, harmm=nharmm)[3]
                 # reduce to shape of t
-                uloc[uall] = self.full_u[indle]
-                wloc[wall] = self.full_w[indle]
-                self.ntermt[iind] += (
+                uloc[uall] = self.full_u[indle]  # type: ignore
+                wloc[wall] = self.full_w[indle]  # type: ignore
+                self.ntermt[iind] += (  # type: ignore
                     1j * harm * (2 * lr + yri) * uloc[tall] * tloc[tall]
                     + wloc[tall] * dtr[tall]
                 )
@@ -1213,15 +1226,27 @@ class NonLinearAnalyzer(Analyser):
                 nharmm = 2 * (ll - lr) + yle - yri
                 iind = self.indexmat(nmo, harmm=np.abs(nharmm))[3]
                 if nharmm > 0:
-                    self.ntermt[iind] += -1j * harm * (2 * lr + yri) * uloc[
+                    self.ntermt[iind] += -1j * harm * (2 * lr + yri) * uloc[  # type: ignore
                         tall
-                    ] * np.conj(tloc[tall]) + wloc[tall] * np.conj(dtr[tall])
+                    ] * np.conj(
+                        tloc[tall]
+                    ) + wloc[
+                        tall
+                    ] * np.conj(
+                        dtr[tall]
+                    )
                 elif nharmm == 0:
-                    self.ntermt[iind] += -1j * harm * (2 * lr + yri) * uloc[
+                    self.ntermt[iind] += -1j * harm * (2 * lr + yri) * uloc[  # type: ignore
                         tall
-                    ] * np.conj(tloc[tall]) + wloc[tall] * np.conj(dtr[tall])
+                    ] * np.conj(
+                        tloc[tall]
+                    ) + wloc[
+                        tall
+                    ] * np.conj(
+                        dtr[tall]
+                    )
                 else:
-                    self.ntermt[iind] += (
+                    self.ntermt[iind] += (  # type: ignore
                         1j * harm * (2 * lr + yri) * np.conj(uloc[tall]) * tloc[tall]
                         + np.conj(wloc[tall]) * dtr[tall]
                     )
@@ -1231,10 +1256,12 @@ class NonLinearAnalyzer(Analyser):
 
         ind: index of the mode in the full solution
         """
-        self.full_p[ind] = 0.5 * (self.full_p[ind] + np.flipud(self.full_p[ind]))
-        self.full_u[ind] = 0.5 * (self.full_u[ind] - np.flipud(self.full_u[ind]))
-        self.full_w[ind] = 0.5 * (self.full_w[ind] + np.flipud(self.full_w[ind]))
-        self.full_t[ind] = 0.5 * (self.full_t[ind] + np.flipud(self.full_t[ind]))
+        # TYPE SAFETY: there is an implicit assumption on call order to other methods
+        # so that full_* modes are known when calling this function.
+        self.full_p[ind] = 0.5 * (self.full_p[ind] + np.flipud(self.full_p[ind]))  # type: ignore
+        self.full_u[ind] = 0.5 * (self.full_u[ind] - np.flipud(self.full_u[ind]))  # type: ignore
+        self.full_w[ind] = 0.5 * (self.full_w[ind] + np.flipud(self.full_w[ind]))  # type: ignore
+        self.full_t[ind] = 0.5 * (self.full_t[ind] + np.flipud(self.full_t[ind]))  # type: ignore
 
     def nonlinana(self) -> tuple[float, NDArray, NDArray, NDArray, NDArray]:
         """Ra2 and X2"""
@@ -1260,7 +1287,7 @@ class NonLinearAnalyzer(Analyser):
         ra_c, harm_c = ana.critical_ra()
         lmat_c, rmat = self.matrices(harm_c, ra_c)
         _, mode_c = self.eigvec(harm_c, ra_c)
-        modec = self.split_mode(mode_c, harm_c, apply_bc=True)
+        modec: Sequence[NDArray] = self.split_mode(mode_c, harm_c, apply_bc=True)
         modec, _ = normalize_modes(modec, norm_mode=2, full_norm=False)
 
         # setup matrices for the non linear solution

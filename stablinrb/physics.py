@@ -1,5 +1,16 @@
+from __future__ import annotations
+
+import typing
+
 import numpy as np
 from scipy.optimize import brentq, newton
+
+if typing.TYPE_CHECKING:
+    from typing import Callable, Optional, Union
+
+    from numpy.typing import NDArray
+
+    from .analyzer import Analyser
 
 
 class PhysicalProblem:
@@ -8,28 +19,28 @@ class PhysicalProblem:
 
     def __init__(
         self,
-        gamma=None,
-        h_int=0,
-        phi_top=None,
-        phi_bot=None,
-        C_top=None,
-        C_bot=None,
-        freeslip_top=True,
-        freeslip_bot=True,
-        heat_flux_top=None,
-        heat_flux_bot=None,
-        biot_top=None,
-        biot_bot=None,
-        lewis=None,
-        composition=None,
-        prandtl=None,
-        grad_ref_temperature="conductive",
-        eta_r=None,
-        cooling_smo=None,
-        frozen_time=False,
-        ref_state_translation=False,
-        water=False,
-        thetar=0,
+        gamma: Optional[float] = None,
+        h_int: float = 0,
+        phi_top: Optional[float] = None,
+        phi_bot: Optional[float] = None,
+        C_top: Optional[float] = None,
+        C_bot: Optional[float] = None,
+        freeslip_top: bool = True,
+        freeslip_bot: bool = True,
+        heat_flux_top: Optional[float] = None,
+        heat_flux_bot: Optional[float] = None,
+        biot_top: Optional[float] = None,
+        biot_bot: Optional[float] = None,
+        lewis: Optional[float] = None,
+        composition: Optional[Callable[[NDArray], NDArray]] = None,
+        prandtl: Optional[float] = None,
+        grad_ref_temperature: Union[str, Callable[[NDArray], NDArray]] = "conductive",
+        eta_r: Optional[Callable[[NDArray], NDArray]] = None,
+        cooling_smo: Optional[tuple[Callable, Callable]] = None,
+        frozen_time: bool = False,
+        ref_state_translation: bool = False,
+        water: bool = False,
+        thetar: float = 0,
     ):
         """Create a physical problem instance
 
@@ -52,7 +63,7 @@ class PhysicalProblem:
         thetar: (T0-T1)/Delta T -1/2 with T0 the temperature of maximum density (4C),
            Delta T the total temperature difference across the layer and T1 the bottom T.
         """
-        self._observers = []
+        self._observers: list[Analyser] = []
         self.gamma = gamma
         self.h_int = h_int
         self.phi_top = phi_top
@@ -77,14 +88,14 @@ class PhysicalProblem:
         self.water = water
         self.thetar = thetar
 
-    def bind_to(self, analyzer):
+    def bind_to(self, analyzer: Analyser) -> None:
         """Connect analyzer to physical problem
 
         The analyzer will be warned whenever the physical
         problem geometry has changed"""
         self._observers.append(analyzer)
 
-    def name(self):
+    def name(self) -> str:
         """Construct a name for the current case"""
         name = []
         if self.spherical:
@@ -111,12 +122,12 @@ class PhysicalProblem:
         return "_".join(name)
 
     @property
-    def gamma(self):
+    def gamma(self) -> Optional[float]:
         """Aspect ratio of spherical geometry"""
         return self._gamma
 
     @gamma.setter
-    def gamma(self, value):
+    def gamma(self, value: Optional[float]) -> None:
         """Set spherical according to gamma"""
         self.spherical = (value is not None) and (0 < value < 1)
         self._gamma = value if self.spherical else None
@@ -125,55 +136,55 @@ class PhysicalProblem:
             analyzer.phys = self
 
     @property
-    def heat_flux_bot(self):
+    def heat_flux_bot(self) -> Optional[float]:
         """Imposed heat flux at bottom"""
         return self._hfbot
 
     @heat_flux_bot.setter
-    def heat_flux_bot(self, value):
+    def heat_flux_bot(self, value: Optional[float]) -> None:
         """Only one heat flux imposed at the same time"""
         if value is not None:
-            self._hftop = None
+            self._hftop: Optional[float] = None
         self._hfbot = value
 
     @property
-    def heat_flux_top(self):
+    def heat_flux_top(self) -> Optional[float]:
         """Imposed heat flux at top"""
         return self._hftop
 
     @heat_flux_top.setter
-    def heat_flux_top(self, value):
+    def heat_flux_top(self, value: Optional[float]) -> None:
         """Only one heat flux imposed at the same time"""
         if value is not None:
             self._hfbot = None
         self._hftop = value
 
     @property
-    def lewis(self):
+    def lewis(self) -> Optional[float]:
         """Lewis number"""
         return self._lewis
 
     @lewis.setter
-    def lewis(self, value):
+    def lewis(self, value: Optional[float]) -> None:
         """Composition profile only if Lewis non finite"""
         if value is not None:
-            self._composition = None
+            self._composition: Optional[Callable[[NDArray], NDArray]] = None
         self._lewis = value
 
     @property
-    def composition(self):
+    def composition(self) -> Optional[Callable[[NDArray], NDArray]]:
         """Compositional reference profile"""
         return self._composition
 
     @composition.setter
-    def composition(self, value):
+    def composition(self, value: Optional[Callable[[NDArray], NDArray]]) -> None:
         """Composition profile only if Lewis non finite"""
         if value is not None:
             self._lewis = None
         self._composition = value
 
 
-def wtran(eps):
+def wtran(eps: float) -> tuple[float, float, float]:
     """translation velocity as function of the reduced Rayleigh number
 
     Only relevant for finite phase-change number at both boundaries.
@@ -181,9 +192,9 @@ def wtran(eps):
     modes. See Labrosse et al (JFM, 2018) for details.
     """
     if eps <= 0:
-        wtr = 0
-        wtrs = 0
-        wtrl = 0
+        wtr = 0.0
+        wtrs = 0.0
+        wtrl = 0.0
     else:
         # function whose roots are the translation velocity
         func = lambda wtra, eps: wtra**2 * np.sinh(wtra / 2) - 6 * (1 + eps) * (
@@ -214,20 +225,21 @@ def wtran(eps):
     return wtr, wtrs, wtrl
 
 
-def compo_smo(thick_tot, partition_coef, c_0=None):
+def compo_smo(
+    thick_tot: float, partition_coef: float, c_0: Optional[float] = None
+) -> Callable[[NDArray], NDArray]:
     """Composition profile
 
     Computed in the case of a rapidly crystalizing smo.
     """
     # only written in cartesian
-    if c_0 is None:
-        c_0 = (1 - 1 / thick_tot**3) ** (1 - partition_coef)
-    return lambda z: c_0 * (thick_tot**3 / (thick_tot**3 - (z + 1 / 2) ** 3)) ** (
+    c_s = (1 - 1 / thick_tot**3) ** (1 - partition_coef) if c_0 is None else c_0
+    return lambda z: c_s * (thick_tot**3 / (thick_tot**3 - (z + 1 / 2) ** 3)) ** (
         1 - partition_coef
     )
 
 
-def visco_Arrhenius(eta_c, gamma):
+def visco_Arrhenius(eta_c: float, gamma: float) -> Callable[[NDArray], NDArray]:
     """Viscosity profile in a conductive shell"""
     # to be checked
     return lambda r: np.exp(

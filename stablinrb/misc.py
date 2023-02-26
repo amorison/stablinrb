@@ -6,15 +6,20 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 if typing.TYPE_CHECKING:
-    from typing import Callable, Sequence
+    from typing import Callable, Optional, Sequence
+
+    from matplotlib.figure import Figure
+    from numpy.typing import NDArray
 
 
-def savefig(fig, name):
+def savefig(fig: Figure, name: str) -> None:
     fig.savefig(name, format="PDF", bbox_inches="tight")
     plt.close(fig)
 
 
-def normalize(arr, norm=None):
+def normalize(
+    arr: NDArray, norm: Optional[np.complexfloating] = None
+) -> tuple[NDArray, np.complexfloating]:
     """Normalize complex array with element of higher modulus
 
     if norm is given, a first normalization with this norm is done
@@ -25,7 +30,9 @@ def normalize(arr, norm=None):
     return arr / amax, amax
 
 
-def normalize_modes(modes, norm_mode=3, full_norm=True):
+def normalize_modes(
+    modes: Sequence[NDArray], norm_mode: int = 3, full_norm: bool = True
+) -> tuple[Sequence[NDArray], Sequence[np.complexfloating]]:
     """Normalize modes
 
     Since modes are eigenvectors, one can choose an arbitrary
@@ -45,7 +52,7 @@ def normalize_modes(modes, norm_mode=3, full_norm=True):
         if full_norm:
             nvec, nval = normalize(modes[ivec], norm)
         else:
-            nvec, nval = modes[ivec] / norm, 1
+            nvec, nval = modes[ivec] / norm, np.complex64(1)
         normed_vectors.append(nvec)
         norm_values.append(nval)
     normed_vectors.append(ref_vector)
@@ -54,7 +61,7 @@ def normalize_modes(modes, norm_mode=3, full_norm=True):
         if full_norm:
             nvec, nval = normalize(modes[ivec], norm)
         else:
-            nvec, nval = modes[ivec] / norm, 1
+            nvec, nval = modes[ivec] / norm, np.complex64(1)
         normed_vectors.append(nvec)
         norm_values.append(nval)
     return normed_vectors, norm_values
