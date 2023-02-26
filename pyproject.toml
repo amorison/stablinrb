@@ -45,7 +45,7 @@ stablinrb = ["py.typed"]
 write_to = "stablinrb/_version.py"
 
 [tool.mypy]
-disallow_untyped_defs = false
+disallow_untyped_defs = true
 
 [[tool.mypy.overrides]]
 module = [

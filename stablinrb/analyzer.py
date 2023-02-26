@@ -778,7 +778,7 @@ class LinearAnalyzer(Analyser):
 
     def neutral_ra(
         self,
-        harm: int,
+        harm: float,
         ra_guess: float = 600,
         ra_comp: Optional[float] = None,
         eps: float = 1.0e-8,

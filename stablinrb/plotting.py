@@ -1,3 +1,7 @@
+from __future__ import annotations
+
+import typing
+
 import matplotlib as mpl
 import matplotlib.pyplot as plt
 import mpl_toolkits.axisartist.floating_axes as floating_axes
@@ -9,6 +13,13 @@ from mpl_toolkits.axisartist.grid_finder import DictFormatter, FixedLocator, Max
 from scipy.special import sph_harm
 
 from .misc import normalize_modes
+
+if typing.TYPE_CHECKING:
+    from typing import Optional
+
+    from numpy.typing import NDArray
+
+    from .analyzer import Analyser, LinearAnalyzer, NonLinearAnalyzer, PhysicalProblem
 
 mpl.rc("font", **{"family": "sans-serif", "sans-serif": ["Helvetica"]})
 mpl.rc("text", usetex=True)
@@ -25,11 +36,11 @@ MSIZE = 5
 
 
 # scientific format for text
-def fmt(x):
+def fmt(x: Optional[float]) -> str:
     if x is None:
         return r"\infty"
-    a, b = "{:.2e}".format(x).split("e")
-    b = int(b)
+    a, bs = "{:.2e}".format(x).split("e")
+    b = int(bs)
     if b:
         if float(a) != 1:
             a = r"{} \times ".format(a)
@@ -40,7 +51,16 @@ def fmt(x):
         return a
 
 
-def image_mode(xgr, zgr, t2d, u2d, w2d, harm, filename, notbare=True):
+def image_mode(
+    xgr: NDArray,
+    zgr: NDArray,
+    t2d: NDArray,
+    u2d: NDArray,
+    w2d: NDArray,
+    harm: float,
+    filename: str,
+    notbare: bool = True,
+) -> None:
     """Create an image for one mode and save it in a file.
 
     Takes 2D fields in input as grids
@@ -80,7 +100,14 @@ def image_mode(xgr, zgr, t2d, u2d, w2d, harm, filename, notbare=True):
     plt.close(fig)
 
 
-def plot_mode_image(analyzer, mode, harm, eps=1, name=None, plot_ords=False):
+def plot_mode_image(
+    analyzer: NonLinearAnalyzer,
+    mode: NDArray,
+    harm: float,
+    eps: float = 1,
+    name: Optional[str] = None,
+    plot_ords: bool = False,
+) -> None:
     """Plot velocity and temperature image of a mode given on input
 
     Generic function for any mode, not necessarily the fastest growing one.
@@ -172,7 +199,7 @@ def plot_mode_image(analyzer, mode, harm, eps=1, name=None, plot_ords=False):
     image_mode(xgr, zgr, t2d, u2d, w2d, harm, filename)
 
 
-def w11(rad, phi):
+def w11(rad: NDArray, phi: float) -> tuple[NDArray, NDArray, NDArray, NDArray, NDArray]:
     """11 mode for the vertical velocity at low phi for both bc"""
     ww0 = 0.5 * np.ones(rad.shape)
     ww1 = -9 / 128 * rad**2 * phi
@@ -184,7 +211,7 @@ def w11(rad, phi):
     return ww0, ww1, ww2, ww3, ww4
 
 
-def u11(rad, phi):
+def u11(rad: NDArray, phi: float) -> tuple[NDArray, NDArray, NDArray]:
     """11 mode for the horizontal velocity at low phi for both bc"""
     # uu = - np.sqrt(3 * phi * 10) * rad / 2
     # uu2 = - rad * (16 * rad ** 4 - 28 * rad ** 2 + 13) / 160 * np.sqrt(3 / 10) * phi ** 1.5
@@ -194,7 +221,7 @@ def u11(rad, phi):
     return uu1, uu2, uu3
 
 
-def p11(rad, phi):
+def p11(rad: NDArray, phi: float) -> tuple[NDArray, NDArray, NDArray]:
     """11 mode for the pressure at low phi for both bc"""
     pp1 = (39 / 32 - 2 * rad**2) * rad * phi
     pp2 = 9 * rad * (35 * rad**2 - 22) / 2048 * phi**2
@@ -202,7 +229,7 @@ def p11(rad, phi):
     return pp1, pp2, pp3
 
 
-def t11(rad, phi):
+def t11(rad: NDArray, phi: float) -> tuple[NDArray, NDArray, NDArray, NDArray]:
     """11 mode for the temperature at low phi for both bc"""
     tt0 = (1 - 4 * rad**2) / 16
     # tt2 = - 3 / 1280 * phi * (1 - 4 * rad ** 2)
@@ -213,7 +240,7 @@ def t11(rad, phi):
     return tt0, tt1, tt2, tt3
 
 
-def t20(rad, phi):
+def t20(rad: NDArray, phi: float) -> tuple[NDArray, NDArray]:
     """20 mode for the temperature at low phi for both bc"""
     # zeroth order in phi
     tt = (1 - 4 * rad**2) * rad / 96
@@ -222,7 +249,7 @@ def t20(rad, phi):
     return tt, tt1
 
 
-def p20(rad, phi):
+def p20(rad: NDArray, phi: float) -> NDArray:
     """20 mode for the pressure at low phi for both bc"""
     # order 1 in phi
     pp1 = -0.25 * (1 / 16 - 0.5 * rad**2 + rad**4) * phi
@@ -231,7 +258,7 @@ def p20(rad, phi):
     return pp1
 
 
-def t22(rad, phi):
+def t22(rad: NDArray, phi: float) -> tuple[NDArray, NDArray]:
     """22 mode for the temperature at low phi for both bc"""
     # zeroth order in phi
     tt = (1 - 4 * rad**2) * rad / 96
@@ -240,7 +267,7 @@ def t22(rad, phi):
     return tt, tt1
 
 
-def w22(rad, phi):
+def w22(rad: NDArray, phi: float) -> tuple[NDArray, NDArray]:
     """22 mode for the vertical velocity at low phi for both bc"""
     # ww = phi * rad * (1 - 4 * rad ** 2) * 3 / 256
     # ww = (np.sqrt(2 * phi) * harm + phi) * rad * 3 /256
@@ -251,7 +278,7 @@ def w22(rad, phi):
     return ww1, ww2
 
 
-def u22(rad, phi):
+def u22(rad: NDArray, phi: float) -> tuple[NDArray, NDArray]:
     """22 mode for the horizontal velocity at low phi for both bc"""
     # order 1/2
     uu1 = np.sqrt(phi / 2) / 96 * np.ones(rad.shape)  # - harm * phi / 4096
@@ -265,7 +292,13 @@ def u22(rad, phi):
     return uu1, uu2
 
 
-def plot_mode_profiles(analyzer, mode, harm, name=None, plot_theory=False):
+def plot_mode_profiles(
+    analyzer: NonLinearAnalyzer,
+    mode: NDArray,
+    harm: float,
+    name: Optional[str] = None,
+    plot_theory: bool = False,
+) -> None:
     """Plot all mode profiles"""
     if name is None:
         name = analyzer.phys.name()
@@ -444,15 +477,15 @@ def plot_mode_profiles(analyzer, mode, harm, name=None, plot_theory=False):
 
 
 def plot_fastest_mode(
-    analyzer,
-    harm,
-    ra_num,
-    ra_comp=None,
-    name=None,
-    plot_theory=False,
-    notbare=True,
-    plot_text=True,
-):
+    analyzer: Analyser,
+    harm: float,
+    ra_num: float,
+    ra_comp: Optional[float] = None,
+    name: Optional[str] = None,
+    plot_theory: bool = False,
+    notbare: bool = True,
+    plot_text: bool = True,
+) -> None:
     """Plot fastest growing mode for a given harmonic and Ra
 
     plot_theory: theory in case of transition, cartesian geometry
@@ -539,6 +572,7 @@ def plot_fastest_mode(
     if spherical:
         # 2D plot on annulus
         # mesh construction
+        assert gamma is not None
         theta = np.pi / 2
         phi = np.linspace(0, 2 * np.pi, n_phi)
         rad = np.linspace(gamma, 1, n_rad)
@@ -560,21 +594,9 @@ def plot_fastest_mode(
         fig = plt.figure(dpi=dpi)
         tr = PolarAxes.PolarTransform()
 
-        angle_ticks = []
-        grid_locator1 = FixedLocator([v for v, _ in angle_ticks])
-        tick_formatter1 = DictFormatter(dict(angle_ticks))
-
-        radius_ticks = []
-        grid_locator2 = FixedLocator([v for v, _ in radius_ticks])
-        tick_formatter2 = DictFormatter(dict(radius_ticks))
-
         grid_helper = floating_axes.GridHelperCurveLinear(
             tr,
             extremes=(2.0 * np.pi, 0, gamma, 1),
-            grid_locator1=grid_locator1,
-            tick_formatter1=tick_formatter1,
-            grid_locator2=grid_locator2,
-            tick_formatter2=tick_formatter2,
         )
 
         ax1 = floating_axes.FloatingSubplot(fig, 111, grid_helper=grid_helper)
@@ -639,13 +661,21 @@ def plot_fastest_mode(
         image_mode(xgr, zgr, t2d, u2d, w2d, harm, filename, notbare)
 
 
-def plot_ran_harm(analyzer, harm, ra_comp=None, name=None, hmin=None, hmax=None):
+def plot_ran_harm(
+    analyzer: LinearAnalyzer,
+    harm: float,
+    ra_comp: Optional[float] = None,
+    name: Optional[str] = None,
+    hmin: Optional[float] = None,
+    hmax: Optional[float] = None,
+) -> None:
     """Plot neutral Ra vs harmonic around given harm"""
     if name is None:
         name = analyzer.phys.name()
     fig, axis = plt.subplots(1, 1)
     if analyzer.phys.spherical:
-        rac_l = []
+        rac_l: list[float] = []
+        harm = int(harm)
         if harm < 25:
             lmin = 1
             lmax = max(15, harm + 5)
@@ -669,7 +699,7 @@ def plot_ran_harm(analyzer, harm, ra_comp=None, name=None, hmin=None, hmax=None)
             l_c,
             ra_c,
             "o",
-            label=r"$Ra_{min}=%.2f ; l=%d$" % (ra_c, l_c),
+            label=rf"$Ra_{{min}}={ra_c:.2f} ; l={l_c}$",
             markersize=MSIZE * 1.5,
         )
         plt.xlabel(r"Spherical harmonic $l$", fontsize=FTSZ)
@@ -679,13 +709,13 @@ def plot_ran_harm(analyzer, harm, ra_comp=None, name=None, hmin=None, hmax=None)
     else:
         kxmin = harm
         ramin = analyzer.neutral_ra(kxmin, ra_comp=ra_comp)
-        hhmin = kxmin / 2 if hmin == None else hmin
-        hhmax = 1.5 * kxmin if hmax == None else hmax
+        hhmin = kxmin / 2 if hmin is None else hmin
+        hhmax = 1.5 * kxmin if hmax is None else hmax
         wnum = np.linspace(hhmin, hhmax, 50)
         rayl = [analyzer.neutral_ra(wnum[0], ramin, ra_comp)]
         for i, kk in enumerate(wnum[1:]):
             ra2 = analyzer.neutral_ra(kk, rayl[i], ra_comp)
-            rayl = np.append(rayl, ra2)
+            rayl.append(ra2)
 
         plt.plot(wnum, rayl, linewidth=2)
         if ramin < 1:
@@ -707,13 +737,14 @@ def plot_ran_harm(analyzer, harm, ra_comp=None, name=None, hmin=None, hmax=None)
     plt.close(fig)
 
 
-def plot_viscosity(pblm):
+def plot_viscosity(pblm: PhysicalProblem) -> None:
     """Plot viscosity profile of a give physical problem"""
     if pblm.eta_r is None:
         return
     nrad = 100
     gamma = pblm.gamma
     if pblm.spherical:
+        assert gamma is not None
         rad = np.linspace(gamma / (1 - gamma), 1 / (1 - gamma), nrad)
     else:
         rad = np.linspace(-1 / 2, 1 / 2, nrad)
@@ -722,6 +753,7 @@ def plot_viscosity(pblm):
     axis[0].plot(eta_r, rad)
     axis[1].semilogx(eta_r, rad)
     if pblm.spherical:
+        assert gamma is not None
         plt.setp(axis, ylim=[gamma / (1 - gamma), 1 / (1 - gamma)])
     else:
         plt.setp(axis, ylim=[-1 / 2, 1 / 2])
