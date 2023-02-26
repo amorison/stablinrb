@@ -70,6 +70,11 @@ class PhysicalProblem:
     def spherical(self) -> bool:
         return self.gamma is not None
 
+    @property
+    def domain_bounds(self) -> tuple[float, float]:
+        """Boundaries of physical domain."""
+        return (1.0, 2.0) if self.spherical else (-0.5, 0.5)
+
     def name(self) -> str:
         """Construct a name for the current case"""
         name = []

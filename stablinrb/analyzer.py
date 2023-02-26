@@ -4,7 +4,7 @@ import typing
 
 import numpy as np
 import numpy.ma as ma
-from dmsuite.poly_diff import Chebyshev
+from dmsuite.poly_diff import Chebyshev, DiffMatOnDomain
 from scipy import linalg
 
 from .misc import build_slices
@@ -432,11 +432,17 @@ class Analyser:
         # get differentiation matrices
         self._ncheb = ncheb
         self._nnonlin = nnonlin
-        cheb = Chebyshev(degree=ncheb)
-        self._zcheb = cheb.nodes
-        # rescaling to thickness 1 (cheb space is of thickness 2)
-        self.dr1 = cheb.at_order(1) * 2  # first r-derivative
-        self.dr2 = cheb.at_order(2) * 4  # second r-derivative
+        xmin, xmax = phys.domain_bounds
+        # FIXME: flip xmin and xmax here because Chebyshev nodes are in
+        # decreasing order, and interp methods from dmsuite depend on that.
+        cheb = DiffMatOnDomain(
+            xmin=xmax,
+            xmax=xmin,
+            dmat=Chebyshev(degree=ncheb),
+        )
+        self.rad = cheb.nodes
+        self.dr1 = cheb.at_order(1)  # first r-derivative
+        self.dr2 = cheb.at_order(2)  # second r-derivative
 
         # weights
         self._invcp = np.ones(ncheb + 1)
@@ -448,13 +454,6 @@ class Analyser:
             for p in range(ncheb + 1):
                 self._tmat[n, p] = (-1) ** n * np.cos(n * p * np.pi / ncheb)
 
-        # Chebyshev polynomials are -1 < z < 1
-        if phys.spherical:
-            # physical space is 1 < r < 2
-            self.rad = (self._zcheb + 3) / 2
-        else:
-            # physical space is -1/2 < z < 1/2
-            self.rad = self._zcheb / 2
         self._phys = phys
 
     def _insert_boundaries(self, mode: NDArray, im0: int, imn: int) -> NDArray:
