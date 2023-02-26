@@ -9,7 +9,6 @@ import numpy as np
 from dmsuite.interp import ChebyshevSampling
 from matplotlib.projections import PolarAxes
 from mpl_toolkits.axes_grid1 import make_axes_locatable
-from mpl_toolkits.axisartist.grid_finder import DictFormatter, FixedLocator, MaxNLocator
 from scipy.special import sph_harm
 
 from .misc import normalize_modes
@@ -163,7 +162,6 @@ def plot_mode_image(
             degree=rad_cheb.size - 1,
             positions=cheb_space,
         )
-        p_interp = cheb_sampling.apply_on(p_mode)
         u_interp = cheb_sampling.apply_on(u_mode)
         w_interp = cheb_sampling.apply_on(w_mode)
         t_interp = cheb_sampling.apply_on(t_mode)
@@ -581,8 +579,6 @@ def plot_fastest_mode(
         # spherical harmonic
         s_harm = sph_harm(harm, harm, phi_mesh, theta)
         t_field = (t_interp * s_harm).real
-        ur_field = (w_interp * s_harm).real
-        up_field = (u_interp * s_harm).real
         psi_field = (psi_interp * s_harm).real
 
         # normalization
@@ -604,7 +600,7 @@ def plot_fastest_mode(
         axis = ax1.get_aux_axes(tr)
 
         # plot Temperature
-        surf = axis.pcolormesh(
+        axis.pcolormesh(
             phi_mesh, rad_mesh, t_field, cmap=mypal, rasterized=True, shading="gouraud"
         )
         # plot stream lines

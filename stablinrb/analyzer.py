@@ -34,16 +34,6 @@ def cartesian_matrices_0(
     one = np.identity(ncheb + 1)  # identity
     phi_top = self.phys.phi_top
     phi_bot = self.phys.phi_bot
-    if self.phys.C_top is not None:
-        C_top = self.phys.C_top
-    else:
-        C_top = 0
-    if self.phys.C_bot is not None:
-        C_bot = self.phys.C_bot
-    else:
-        C_bot = 0
-    freeslip_top = self.phys.freeslip_top
-    freeslip_bot = self.phys.freeslip_bot
     heat_flux_top = self.phys.heat_flux_top
     biot_top = self.phys.biot_top
     biot_bot = self.phys.biot_bot
@@ -316,7 +306,6 @@ def spherical_matrices(
     lewis = self.phys.lewis
     composition = self.phys.composition
     comp_terms = lewis is not None or composition is not None
-    translation = self.phys.ref_state_translation
 
     if temp_terms and ra_num is None:
         raise ValueError("Temperature effect requires ra_num")
@@ -556,7 +545,6 @@ class Analyser:
         # Chebyshev polynomials are -1 < z < 1
         if phys_obj.spherical:
             # physical space is 1 < r < 2
-            gamma = phys_obj.gamma
             self.rad = (self._zcheb + 3) / 2
         else:
             # physical space is -1/2 < z < 1/2
@@ -718,7 +706,6 @@ class Analyser:
             pgint, qgint, tgint = slgint
 
         p_mode = eigvec[pgall]
-        q_mode = eigvec[qgall]
         t_mode = eigvec[tgall]
 
         if apply_bc:
@@ -992,7 +979,6 @@ class LinearAnalyzer(Analyser):
             if np.real(smean) < 0:
                 ramax = ramean
                 smax = smean
-                hmax = hmean
             else:
                 ramin = ramean
                 smin = smean
@@ -1265,14 +1251,7 @@ class NonLinearAnalyzer(Analyser):
 
     def nonlinana(self) -> tuple[float, NDArray, NDArray, NDArray, NDArray]:
         """Ra2 and X2"""
-        ncheb = self._ncheb
         nnonlin = self._nnonlin
-        phi_top = self.phys.phi_top
-        phi_bot = self.phys.phi_bot
-        freeslip_top = self.phys.freeslip_top
-        freeslip_bot = self.phys.freeslip_bot
-        heat_flux_top = self.phys.heat_flux_top
-        heat_flux_bot = self.phys.heat_flux_bot
         # global indices and slices
         i0n, igf, slall, slint, slgall, slgint = self._slices()
         i_0s, i_ns = zip(*i0n)
@@ -1329,7 +1308,6 @@ class NonLinearAnalyzer(Analyser):
         # norm of the linear mode
         norm_x1 = self.dotprod(1, 1, 1)
 
-        dt_c = np.dot(self.dr1, t_c)
         lmat = np.zeros((nnonlin + 1, lmat_c.shape[0], lmat_c.shape[1])) * (1 + 1j)
         lmat0, pgint0, tgint0, pgall0, tgall0, igw0 = cartesian_matrices_0(self, ra_c)
         lmat[0] = lmat_c

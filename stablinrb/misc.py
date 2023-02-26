@@ -88,8 +88,7 @@ def build_slices(
     i_0s, i_ns = zip(*i0n)
     for i_0, i_n in zip(i_0s[1:], i_ns):
         ipn = igf[-1](i_n)
-        i_g = lambda idx, i_l=ipn - i_0 + 1: idx + i_l
-        igf.append(i_g)
+        igf.append(lambda idx, i_l=ipn - i_0 + 1: idx + i_l)
     slall = []  # entire vector
     slint = []  # interior points
     slgall = []  # entire vector with big matrix indexing

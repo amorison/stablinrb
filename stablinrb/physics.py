@@ -3,7 +3,7 @@ from __future__ import annotations
 import typing
 
 import numpy as np
-from scipy.optimize import brentq, newton
+from scipy.optimize import brentq
 
 if typing.TYPE_CHECKING:
     from typing import Callable, Optional, Union
@@ -196,15 +196,13 @@ def wtran(eps: float) -> tuple[float, float, float]:
         wtrs = 0.0
         wtrl = 0.0
     else:
-        # function whose roots are the translation velocity
-        func = lambda wtra, eps: wtra**2 * np.sinh(wtra / 2) - 6 * (1 + eps) * (
-            wtra * np.cosh(wtra / 2) - 2 * np.sinh(wtra / 2)
-        )
-        dfunc = (
-            lambda wtra, eps: 0.5
-            * wtra
-            * (wtra * np.cosh(wtra / 2) - 2 * (1 + 3 * eps) * np.sinh(wtra / 2))
-        )
+
+        def func(wtra: float, eps: float) -> float:
+            """function whose roots are the translation velocity"""
+            return wtra**2 * np.sinh(wtra / 2) - 6 * (1 + eps) * (
+                wtra * np.cosh(wtra / 2) - 2 * np.sinh(wtra / 2)
+            )
+
         # value in the large Ra limit
         wtrl = 6 * (eps + 1)
         ful = func(wtrl, eps)
