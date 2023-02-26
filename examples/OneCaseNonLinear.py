@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
-"""
-Solves the weakly non-linear development for the Rayleigh-Bénard problem
+"""Weakly non-linear development for Rayleigh-Bénard problem
 
-The Rayleigh number Ra and the solution vectore are developed as 
-Ra = Rc + R1 eps + R2 eps^2 + ...
-X = eps X1 + eps^2 X2 + ...
-This script finds the suite of Ri and Xi and then plots the dimensionless 
-heat flux (Nusselt number) as function of Ra, as well as the weakly 
+The Rayleigh number Ra and the solution vectore are developed as
+    Ra = Rc + R1 eps + R2 eps^2 + ...
+    X = eps X1 + eps^2 X2 + ...
+
+This script finds the suite of Ri and Xi and then plots the dimensionless
+heat flux (Nusselt number) as function of Ra, as well as the weakly
 non-linear solution for a given value of Ra.
 
 Warning: Only tested up to degre 2 in eps.
@@ -22,9 +22,8 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 import stablinrb.plotting as stabplt
-from stablinrb.misc import normalize_modes
 from stablinrb.nonlin import NonLinearAnalyzer
-from stablinrb.physics import PhysicalProblem, compo_smo, visco_Arrhenius
+from stablinrb.physics import PhysicalProblem
 
 # include tex fonts in pdf
 mpl.rc("font", **{"family": "sans-serif", "sans-serif": ["Helvetica"]})

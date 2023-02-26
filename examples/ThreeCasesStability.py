@@ -1,16 +1,11 @@
 #!/usr/bin/env python3
-"""
-Finds critical Rayleigh number for three cases, with different BCs.
-
-
-"""
+"""Find critical Rayleigh number for three cases with different BCs."""
 import matplotlib as mpl
 import matplotlib.pyplot as plt
 import numpy as np
 
 from stablinrb.analyzer import LinearAnalyzer
-from stablinrb.misc import normalize_modes
-from stablinrb.physics import PhysicalProblem, compo_smo, visco_Arrhenius
+from stablinrb.physics import PhysicalProblem
 
 mpl.rc("font", **{"family": "sans-serif", "sans-serif": ["Helvetica"]})
 mpl.rc("text", usetex=True)
@@ -27,11 +22,11 @@ pblm = PhysicalProblem(gamma=None, freeslip_top=False, freeslip_bot=False)
 # create the analyser instance
 ana = LinearAnalyzer(pblm, ncheb=20)
 
-hmax = 7
+hmax = 7.0
 nharm = 100
 
 # rigid--rigid case
-hmin = 1
+hmin = 1.0
 wnum = np.linspace(hmin, hmax, nharm)
 
 # Find the fastest growing mode
@@ -43,7 +38,7 @@ print("Wavelength = ", 2 * np.pi / harm_crr)
 raylrr = [ana.neutral_ra(wnum[0], ra_crr)]
 for i, kk in enumerate(wnum[1:]):
     ra2 = ana.neutral_ra(kk, raylrr[i])
-    raylrr = np.append(raylrr, ra2)
+    raylrr.append(ra2)
 
 # and plot
 plt.plot(wnum, raylrr, label=r"Rigid--Rigid BCs")
@@ -69,7 +64,7 @@ print("Wavelength = ", 2 * np.pi / harm_cfr)
 raylfr = [ana.neutral_ra(wnum[0], ra_cfr)]
 for i, kk in enumerate(wnum[1:]):
     ra2 = ana.neutral_ra(kk, raylfr[i])
-    raylfr = np.append(raylfr, ra2)
+    raylfr.append(ra2)
 
 # and plot
 plt.plot(wnum, raylfr, label=r"Free--Rigid BCs")
@@ -92,7 +87,7 @@ print("Wavelength = ", 2 * np.pi / harm_cff)
 raylff = [ana.neutral_ra(wnum[0], ra_cff)]
 for i, kk in enumerate(wnum[1:]):
     ra2 = ana.neutral_ra(kk, raylff[i])
-    raylff = np.append(raylff, ra2)
+    raylff.append(ra2)
 
 plt.plot(wnum, raylff, label=r"Free--Free BCs")
 plt.plot(
