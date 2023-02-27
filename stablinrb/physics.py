@@ -7,7 +7,7 @@ import numpy as np
 from scipy.optimize import brentq
 
 if typing.TYPE_CHECKING:
-    from typing import Callable, Optional, Union
+    from typing import Callable, Mapping, Optional, Union
 
     from numpy.typing import NDArray
 
@@ -100,6 +100,35 @@ class PhysicalProblem:
         else:
             name.append("freeB" if self.freeslip_bot else "rigidB")
         return "_".join(name)
+
+    def variables_at_bc(self) -> Mapping[str, tuple[bool, bool]]:
+        common = {
+            "T": (
+                self.heat_flux_top is not None or self.biot_top is not None,
+                self.heat_flux_bot is not None or self.biot_bot is not None,
+            )  # temperature
+        }
+        if self.composition is not None or self.lewis is not None:
+            common["c"] = (False, False)
+        if self.spherical:
+            return {
+                "p": (True, True),  # poloidal potential
+                "q": (True, True),  # lapl(poloidal)
+                **common,
+            }
+        # cartesian
+        return {
+            "p": (True, True),  # pressure
+            "u": (
+                self.phi_top is not None or self.freeslip_top,
+                self.phi_bot is not None or self.freeslip_bot,
+            ),
+            "w": (
+                self.phi_top is not None,
+                self.phi_bot is not None,
+            ),
+            **common,
+        }
 
 
 def wtran(eps: float) -> tuple[float, float, float]:

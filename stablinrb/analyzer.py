@@ -7,6 +7,7 @@ import numpy.ma as ma
 from dmsuite.poly_diff import Chebyshev, DiffMatOnDomain
 from scipy import linalg
 
+from .matrix import Matrix, Slices
 from .misc import build_slices
 from .physics import wtran
 
@@ -51,101 +52,79 @@ def cartesian_matrices(
     # Laplace operator
     lapl = dz2 - wnk**2 * one
 
-    # global indices and slices
-    i0n, igf, slall, slint, slgall, slgint = self._slices()
-    i_0s, i_ns = zip(*i0n)
-    if comp_terms:
-        ip0, iu0, iw0, it0, ic0 = i_0s
-        ipn, iun, iwn, itn, icn = i_ns
-        ipg, iug, iwg, itg, icg = igf
-        pall, uall, wall, tall, call = slall
-        pint, uint, wint, tint, cint = slint
-        pgall, ugall, wgall, tgall, cgall = slgall
-        pgint, ugint, wgint, tgint, cgint = slgint
-    else:
-        ip0, iu0, iw0, it0 = i_0s
-        ipn, iun, iwn, itn = i_ns
-        ipg, iug, iwg, itg = igf
-        pall, uall, wall, tall = slall
-        pint, uint, wint, tint = slint
-        pgall, ugall, wgall, tgall = slgall
-        pgint, ugint, wgint, tgint = slgint
-
-    # For pressure. No BCs but side values needed or removed
-    # depending on the BCs for W. number of lines need to be
-    # the same as that of d2w and depends on bcsw.
-
     if translation:
         assert phi_bot is not None and phi_top is not None
         rtr = 12 * (phi_top + phi_bot)
         wtrans = wtran((ra_num - rtr) / rtr)[0]
 
-    lmat = np.zeros((igf[-1](i_ns[-1]) + 1, igf[-1](i_ns[-1]) + 1)) + 0j
-    rmat = np.zeros((igf[-1](i_ns[-1]) + 1, igf[-1](i_ns[-1]) + 1))
+    slices = Slices(include_bnd=self.phys.variables_at_bc(), nnodes=ncheb + 1)
+    lmat = Matrix(slices, dtype=np.complex128)
+    rmat = Matrix(slices)
 
     # Pressure equations
     # mass conservation
-    lmat[pgall, ugall] = dh1[pall, uall]
-    lmat[pgall, wgall] = dz1[pall, wall]
+    lmat.add_all("p", "u", dh1)
+    lmat.add_all("p", "w", dz1)
 
     # U equations
     # free-slip at top
     if phi_top is not None or freeslip_top:
-        lmat[iug(iu0), ugall] = dz1[iu0, uall]
+        lmat.add_top("u", "u", dz1[0])
     if phi_top is not None:
-        lmat[iug(iu0), wgall] = dh1[iu0, wall]
+        lmat.add_top("u", "w", dh1[0])
     # horizontal momentum conservation
-    lmat[ugint, pgall] = -dh1[uint, pall]
-    lmat[ugint, ugall] = lapl[uint, uall]
+    lmat.add_bulk("u", "p", -dh1)
+    lmat.add_bulk("u", "u", lapl)
     # free-slip at bot
     if phi_bot is not None or freeslip_bot:
-        lmat[iug(iun), ugall] = dz1[iun, uall]
+        lmat.add_bot("u", "u", dz1[-1])
     if phi_bot is not None:
-        lmat[iug(iun), wgall] = dh1[iun, wall]
+        lmat.add_bot("u", "w", dh1[-1])
 
     # W equations
     if phi_top is not None:
         # phase change at top
-        lmat[iwg(iw0), pgall] = -one[iw0, pall]
-        lmat[iwg(iw0), wgall] = phi_top * one[iw0, wall] + 2 * dz1[iw0, wall]
+        lmat.add_top("w", "p", -one[0])
+        lmat.add_top("w", "w", phi_top * one[0] + 2 * dz1[0])
     # vertical momentum conservation
-    lmat[wgint, pgall] = -dz1[wint, pall]
-    lmat[wgint, wgall] = lapl[wint, wall]
+    lmat.add_bulk("w", "p", -dz1)
+    lmat.add_bulk("w", "w", lapl)
     if water:
         theta0 = thetar - zphys
-        lmat[wgint, tgall] = -ra_num * np.diag(theta0)[wint, tall]
+        lmat.add_bulk("w", "T", -ra_num * np.diag(theta0))
     else:
-        lmat[wgint, tgall] = ra_num * one[wint, tall]
+        lmat.add_bulk("w", "T", ra_num * one)
     if comp_terms:
         assert ra_comp is not None
-        lmat[wgint, cgall] = ra_comp * one[wint, call]
+        lmat.add_bulk("w", "c", ra_comp * one)
     if phi_bot is not None:
         # phase change at bot
-        lmat[iwg(iwn), pgall] = -one[iwn, pall]
-        lmat[iwg(iwn), wgall] = -phi_bot * one[iwn, wall] + 2 * dz1[iwn, wall]
+        lmat.add_bot("w", "p", -one[-1])
+        lmat.add_bot("w", "w", -phi_bot * one[-1] + 2 * dz1[-1])
 
     # Neumann boundary condition if imposed flux
     if heat_flux_top is not None:
-        lmat[itg(it0), tgall] = dz1[it0, tall]
+        lmat.add_top("T", "T", dz1[0])
     elif heat_flux_bot is not None:
-        lmat[itg(itn), tgall] = dz1[itn, tall]
+        lmat.add_bot("T", "T", dz1[-1])
     if self.phys.biot_top is not None:
-        lmat[itg(it0), tgall] = (self.phys.biot_top * one + dz1)[it0, tall]
+        lmat.add_top("T", "T", self.phys.biot_top * one[0] + dz1[0])
     if self.phys.biot_bot is not None:
-        lmat[itg(itn), tgall] = (self.phys.biot_bot * one + dz1)[itn, tall]
+        lmat.add_bot("T", "T", self.phys.biot_bot * one[-1] + dz1[-1])
 
-    lmat[tgint, tgall] = lapl[tint, tall]
+    lmat.add_bulk("T", "T", lapl)
 
     # need to take heat flux into account in T conductive
     if translation:
         # only written for Dirichlet BCs on T and without internal heating
-        lmat[tgint, tgall] -= wtrans * dz1[tint, tall]
-        lmat[tgint, wgall] = np.diag(np.exp(wtrans * self.rad[wall]))[tint, wall]
+        lmat.add_bulk("T", "T", -wtrans * dz1)
+        w_temp = np.diag(np.exp(wtrans * self.rad))
         if np.abs(wtrans) > 1.0e-3:
-            lmat[tgint, wgall] *= wtrans / (2 * np.sinh(wtrans / 2))
+            w_temp *= wtrans / (2 * np.sinh(wtrans / 2))
         else:
             # use a limited development
-            lmat[tgint, wgall] *= 1 - wtrans**2 / 24
+            w_temp *= 1 - wtrans**2 / 24
+        lmat.add_bulk("T", "w", w_temp)
     else:
         grad_tcond = -h_int * zphys
         if heat_flux_bot is not None:
@@ -158,23 +137,23 @@ def cartesian_matrices(
                 grad_tcond -= 1
             else:
                 grad_tcond += 1
-        lmat[tgint, wgall] = np.diag(grad_tcond)[tint, wall]
+        lmat.add_bulk("T", "w", np.diag(grad_tcond))
 
-    rmat[tgint, tgall] = one[tint, tall]
+    rmat.add_bulk("T", "T", one)
     if prandtl is not None:
         # finite Prandtl number case
-        rmat[ugint, ugall] = one[uint, uall] / prandtl
-        rmat[wgint, wgall] = one[wint, wall] / prandtl
+        rmat.add_bulk("u", "u", one / prandtl)
+        rmat.add_bulk("w", "w", one / prandtl)
     # C equations
     # 1/Le lapl(C) - u.grad(C_reference) = sigma C
     if composition is not None:
-        lmat[cgint, wgall] = -np.diag(np.dot(dz1, composition(zphys)))[cint, wall]
+        lmat.add_bulk("c", "w", -np.diag(np.dot(dz1, composition(zphys))))
     elif lewis is not None:
-        lmat[cgint, wgall] = one[cint, wall]
-        lmat[cgint, cgall] = lapl[cint, call] / lewis
+        lmat.add_bulk("c", "w", one)
+        lmat.add_bulk("c", "c", lapl / lewis)
     if comp_terms:
-        rmat[cgint, cgall] = one[cint, call]
-    return lmat, rmat
+        rmat.add_bulk("c", "c", one)
+    return lmat.full_mat(), rmat.full_mat()
 
 
 def spherical_matrices(
