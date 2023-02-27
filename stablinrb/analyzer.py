@@ -560,31 +560,6 @@ class Analyser:
         else:
             return self._split_mode_cartesian(eigvec)
 
-    def _join_mode_cartesian(
-        self, mode: tuple[NDArray, NDArray, NDArray, NDArray]
-    ) -> NDArray:
-        """concatenate (p, u, w, t) mode into 1D cartesian eigvec"""
-        # global indices and slices
-        i0n, igf, slall, slint, slgall, slgint = self._slices()
-        i_0s, i_ns = zip(*i0n)
-        if self.phys.composition is None and self.phys.lewis is None:
-            pall, uall, wall, tall = slall
-            pgall, ugall, wgall, tgall = slgall
-        else:
-            pall, uall, wall, tall = slall
-            pgall, ugall, wgall, tgall, cgall = slgall
-
-        (pmod, umod, wmod, tmod) = mode
-
-        eigvec = np.zeros(igf[-1](i_ns[-1]) + 1) + 0j
-        eigvec[pgall] = pmod[pall]
-        eigvec[ugall] = umod[uall]
-        eigvec[wgall] = wmod[wall]
-        eigvec[tgall] = tmod[tall]
-
-        # c_mode should be added in case of composition
-        return eigvec
-
 
 class LinearAnalyzer(Analyser):
 

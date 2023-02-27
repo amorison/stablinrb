@@ -6,10 +6,10 @@ import numpy as np
 from numpy.linalg import lstsq, solve
 
 from .analyzer import Analyser, LinearAnalyzer
-from .misc import build_slices, normalize_modes
+from .misc import build_slices
 
 if typing.TYPE_CHECKING:
-    from typing import Optional, Sequence
+    from typing import Optional
 
     from numpy.typing import NDArray
 
@@ -307,8 +307,7 @@ class NonLinearAnalyzer(Analyser):
         lmat_c, rmat = self.matrices(harm_c, ra_c)
         nnodes = lmat_c.slices.total_size
         _, mode_c = self.eigvec(harm_c, ra_c)
-        modec: Sequence[NDArray] = self.split_mode(mode_c, harm_c)
-        modec, _ = normalize_modes(modec, norm_mode=2, full_norm=False)
+        mode_c = mode_c.normalize_by_max_of("w")
 
         # setup matrices for the non linear solution
         nkmax = self.indexmat(nnonlin + 1)[0]
@@ -334,14 +333,12 @@ class NonLinearAnalyzer(Analyser):
         qtop[0] = 1
         # coefficients for the velocity RMS. More complex. To be done.
 
-        (p_c, u_c, w_c, t_c) = modec
         # devide by 2 to get the same value as for a sin, cos representation.
-        p_c /= 2
-        u_c /= 2
-        w_c /= 2
-        t_c /= 2
+        mode_c = mode_c.normalize_by(2)
+        self.full_sol[0] = mode_c.arr
+        w_c = mode_c.extract("w")
+        t_c = mode_c.extract("T")
 
-        self.full_sol[0] = self._join_mode_cartesian((p_c, u_c, w_c, t_c))
         # denominator in Ra_i
         xcmxc = self.integz(np.real(w_c * t_c))
 

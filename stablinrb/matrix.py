@@ -81,6 +81,15 @@ class Vector:
         values[self.slices.local_all(var)] = self.arr[self.slices.all(var)]
         return values
 
+    def normalize_by(self, norm: complex) -> Vector:
+        """Normalize by given value."""
+        return Vector(self.slices, self.arr / norm)
+
+    def normalize_by_max_of(self, var: str) -> Vector:
+        """Normalize by the value of var with maximum absolute value."""
+        var_arr = self.extract(var)
+        return self.normalize_by(var_arr[np.argmax(np.abs(var_arr))])
+
 
 @dataclass(frozen=True)
 class Matrix:
