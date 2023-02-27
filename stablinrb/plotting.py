@@ -11,6 +11,7 @@ from matplotlib.projections import PolarAxes
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 from scipy.special import sph_harm
 
+from .matrix import Vector
 from .misc import normalize_modes
 
 if typing.TYPE_CHECKING:
@@ -155,9 +156,8 @@ def plot_mode_image(
     for i in range(nmodes):
         nord, nharm = analyzer.indexmat(nmodes, ind=i)[1:3]
 
-        (p_mode, u_mode, w_mode, t_mode) = analyzer.split_mode(
-            mode[i, :], harm, apply_bc=True
-        )
+        mode_vec = Vector(slices=analyzer.slices, arr=mode[i])
+        (p_mode, u_mode, w_mode, t_mode) = analyzer.split_mode(mode_vec, harm)
 
         # interpolate and normalize according to vertical velocity
         u_interp = cheb_sampling.apply_on(u_mode)
@@ -306,9 +306,8 @@ def plot_mode_profiles(
 
     for i in range(nmodes):
         nord, nharm = analyzer.indexmat(nmodes, ind=i)[1:3]
-        (p_mode, u_mode, w_mode, t_mode) = analyzer.split_mode(
-            mode[i, :], harm, apply_bc=True
-        )
+        mode_vec = Vector(slices=analyzer.slices, arr=mode[i])
+        (p_mode, u_mode, w_mode, t_mode) = analyzer.split_mode(mode_vec, harm)
 
         fig, axe = plt.subplots(1, 4, sharey=True)
 
@@ -495,7 +494,7 @@ def plot_fastest_mode(
     sigma, modes = analyzer.eigvec(harm, ra_num, ra_comp)
     # p is pressure in cartesian geometry and
     # poloidal potential in spherical geometry
-    (p_mode, u_mode, w_mode, t_mode) = analyzer.split_mode(modes, harm, apply_bc=True)
+    (p_mode, u_mode, w_mode, t_mode) = analyzer.split_mode(modes, harm)
 
     rad_cheb = analyzer.rad
     if spherical:

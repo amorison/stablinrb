@@ -1,13 +1,14 @@
 from __future__ import annotations
 
 import typing
+from functools import cached_property
 
 import numpy as np
 import numpy.ma as ma
 from dmsuite.poly_diff import Chebyshev, DiffMatOnDomain
 from scipy import linalg
 
-from .matrix import Matrix, Slices
+from .matrix import Matrix, Slices, Vector
 from .misc import build_slices
 from .physics import wtran
 
@@ -21,7 +22,7 @@ if typing.TYPE_CHECKING:
 
 def cartesian_matrices(
     self: Analyser, wnk: float, ra_num: float, ra_comp: Optional[float] = None
-) -> tuple[NDArray, NDArray]:
+) -> tuple[Matrix, Matrix]:
     """Build left- and right-hand-side matrices in cartesian geometry case"""
     # parameters
     ncheb = self._ncheb
@@ -57,9 +58,8 @@ def cartesian_matrices(
         rtr = 12 * (phi_top + phi_bot)
         wtrans = wtran((ra_num - rtr) / rtr)[0]
 
-    slices = Slices(include_bnd=self.phys.variables_at_bc(), nnodes=ncheb + 1)
-    lmat = Matrix(slices, dtype=np.complex128)
-    rmat = Matrix(slices)
+    lmat = Matrix(self.slices, dtype=np.complex128)
+    rmat = Matrix(self.slices)
 
     # Pressure equations
     # mass conservation
@@ -153,7 +153,7 @@ def cartesian_matrices(
         lmat.add_bulk("c", "c", lapl / lewis)
     if comp_terms:
         rmat.add_bulk("c", "c", one)
-    return lmat.full_mat(), rmat.full_mat()
+    return lmat, rmat
 
 
 def spherical_matrices(
@@ -161,7 +161,7 @@ def spherical_matrices(
     l_harm: int,
     ra_num: Optional[float] = None,
     ra_comp: Optional[float] = None,
-) -> tuple[NDArray, NDArray]:
+) -> tuple[Matrix, Matrix]:
     """Build left and right matrices in spherical case"""
     gamma = self.phys.gamma
     assert gamma is not None
@@ -221,9 +221,8 @@ def spherical_matrices(
     if not (temp_terms or comp_terms):
         raise ValueError("No buoyancy terms!")
 
-    slices = Slices(include_bnd=self.phys.variables_at_bc(), nnodes=ncheb + 1)
-    lmat = Matrix(slices)
-    rmat = Matrix(slices)
+    lmat = Matrix(self.slices)
+    rmat = Matrix(self.slices)
 
     # Poloidal potential equations
     if phi_top is not None:
@@ -374,7 +373,7 @@ def spherical_matrices(
         else:
             rmat.add_bulk("c", "c", one)
 
-    return lmat.full_mat(), rmat.full_mat()
+    return lmat, rmat
 
 
 class Analyser:
@@ -429,6 +428,10 @@ class Analyser:
     def phys(self) -> PhysicalProblem:
         """Property holding the physical problem"""
         return self._phys
+
+    @cached_property
+    def slices(self) -> Slices:
+        return Slices(include_bnd=self.phys.variables_at_bc(), nnodes=self._ncheb + 1)
 
     def _slices(
         self,
@@ -488,7 +491,7 @@ class Analyser:
 
     def matrices(
         self, harm: float, ra_num: float, ra_comp: Optional[float] = None
-    ) -> tuple[NDArray, NDArray]:
+    ) -> tuple[Matrix, Matrix]:
         """Build left and right matrices"""
         if self.phys.spherical:
             return spherical_matrices(self, int(harm), ra_num, ra_comp)
@@ -505,12 +508,12 @@ class Analyser:
         ra_comp: compositional Ra
         """
         lmat, rmat = self.matrices(harm, ra_num, ra_comp)
-        eigvals = linalg.eigvals(lmat, rmat)
+        eigvals = linalg.eigvals(lmat.full_mat(), rmat.full_mat())
         return np.max(np.real(ma.masked_invalid(eigvals)))
 
     def eigvec(
         self, harm: float, ra_num: float, ra_comp: Optional[float] = None
-    ) -> tuple[np.complexfloating, NDArray]:
+    ) -> tuple[np.complexfloating, Vector]:
         """Compute the max eigenvalue and associated eigenvector
 
         harm: wave number
@@ -518,78 +521,27 @@ class Analyser:
         ra_comp: compositional Ra
         """
         lmat, rmat = self.matrices(harm, ra_num, ra_comp)
-        eigvals, eigvecs = linalg.eig(lmat, rmat)
+        eigvals, eigvecs = linalg.eig(lmat.full_mat(), rmat.full_mat())
         iegv = np.argmax(np.real(ma.masked_invalid(eigvals)))
-        return eigvals[iegv], eigvecs[:, iegv]
+        return eigvals[iegv], Vector(slices=lmat.slices, arr=eigvecs[:, iegv])
 
     def _split_mode_cartesian(
-        self, eigvec: NDArray, apply_bc: bool = False
+        self, eigvec: Vector
     ) -> tuple[NDArray, NDArray, NDArray, NDArray]:
-        """Split 1D cartesian mode into (p, u, w, t) tuple
-
-        Optionally apply boundary conditions
-        """
-        # global indices and slices
-        i0n, _, _, _, slgall, _ = self._slices()
-        i_0s, i_ns = zip(*i0n)
-        if self.phys.composition is None and self.phys.lewis is None:
-            ip0, iu0, iw0, it0 = i_0s
-            ipn, iun, iwn, itn = i_ns
-            pgall, ugall, wgall, tgall = slgall
-        else:
-            ip0, iu0, iw0, it0, ic0 = i_0s
-            ipn, iun, iwn, itn, icn = i_ns
-            pgall, ugall, wgall, tgall, cgall = slgall
-
-        p_mode = eigvec[pgall]
-        u_mode = eigvec[ugall]
-        w_mode = eigvec[wgall]
-        t_mode = eigvec[tgall]
-
-        if apply_bc:
-            p_mode = self._insert_boundaries(p_mode, ip0, ipn)
-            u_mode = self._insert_boundaries(u_mode, iu0, iun)
-            w_mode = self._insert_boundaries(w_mode, iw0, iwn)
-            t_mode = self._insert_boundaries(t_mode, it0, itn)
-            # c_mode should be added in case of composition
+        """Split 1D cartesian mode into (p, u, w, t) tuple."""
+        p_mode = eigvec.extract("p")
+        u_mode = eigvec.extract("u")
+        w_mode = eigvec.extract("w")
+        t_mode = eigvec.extract("T")
+        # c_mode should be added in case of composition
         return (p_mode, u_mode, w_mode, t_mode)
 
     def _split_mode_spherical(
-        self, eigvec: NDArray, l_harm: int, apply_bc: bool = False
+        self, eigvec: Vector, l_harm: int
     ) -> tuple[NDArray, NDArray, NDArray, NDArray]:
-        """Split 1D spherical mode into (p, u, w, t) tuple
-
-        Optionally apply boundary conditions
-        """
-        lewis = self.phys.lewis
-        composition = self.phys.composition
-        comp_terms = lewis is not None or composition is not None
-        # global indices and slices
-        i0n, igf, slall, slint, slgall, slgint = self._slices()
-        i_0s, i_ns = zip(*i0n)
-        if comp_terms:
-            ip0, iq0, it0, ic0 = i_0s
-            ipn, iqn, itn, icn = i_ns
-            ipg, iqg, itg, icg = igf
-            pall, qall, tall, call = slall
-            pint, qint, tint, cint = slint
-            pgall, qgall, tgall, cgall = slgall
-            pgint, qgint, tgint, cgint = slgint
-        else:
-            ip0, iq0, it0 = i_0s
-            ipn, iqn, itn = i_ns
-            ipg, iqg, itg = igf
-            pall, qall, tall = slall
-            pint, qint, tint = slint
-            pgall, qgall, tgall = slgall
-            pgint, qgint, tgint = slgint
-
-        p_mode = eigvec[pgall]
-        t_mode = eigvec[tgall]
-
-        if apply_bc:
-            p_mode = self._insert_boundaries(p_mode, ip0, ipn)
-            t_mode = self._insert_boundaries(t_mode, it0, itn)
+        """Split 1D spherical mode into (p, u, w, t) tuple."""
+        p_mode = eigvec.extract("p")
+        t_mode = eigvec.extract("T")
 
         gamma = self.phys.gamma
         assert gamma is not None
@@ -600,13 +552,13 @@ class Analyser:
         return (p_mode, up_mode, ur_mode, t_mode)
 
     def split_mode(
-        self, eigvec: NDArray, harm: float, apply_bc: bool = False
+        self, eigvec: Vector, harm: float
     ) -> tuple[NDArray, NDArray, NDArray, NDArray]:
         """Generic splitting function"""
         if self.phys.spherical:
-            return self._split_mode_spherical(eigvec, int(harm), apply_bc)
+            return self._split_mode_spherical(eigvec, int(harm))
         else:
-            return self._split_mode_cartesian(eigvec, apply_bc)
+            return self._split_mode_cartesian(eigvec)
 
     def _join_mode_cartesian(
         self, mode: tuple[NDArray, NDArray, NDArray, NDArray]

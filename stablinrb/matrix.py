@@ -77,7 +77,7 @@ class Vector:
         assert self.arr.shape == (self.slices.total_size,)
 
     def extract(self, var: str) -> NDArray:
-        values = np.zeros(self.slices.nnodes)
+        values = np.zeros(self.slices.nnodes, dtype=self.arr.dtype)
         values[self.slices.local_all(var)] = self.arr[self.slices.all(var)]
         return values
 

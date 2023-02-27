@@ -305,14 +305,14 @@ class NonLinearAnalyzer(Analyser):
         ana = LinearAnalyzer(self.phys, self._ncheb)
         ra_c, harm_c = ana.critical_ra()
         lmat_c, rmat = self.matrices(harm_c, ra_c)
+        nnodes = lmat_c.slices.total_size
         _, mode_c = self.eigvec(harm_c, ra_c)
-        modec: Sequence[NDArray] = self.split_mode(mode_c, harm_c, apply_bc=True)
+        modec: Sequence[NDArray] = self.split_mode(mode_c, harm_c)
         modec, _ = normalize_modes(modec, norm_mode=2, full_norm=False)
 
         # setup matrices for the non linear solution
-        nmodez = np.shape(mode_c)
         nkmax = self.indexmat(nnonlin + 1)[0]
-        self.full_sol = np.zeros((nkmax, nmodez[0])) * (1 + 1j)
+        self.full_sol = np.zeros((nkmax, nnodes), dtype=np.complex128)
         self.full_p = self.full_sol[:, pgall]
         self.full_u = self.full_sol[:, ugall]
         self.full_w = self.full_sol[:, wgall]
@@ -348,13 +348,13 @@ class NonLinearAnalyzer(Analyser):
         # norm of the linear mode
         norm_x1 = self.dotprod(1, 1, 1)
 
-        lmat = np.zeros((nnonlin + 1, lmat_c.shape[0], lmat_c.shape[1])) * (1 + 1j)
+        lmat = np.zeros((nnonlin + 1, nnodes, nnodes), dtype=np.complex128)
         lmat0, pgint0, tgint0, pgall0, tgall0, igw0 = cartesian_matrices_0(self, ra_c)
-        lmat[0] = lmat_c
+        lmat[0] = lmat_c.full_mat()
         # loop on the orders
         for ii in range(2, nnonlin + 2):
             # also need the linear problem for wnk up to nnonlin*harm_c
-            lmat[ii - 1] = self.matrices(ii * harm_c, ra_c)[0]
+            lmat[ii - 1] = self.matrices(ii * harm_c, ra_c)[0].full_mat()
             (lii, yii) = divmod(ii, 2)
             # compute the N terms
             for ll in range(1, ii):
