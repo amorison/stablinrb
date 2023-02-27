@@ -221,109 +221,86 @@ def spherical_matrices(
     if not (temp_terms or comp_terms):
         raise ValueError("No buoyancy terms!")
 
-    # global indices and slices
-    i0n, igf, slall, slint, slgall, slgint = self._slices()
-    i_0s, i_ns = zip(*i0n)
-    if temp_terms and comp_terms:
-        ip0, iq0, it0, ic0 = i_0s
-        ipn, iqn, itn, icn = i_ns
-        ipg, iqg, itg, icg = igf
-        pall, qall, tall, call = slall
-        pint, qint, tint, cint = slint
-        pgall, qgall, tgall, cgall = slgall
-        pgint, qgint, tgint, cgint = slgint
-    elif temp_terms:
-        ip0, iq0, it0 = i_0s
-        ipn, iqn, itn = i_ns
-        ipg, iqg, itg = igf
-        pall, qall, tall = slall
-        pint, qint, tint = slint
-        pgall, qgall, tgall = slgall
-        pgint, qgint, tgint = slgint
-    else:  # only comp_terms
-        ip0, iq0, ic0 = i_0s
-        ipn, iqn, icn = i_ns
-        ipg, iqg, icg = igf
-        pall, qall, call = slall
-        pint, qint, cint = slint
-        pgall, qgall, cgall = slgall
-        pgint, qgint, cgint = slgint
-
-    lmat = np.zeros((igf[-1](i_ns[-1]) + 1, igf[-1](i_ns[-1]) + 1))
-    rmat = np.zeros((igf[-1](i_ns[-1]) + 1, igf[-1](i_ns[-1]) + 1))
+    slices = Slices(include_bnd=self.phys.variables_at_bc(), nnodes=ncheb + 1)
+    lmat = Matrix(slices)
+    rmat = Matrix(slices)
 
     # Poloidal potential equations
     if phi_top is not None:
         # free-slip at top
-        lmat[ipg(ip0), pgall] = (
-            dr2[ip0, pall] + (lh2 * (1 + C_top) - 2) * orl2[ip0, pall]
-        )
+        lmat.add_top("p", "p", dr2[0] + (lh2 * (1 + C_top) - 2) * orl2[0])
     else:
         # no radial velocity, Dirichlet condition but
         # need to keep boundary point to ensure free-slip
         # or rigid boundary
-        lmat[ipg(ip0), pgall] = one[ip0, pall]
+        lmat.add_top("p", "p", one[0])
     # laplacian(P) - Q = 0
-    lmat[pgint, pgall] = lapl[pint, pall]
-    lmat[pgint, qgall] = -one[qint, qall]
+    lmat.add_bulk("p", "p", lapl)
+    lmat.add_bulk("p", "q", -one)
     if phi_bot is not None:
         # free-slip at bot
-        lmat[ipg(ipn), pgall] = (
-            dr2[ipn, pall] + (lh2 * (1 - C_bot) - 2) * orl2[ipn, pall]
-        )
+        lmat.add_bot("p", "p", dr2[-1] + (lh2 * (1 - C_bot) - 2) * orl2[-1])
     else:
-        lmat[ipg(ipn), pgall] = one[ipn, pall]
+        lmat.add_bot("p", "p", one[-1])
 
     # Q equations
     # normal stress continuity at top
     if phi_top is not None:
-        lmat[iqg(iq0), pgall] = lh2 * (
-            (phi_top - 2 * C_top * (1 - gamma)) * orl1[iq0, pall]
-            - 2 * np.dot(eta_r, orl2)[iq0, pall]
-            + 2 * np.dot(eta_r, np.dot(orl1, dr1))[iq0, pall]
+        lmat.add_top(
+            "q",
+            "p",
+            lh2
+            * (
+                (phi_top - 2 * C_top * (1 - gamma)) * orl1[0]
+                - 2 * np.dot(eta_r, orl2)[0]
+                + 2 * np.dot(eta_r, np.dot(orl1, dr1))[0]
+            ),
         )
-        lmat[iqg(iq0), qgall] = (
-            -eta_r[iq0, qall] - np.dot(eta_r, np.dot(ral, dr1))[iq0, qall]
-        )
+        lmat.add_top("q", "q", -eta_r[0] - np.dot(eta_r, np.dot(ral, dr1))[0])
     elif freeslip_top:
-        lmat[iqg(iq0), pgall] = dr2[iq0, pall]
+        lmat.add_top("q", "p", dr2[0])
     else:
         # rigid
-        lmat[iqg(iq0), pgall] = dr1[iq0, pall]
+        lmat.add_top("q", "p", dr1[0])
     if self.phys.eta_r is not None:
         deta_dr = np.diag(np.dot(dr1, np.diag(eta_r)))
         d2eta_dr2 = np.diag(np.dot(dr2, np.diag(eta_r)))
-        lmat[qgint, pgall] = (
+        lmat.add_bulk(
+            "q",
+            "p",
             2 * (lh2 - 1) * (np.dot(orl2, d2eta_dr2) - np.dot(orl3, deta_dr))
-            - 2 * np.dot(np.dot(orl1, d2eta_dr2) - np.dot(orl2, deta_dr), dr1)
-        )[qint, pall]
-        lmat[qgint, qgall] = (
-            np.dot(eta_r, lapl) + d2eta_dr2 + 2 * np.dot(deta_dr, dr1)
-        )[qint, qall]
+            - 2 * np.dot(np.dot(orl1, d2eta_dr2) - np.dot(orl2, deta_dr), dr1),
+        )
+        lmat.add_bulk(
+            "q", "q", np.dot(eta_r, lapl) + d2eta_dr2 + 2 * np.dot(deta_dr, dr1)
+        )
     else:
         # laplacian(Q) - RaT/r = 0
-        lmat[qgint, qgall] = lapl[qint, qall]
+        lmat.add_bulk("q", "q", lapl)
     if temp_terms:
         assert ra_num is not None
-        lmat[qgint, tgall] = -ra_num * orl1[qint, tall]
+        lmat.add_bulk("q", "T", -ra_num * orl1)
     if comp_terms:
         assert ra_comp is not None
-        lmat[qgint, cgall] = -ra_comp * orl1[qint, call]
+        lmat.add_bulk("q", "c", -ra_comp * orl1)
     # normal stress continuity at bot
     if phi_bot is not None:
-        lmat[iqg(iqn), pgall] = lh2 * (
-            -(phi_bot - 2 * C_bot * (1 - gamma) / gamma) * orl1[iqn, pall]
-            - 2 * np.dot(eta_r, orl2)[iqn, pall]
-            + 2 * np.dot(eta_r, np.dot(orl1, dr1))[iqn, pall]
+        lmat.add_bot(
+            "q",
+            "p",
+            lh2
+            * (
+                -(phi_bot - 2 * C_bot * (1 - gamma) / gamma) * orl1[-1]
+                - 2 * np.dot(eta_r, orl2)[-1]
+                + 2 * np.dot(eta_r, np.dot(orl1, dr1))[-1]
+            ),
         )
-        lmat[iqg(iqn), qgall] = (
-            -eta_r[iqn, qall] - np.dot(eta_r, np.dot(ral, dr1))[iqn, qall]
-        )
+        lmat.add_bot("q", "q", -eta_r[-1] - np.dot(eta_r, np.dot(ral, dr1))[-1])
     elif freeslip_bot:
-        lmat[iqg(iqn), pgall] = dr2[iqn, pall]
+        lmat.add_bot("q", "p", dr2[-1])
     else:
         # rigid
-        lmat[iqg(iqn), pgall] = dr1[iqn, pall]
+        lmat.add_bot("q", "p", dr1[-1])
 
     if self.phys.cooling_smo is not None:
         gamt_f, w_f = self.phys.cooling_smo
@@ -335,21 +312,21 @@ def spherical_matrices(
     if temp_terms:
         # Neumann boundary condition if imposed flux
         if heat_flux_top is not None:
-            lmat[itg(it0), tgall] = dr1[it0, tall]
+            lmat.add_top("T", "T", dr1[0])
         elif heat_flux_bot is not None:
-            lmat[itg(itn), tgall] = dr1[itn, tall]
+            lmat.add_bot("T", "T", dr1[-1])
         if self.phys.biot_top is not None:
-            lmat[itg(it0), tgall] = (self.phys.biot_top * one + dr1)[it0, tall]
+            lmat.add_top("T", "T", self.phys.biot_top * one[0] + dr1[0])
         if self.phys.biot_bot is not None:
-            lmat[itg(itn), tgall] = (self.phys.biot_bot * one + dr1)[itn, tall]
+            lmat.add_bot("T", "T", self.phys.biot_bot * one[-1] + dr1[-1])
 
-        lmat[tgint, tgall] = lapl[tint, tall]
+        lmat.add_bulk("T", "T", lapl)
         if not self.phys.frozen_time and self.phys.cooling_smo is not None:
             # TYPE SAFETY: there is an implicit assumption that grad_ref_temperature is a callable
             # with those options
             grad_ref_temp_top = grad_ref_temperature(np.diag(rad)[0])  # type: ignore
-            lmat[tgint, tgall] += (
-                w_smo * (np.dot(rad - one, dr1) + grad_ref_temp_top * one)[tint, tall]
+            lmat.add_bulk(
+                "T", "T", w_smo * (np.dot(rad - one, dr1) + grad_ref_temp_top * one)
             )
 
         # advection of reference profile
@@ -375,27 +352,29 @@ def spherical_matrices(
             # TYPE SAFETY: there is an implicit assumption that grad_ref_temperature is a callable
             # if not "conductive"
             grad_tcond = np.dot(orl1, -grad_ref_temperature(np.diag(rad)))  # type: ignore
-        lmat[tgint, pgall] = np.diag(lh2 * grad_tcond)[tint, pall]
+        lmat.add_bulk("T", "p", np.diag(lh2 * grad_tcond))
 
-        rmat[tgint, tgall] = one[tint, tall]
         if not self.phys.frozen_time and self.phys.cooling_smo:
-            rmat[tgint, tgall] *= gam2_smo
+            rmat.add_bulk("T", "T", one * gam2_smo)
+        else:
+            rmat.add_bulk("T", "T", one)
 
     # C equations
     # 1/Le lapl(C) - u.grad(C_reference) = sigma C
     if composition is not None:
         grad_comp = np.diag(np.dot(dr1, composition(np.diag(rad))))
-        lmat[cgint, pgall] = -lh2 * np.dot(orl1, grad_comp)[cint, pall]
+        lmat.add_bulk("c", "p", -lh2 * np.dot(orl1, grad_comp))
     elif lewis is not None:
         raise ValueError("Finite Lewis not implemented in spherical")
     if comp_terms:
         if not self.phys.frozen_time and self.phys.cooling_smo is not None:
-            lmat[cgint, cgall] = w_smo * np.dot(rad - one, dr1)[cint, call]
-        rmat[cgint, cgall] = one[cint, call]
+            lmat.add_bulk("c", "c", w_smo * np.dot(rad - one, dr1))
         if not self.phys.frozen_time and self.phys.cooling_smo is not None:
-            rmat[cgint, cgall] *= gam2_smo
+            rmat.add_bulk("c", "c", one * gam2_smo)
+        else:
+            rmat.add_bulk("c", "c", one)
 
-    return lmat, rmat
+    return lmat.full_mat(), rmat.full_mat()
 
 
 class Analyser:
