@@ -166,7 +166,6 @@ class NonLinearAnalyzer(Analyser):
         # TYPE SAFETY: there is an implicit assumption on call order to other methods
         # so that ratot and full_* modes are known when calling this function.
         rac = self.ratot[0]  # type: ignore
-        ncheb = self._ncheb
 
         # get indices
         pall = self.slices.local_all("p")
@@ -176,7 +175,7 @@ class NonLinearAnalyzer(Analyser):
 
         if (ord1 % 2 == 0 and ord2 % 2 == 0) or (ord1 % 2 == 1 and ord2 % 2 == 1):
             # create local profiles
-            prof = np.zeros(ncheb + 1) * (1 + 0j)
+            prof = np.zeros(self.slices.nnodes, dtype=np.complex64)
             # get indices in the global matrix
             ind1 = self.indexmat(ord1, harmm=harm)[3]
             ind2 = self.indexmat(ord2, harmm=harm)[3]
@@ -184,15 +183,15 @@ class NonLinearAnalyzer(Analyser):
             prof[pall] = np.conj(self.full_p[ind1]) * self.full_p[ind2]  # type: ignore
             dprod = self.integz(prof)
             # horizontal velocity part
-            prof = np.zeros(ncheb + 1) * (1 + 0j)
+            prof.fill(0)
             prof[uall] = np.conj(self.full_u[ind1]) * self.full_u[ind2]  # type: ignore
             dprod += self.integz(prof)
             # vertical velocity part
-            prof = np.zeros(ncheb + 1) * (1 + 0j)
+            prof.fill(0)
             prof[wall] = np.conj(self.full_w[ind1]) * self.full_w[ind2]  # type: ignore
             dprod += self.integz(prof)
             # temperature part
-            prof = np.zeros(ncheb + 1) * (1 + 0j)
+            prof.fill(0)
             prof[tall] = np.conj(self.full_t[ind1]) * self.full_t[ind2]  # type: ignore
             dprod += rac * self.integz(prof)
         else:
@@ -210,16 +209,15 @@ class NonLinearAnalyzer(Analyser):
         full_sol array, results are added to the nterm array.
         ordered by wavenumber
         """
-        ncheb = self._ncheb
         # get indices
         uall = self.slices.local_all("u")
         wall = self.slices.local_all("w")
         tall = self.slices.local_all("T")
 
         # create local profiles
-        uloc = np.zeros(ncheb + 1) * (1 + 0j)
-        wloc = np.zeros(ncheb + 1) * (1 + 0j)
-        tloc = np.zeros(ncheb + 1) * (1 + 0j)
+        uloc = np.zeros(self.slices.nnodes, dtype=np.complex64)
+        wloc = np.zeros_like(uloc)
+        tloc = np.zeros_like(uloc)
 
         # order of the produced mode
         nmo = mle + mri
