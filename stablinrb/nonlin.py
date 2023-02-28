@@ -27,16 +27,16 @@ def cartesian_matrices_0(
     ncheb = self._ncheb
     dz1, dz2 = self.dr1, self.dr2
     one = np.identity(ncheb + 1)  # identity
-    phi_top = self.phys.phi_top
-    phi_bot = self.phys.phi_bot
     heat_flux_top = self.phys.heat_flux_top
     biot_top = self.phys.biot_top
     biot_bot = self.phys.biot_bot
     heat_flux_bot = self.phys.heat_flux_bot
 
+    # only in that case a translating vertical velocity is possible
+    solve_for_w = self.phys.phi_top is not None and self.phys.phi_bot is not None
+
     # pressure
-    if phi_top is not None and phi_bot is not None:
-        # only in that case a translating vertical velocity is possible
+    if solve_for_w:
         ip0 = 0
         ipn = ncheb
     else:
@@ -54,7 +54,7 @@ def cartesian_matrices_0(
     pgint, tgint = slgint
 
     # index for vertical velocity
-    if phi_top is not None and phi_bot is not None:
+    if solve_for_w:
         igw = itg(itn + 1)
     else:
         igw = itg(itn)
@@ -69,16 +69,17 @@ def cartesian_matrices_0(
     # temperature equation
     lmat[tgint, tgall] = dz2[tint, tall]
     # the case for a translating vertical velocity (mode 0)
-    if phi_top is not None and phi_bot is not None:
+    if solve_for_w:
+        assert self.phys.phi_top is not None and self.phys.phi_bot is not None
         # Uniform vertical velocity in the temperature equation
         lmat[tgint, igw] = 1
         # Vertical velocity in momentum boundary conditions
         lmat[0, 0] = -1
-        lmat[0, igw] = phi_top
+        lmat[0, igw] = self.phys.phi_top
         lmat[ipn, ipn] = 1
-        lmat[ipn, igw] = phi_bot
+        lmat[ipn, igw] = self.phys.phi_bot
         # equation for the uniform vertical velocity
-        lmat[igw, igw] = phi_top + phi_bot
+        lmat[igw, igw] = self.phys.phi_top + self.phys.phi_bot
         lmat[igw, 0] = 1
         lmat[igw, ipn] = -1
 
