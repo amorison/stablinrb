@@ -9,11 +9,10 @@ from dmsuite.poly_diff import Chebyshev, DiffMatOnDomain
 from scipy import linalg
 
 from .matrix import Matrix, Slices, Vector
-from .misc import build_slices
 from .physics import wtran
 
 if typing.TYPE_CHECKING:
-    from typing import Callable, Optional, Sequence
+    from typing import Optional
 
     from numpy.typing import NDArray
 
@@ -432,62 +431,6 @@ class Analyser:
     @cached_property
     def slices(self) -> Slices:
         return Slices(include_bnd=self.phys.variables_at_bc(), nnodes=self._ncheb + 1)
-
-    def _slices(
-        self,
-    ) -> tuple[
-        Sequence[tuple[int, int]],
-        Sequence[Callable],
-        Sequence[slice],
-        Sequence[slice],
-        Sequence[slice],
-        Sequence[slice],
-    ]:
-        """slices defining the different parts of the global matrix"""
-        ncheb = self._ncheb
-        phi_top = self.phys.phi_top
-        phi_bot = self.phys.phi_bot
-        freeslip_top = self.phys.freeslip_top
-        freeslip_bot = self.phys.freeslip_bot
-        heat_flux_top = self.phys.heat_flux_top
-        heat_flux_bot = self.phys.heat_flux_bot
-        # index min and max
-        # remove boundary when Dirichlet condition
-        i0n = []
-        if self.phys.spherical:
-            # poloidal
-            i0n.append((0, ncheb))
-            # laplacian of poloidal
-            i0n.append((0, ncheb))
-        else:
-            # pressure
-            i0n.append((0, ncheb))
-            # horizontal velocity
-            i_0 = 0 if (phi_top is not None) or freeslip_top else 1
-            i_n = ncheb if (phi_bot is not None) or freeslip_bot else ncheb - 1
-            i0n.append((i_0, i_n))
-            # vertical velocity
-            i_0 = 0 if (phi_top is not None) else 1
-            i_n = ncheb if (phi_bot is not None) else ncheb - 1
-            i0n.append((i_0, i_n))
-        # temperature
-        if not (self.phys.spherical and self.phys.grad_ref_temperature is None):
-            # handling of arbitrary grad_ref_temperature is only implemented
-            # in spherical geometry
-            i_0 = (
-                0
-                if (heat_flux_top is not None or self.phys.biot_top is not None)
-                else 1
-            )
-            i_n = (
-                ncheb
-                if (heat_flux_bot is not None or self.phys.biot_bot is not None)
-                else ncheb - 1
-            )
-            i0n.append((i_0, i_n))
-        if self.phys.composition is not None or self.phys.lewis is not None:
-            i0n.append((1, ncheb - 1))
-        return build_slices(i0n, ncheb)
 
     def matrices(
         self, harm: float, ra_num: float, ra_comp: Optional[float] = None

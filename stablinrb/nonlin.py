@@ -292,13 +292,18 @@ class NonLinearAnalyzer(Analyser):
         """Ra2 and X2"""
         nnonlin = self._nnonlin
         # global indices and slices
-        i0n, igf, slall, slint, slgall, slgint = self._slices()
-        i_0s, i_ns = zip(*i0n)
-        iu0, iw0, it0 = i_0s[1:]
-        iun, iwn, itn = i_ns[1:]
-        pall, uall, wall, tall = slall
-        pgall, ugall, wgall, tgall = slgall
-        pgint, ugint, wgint, tgint = slgint
+        # FIXME: use Vector and Matrix to avoid manipulating those by hand
+        pgall = self.slices.all("p")
+        ugall = self.slices.all("u")
+        wgall = self.slices.all("w")
+        tgall = self.slices.all("T")
+        pgint = self.slices.bulk("p")
+        wgint = self.slices.bulk("w")
+        tgint = self.slices.bulk("T")
+        iw0 = self.slices.local_all("w").start
+        iwn = self.slices.local_all("w").stop - 1
+        it0 = self.slices.local_all("T").start
+        itn = self.slices.local_all("T").stop - 1
 
         # First compute the linear mode and matrix
         ana = LinearAnalyzer(self.phys, self._ncheb)
