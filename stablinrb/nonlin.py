@@ -169,8 +169,10 @@ class NonLinearAnalyzer(Analyser):
         ncheb = self._ncheb
 
         # get indices
-        slall = self._slices()[2]
-        pall, uall, wall, tall = slall
+        pall = self.slices.local_all("p")
+        uall = self.slices.local_all("u")
+        wall = self.slices.local_all("w")
+        tall = self.slices.local_all("T")
 
         if (ord1 % 2 == 0 and ord2 % 2 == 0) or (ord1 % 2 == 1 and ord2 % 2 == 1):
             # create local profiles
@@ -209,9 +211,10 @@ class NonLinearAnalyzer(Analyser):
         ordered by wavenumber
         """
         ncheb = self._ncheb
-        # global indices and slices
-        slall = self._slices()[2]
-        pall, uall, wall, tall = slall
+        # get indices
+        uall = self.slices.local_all("u")
+        wall = self.slices.local_all("w")
+        tall = self.slices.local_all("T")
 
         # create local profiles
         uloc = np.zeros(ncheb + 1) * (1 + 0j)
