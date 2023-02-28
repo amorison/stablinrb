@@ -157,7 +157,9 @@ def plot_mode_image(
         nord, nharm = analyzer.indexmat(nmodes, ind=i)[1:3]
 
         mode_vec = Vector(slices=analyzer.slices, arr=mode[i])
-        (p_mode, u_mode, w_mode, t_mode) = analyzer.split_mode(mode_vec, harm)
+        (p_mode, u_mode, w_mode, t_mode) = analyzer.linear_analyzer.split_mode(
+            mode_vec, harm
+        )
 
         # interpolate and normalize according to vertical velocity
         u_interp = cheb_sampling.apply_on(u_mode)
@@ -307,7 +309,9 @@ def plot_mode_profiles(
     for i in range(nmodes):
         nord, nharm = analyzer.indexmat(nmodes, ind=i)[1:3]
         mode_vec = Vector(slices=analyzer.slices, arr=mode[i])
-        (p_mode, u_mode, w_mode, t_mode) = analyzer.split_mode(mode_vec, harm)
+        (p_mode, u_mode, w_mode, t_mode) = analyzer.linear_analyzer.split_mode(
+            mode_vec, harm
+        )
 
         fig, axe = plt.subplots(1, 4, sharey=True)
 

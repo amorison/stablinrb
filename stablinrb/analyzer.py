@@ -398,17 +398,6 @@ class LinearAnalyzer:
         self.rad = cheb.nodes
         self.dr1 = cheb.at_order(1)  # first r-derivative
         self.dr2 = cheb.at_order(2)  # second r-derivative
-
-        # weights
-        self._invcp = np.ones(ncheb + 1)
-        self._invcp[0] = 1 / 2
-        self._invcp[-1] = 1 / 2
-        # matrix to get the pseudo-spectrum
-        self._tmat = np.zeros((ncheb + 1, ncheb + 1))
-        for n in range(ncheb + 1):
-            for p in range(ncheb + 1):
-                self._tmat[n, p] = (-1) ** n * np.cos(n * p * np.pi / ncheb)
-
         self._phys = phys
 
     @property

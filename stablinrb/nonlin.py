@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import typing
+from dataclasses import dataclass
+from functools import cached_property
 
 import numpy as np
 from numpy.linalg import lstsq, solve
@@ -26,8 +28,8 @@ def cartesian_matrices_0(
     Only the pressure, temperature and uniform vertical velocity
     are solved for
     """
-    nnodes = self._ncheb + 1
-    dz1, dz2 = self.dr1, self.dr2
+    nnodes = self.ncheb + 1
+    dz1, dz2 = self.linear_analyzer.dr1, self.linear_analyzer.dr2
     one = np.identity(nnodes)  # identity
 
     # only in that case a translating vertical velocity is possible
@@ -85,20 +87,32 @@ def cartesian_matrices_0(
     return lmat, pgint, tgint, pgall, tgall, igw
 
 
-class NonLinearAnalyzer(LinearAnalyzer):
+@dataclass
+class NonLinearAnalyzer:
 
-    """Perform non-linear analysis."""
+    """Weakly non-linear analysis.
 
-    # FIXME: should use composition instead of inheritance here
-    def __init__(self, phys: PhysicalProblem, ncheb: int = 15, nnonlin: int = 2):
-        """Create a non-linear analyzer.
+    Attributes:
+        phys: physical problem.
+        ncheb: degree of Chebyshev polynomials.
+        nnonlin: maximum order of non-linear analysis
+    """
 
-        phys is the PhysicalProblem
-        ncheb is the number of Chebyshev nodes
-        nnonlin is the maximum order of non-linear analysis
-        """
-        self._nnonlin = nnonlin
-        super().__init__(phys, ncheb)
+    phys: PhysicalProblem
+    ncheb: int
+    nnonlin: int
+
+    @cached_property
+    def linear_analyzer(self) -> LinearAnalyzer:
+        return LinearAnalyzer(self.phys, self.ncheb)
+
+    @property
+    def slices(self) -> Slices:
+        return self.linear_analyzer.slices
+
+    @property
+    def rad(self) -> NDArray:
+        return self.linear_analyzer.rad
 
     def _insert_boundaries(self, mode: NDArray, im0: int, imn: int) -> NDArray:
         """Insert zero at boundaries of mode if needed
@@ -107,19 +121,33 @@ class NonLinearAnalyzer(LinearAnalyzer):
         """
         if im0 == 1:
             mode = np.insert(mode, [0], [0])
-        if imn == self._ncheb - 1:
+        if imn == self.ncheb - 1:
             mode = np.append(mode, 0)
         return mode
 
+    @cached_property
+    def _invcp(self) -> NDArray:
+        """Weights for integration."""
+        invcp = np.ones(self.ncheb + 1)
+        invcp[0] = 1 / 2
+        invcp[-1] = 1 / 2
+        return invcp
+
+    @cached_property
+    def _tmat(self) -> NDArray:
+        """Matrix to get pseudo-spectrum."""
+        ncheb = self.ncheb
+        tmat = np.zeros((ncheb + 1, ncheb + 1))
+        for n in range(ncheb + 1):
+            for p in range(ncheb + 1):
+                tmat[n, p] = (-1) ** n * np.cos(n * p * np.pi / ncheb)
+        return tmat
+
     def integz(self, prof: NDArray) -> NDArray:
         """Integral on the -1/2 <= z <= 1/2 interval"""
-        ncheb = self._ncheb
-        invcp = self._invcp
-        tmat = self._tmat
-
         # pseudo-spectrum
-        spec = np.dot(tmat, prof * invcp)
-        spec *= 2 / ncheb * invcp
+        spec = np.dot(self._tmat, prof * self._invcp)
+        spec *= 2 / self.ncheb * self._invcp
         intz = (
             -1
             / 2
@@ -253,7 +281,7 @@ class NonLinearAnalyzer(LinearAnalyzer):
             # index for the right mode in matrix
             indri = self.indexmat(mri, harmm=2 * lr + yri)[3]
             tloc[tall] = self.full_t[indri]  # type: ignore
-            dtr = np.dot(self.dr1, tloc)
+            dtr = np.dot(self.linear_analyzer.dr1, tloc)
             for ll in range(lle + 1):
                 # index for the left mode in matrix
                 indle = self.indexmat(mle, harmm=2 * ll + yle)[3]
@@ -310,7 +338,7 @@ class NonLinearAnalyzer(LinearAnalyzer):
 
     def nonlinana(self) -> tuple[float, NDArray, NDArray, NDArray, NDArray]:
         """Ra2 and X2"""
-        nnonlin = self._nnonlin
+        nnonlin = self.nnonlin
         # global indices and slices
         # FIXME: use Vector and Matrix to avoid manipulating those by hand
         pgall = self.slices.all("p")
@@ -326,11 +354,11 @@ class NonLinearAnalyzer(LinearAnalyzer):
         itn = self.slices.local_all("T").stop - 1
 
         # First compute the linear mode and matrix
-        ana = LinearAnalyzer(self.phys, self._ncheb)
+        ana = self.linear_analyzer
         ra_c, harm_c = ana.critical_ra()
-        lmat_c, rmat = self.matrices(harm_c, ra_c)
+        lmat_c, rmat = ana.matrices(harm_c, ra_c)
         nnodes = lmat_c.slices.total_size
-        _, mode_c = self.eigvec(harm_c, ra_c)
+        _, mode_c = ana.eigvec(harm_c, ra_c)
         mode_c = mode_c.normalize_by_max_of("w")
 
         # setup matrices for the non linear solution
@@ -375,7 +403,7 @@ class NonLinearAnalyzer(LinearAnalyzer):
         # loop on the orders
         for ii in range(2, nnonlin + 2):
             # also need the linear problem for wnk up to nnonlin*harm_c
-            lmat[ii - 1] = self.matrices(ii * harm_c, ra_c)[0].full_mat()
+            lmat[ii - 1] = ana.matrices(ii * harm_c, ra_c)[0].full_mat()
             (lii, yii) = divmod(ii, 2)
             # compute the N terms
             for ll in range(1, ii):
@@ -437,7 +465,7 @@ class NonLinearAnalyzer(LinearAnalyzer):
                     # factor to account for the complex conjugate
                     prot = self._insert_boundaries(2 * np.real(sol[tgint0]), it0, itn)
                     meant[ii] = self.integz(prot)
-                    dprot = np.dot(self.dr1, prot)
+                    dprot = np.dot(ana.dr1, prot)
                     qtop[ii] = -dprot[0]
                     # if phi_top is not None and phi_bot is not None:
                     # translation velocity possible
