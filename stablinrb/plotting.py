@@ -12,7 +12,7 @@ from mpl_toolkits.axes_grid1 import make_axes_locatable
 from scipy.special import sph_harm
 
 from .matrix import Vector
-from .misc import normalize_modes
+from .misc import normalize
 
 if typing.TYPE_CHECKING:
     from typing import Optional
@@ -492,6 +492,7 @@ def plot_fastest_mode(
         name = analyzer.phys.name()
 
     sigma, modes = analyzer.eigvec(harm, ra_num, ra_comp)
+    modes = modes.normalize_by_max_of("T")
     # p is pressure in cartesian geometry and
     # poloidal potential in spherical geometry
     (p_mode, u_mode, w_mode, t_mode) = analyzer.split_mode(modes, harm)
@@ -518,11 +519,10 @@ def plot_fastest_mode(
     w_interp = cheb_sampling.apply_on(w_mode)
     t_interp = cheb_sampling.apply_on(t_mode)
 
-    # normalization with max of T and then
-    # element of max modulus of each vector
-    norms, maxs = normalize_modes((p_mode, u_mode, w_mode, t_mode))
-    p_norm, u_norm, w_norm, t_norm = norms
-    p_max, u_max, w_max, t_max = maxs
+    p_mode, p_max = normalize(p_mode)
+    u_mode, u_max = normalize(u_mode)
+    w_mode, w_max = normalize(w_mode)
+
     # profiles
     fig, axis = plt.subplots(1, 4, sharey=True)
     if spherical:
@@ -535,29 +535,29 @@ def plot_fastest_mode(
     if plot_theory:
         axis[0].plot(-rad * 4 / (13 * np.sqrt(13)) * (39 - 64 * rad**2), rad)
     else:
-        axis[0].plot(np.real(p_interp / t_max / p_max), rad)
-    axis[0].plot(np.real(p_norm), rad_cheb, "o")
+        axis[0].plot(np.real(p_interp / p_max), rad)
+    axis[0].plot(np.real(p_mode), rad_cheb, "o")
     axis[0].set_xlabel(r"$P/(%.3f)$" % (np.real(p_max)), fontsize=FTSZ)
     # horizontal velocity
     if plot_theory:
         axis[1].plot(-2 * rad, rad)
     else:
-        axis[1].plot(np.real(u_interp / t_max / u_max), rad)
-    axis[1].plot(np.real(u_norm), rad_cheb, "o")
+        axis[1].plot(np.real(u_interp / u_max), rad)
+    axis[1].plot(np.real(u_mode), rad_cheb, "o")
     axis[1].set_xlabel(r"$U/(%.3fi)$" % (np.imag(u_max)), fontsize=FTSZ)
     # vertical velocity
     if plot_theory:
         axis[2].plot(np.ones(rad.shape), rad)
     else:
-        axis[2].plot(np.real(w_interp / t_max / w_max), rad)
-    axis[2].plot(np.real(w_norm), rad_cheb, "o")
+        axis[2].plot(np.real(w_interp / w_max), rad)
+    axis[2].plot(np.real(w_mode), rad_cheb, "o")
     axis[2].set_xlabel(r"$W/(%.3f)$" % (np.real(w_max)), fontsize=FTSZ)
     # temperature
     if plot_theory:
         axis[3].plot(1 - 4 * rad**2, rad)
     else:
-        axis[3].plot(np.real(t_interp / t_max), rad)
-    axis[3].plot(np.real(t_norm), rad_cheb, "o")
+        axis[3].plot(np.real(t_interp), rad)
+    axis[3].plot(np.real(t_mode), rad_cheb, "o")
     axis[3].set_xlabel(r"$T$", fontsize=FTSZ)
     filename = "_".join((name, "mode_prof.pdf"))
     plt.savefig(filename, format="PDF")
@@ -642,12 +642,12 @@ def plot_fastest_mode(
         xgr, zgr = np.meshgrid(xvar, rad)
         # temperature
         modx = np.exp(1j * harm * xvar)
-        t2d1, t2d2 = np.meshgrid(modx, t_interp / t_max)
+        t2d1, t2d2 = np.meshgrid(modx, t_interp)
         t2d = np.real(t2d1 * t2d2)
         # stream function
-        u2d1, u2d2 = np.meshgrid(modx, u_interp / t_max)
+        u2d1, u2d2 = np.meshgrid(modx, u_interp)
         u2d = np.real(u2d1 * u2d2)
-        w2d1, w2d2 = np.meshgrid(modx, w_interp / t_max)
+        w2d1, w2d2 = np.meshgrid(modx, w_interp)
         w2d = np.real(w2d1 * w2d2)
         filename = "_".join((name, "mode.pdf"))
         image_mode(xgr, zgr, t2d, u2d, w2d, harm, filename, notbare)
