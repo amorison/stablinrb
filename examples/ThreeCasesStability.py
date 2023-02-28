@@ -5,7 +5,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 from stablinrb.analyzer import LinearAnalyzer
-from stablinrb.physics import PhysicalProblem
+from stablinrb.physics import Cartesian, PhysicalProblem
 
 mpl.rc("font", **{"family": "sans-serif", "sans-serif": ["Helvetica"]})
 mpl.rc("text", usetex=True)
@@ -18,7 +18,7 @@ GAMMA = 10 / 11
 
 # rigid--rigid case
 ana = LinearAnalyzer(
-    phys=PhysicalProblem(freeslip_top=False, freeslip_bot=False),
+    phys=PhysicalProblem(geometry=Cartesian(), freeslip_top=False, freeslip_bot=False),
     ncheb=20,
 )
 
@@ -49,7 +49,7 @@ plt.plot(
 
 # Free--rigid case
 ana = LinearAnalyzer(
-    phys=PhysicalProblem(freeslip_top=True, freeslip_bot=False),
+    phys=PhysicalProblem(geometry=Cartesian(), freeslip_top=True, freeslip_bot=False),
     ncheb=20,
 )
 hmin = 0.7
@@ -77,7 +77,7 @@ plt.plot(
 
 # Free--free case
 ana = LinearAnalyzer(
-    phys=PhysicalProblem(freeslip_top=True, freeslip_bot=True),
+    phys=PhysicalProblem(geometry=Cartesian(), freeslip_top=True, freeslip_bot=True),
     ncheb=20,
 )
 hmin = 0.5

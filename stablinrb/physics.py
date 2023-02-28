@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import typing
+from abc import ABC, abstractmethod
 from dataclasses import dataclass
 
 import numpy as np
@@ -12,11 +13,61 @@ if typing.TYPE_CHECKING:
     from numpy.typing import NDArray
 
 
+class Geometry(ABC):
+    @abstractmethod
+    def name_stem(self) -> str:
+        ...
+
+    @abstractmethod
+    def bounds(self) -> tuple[float, float]:
+        ...
+
+    @abstractmethod
+    def is_spherical(self) -> bool:
+        ...
+
+
+@dataclass(frozen=True)
+class Cartesian(Geometry):
+    """Cartesian geometry."""
+
+    def name_stem(self) -> str:
+        return "cart"
+
+    def bounds(self) -> tuple[float, float]:
+        return (-0.5, 0.5)
+
+    def is_spherical(self) -> bool:
+        return False
+
+
+@dataclass(frozen=True)
+class Spherical(Geometry):
+    """Spherical geometry.
+
+    Attributes:
+        gamme: rbot / rtop
+    """
+
+    gamma: float
+
+    def __post_init__(self) -> None:
+        assert 0 < self.gamma < 1
+
+    def name_stem(self) -> str:
+        gam = str(self.gamma).replace(".", "-")
+        return f"sph_{gam}"
+
+    def bounds(self) -> tuple[float, float]:
+        return (1.0, 2.0)
+
+    def is_spherical(self) -> bool:
+        return True
+
+
 @dataclass(frozen=True)
 class PhysicalProblem:
     """Description of the physical problem.
-
-    gamma is r_bot/r_top, cartesian if None
 
     grad_ref_temperature (spherical only): can be an arbitrary function of
         the radius. If set to 'conductive', the conductive temperature
@@ -36,7 +87,7 @@ class PhysicalProblem:
        Delta T the total temperature difference across the layer and T1 the bottom T.
     """
 
-    gamma: Optional[float] = None
+    geometry: Geometry
     h_int: float = 0.0
     phi_top: Optional[float] = None
     phi_bot: Optional[float] = None
@@ -60,7 +111,6 @@ class PhysicalProblem:
     thetar: float = 0.0
 
     def __post_init__(self) -> None:
-        assert self.gamma is None or 0 < self.gamma < 1
         # only one heat flux imposed at the same time
         assert self.heat_flux_bot is None or self.heat_flux_top is None
         # composition profile only at infinite Lewis
@@ -68,7 +118,7 @@ class PhysicalProblem:
 
     @property
     def spherical(self) -> bool:
-        return self.gamma is not None
+        return self.geometry.is_spherical()
 
     @property
     def domain_bounds(self) -> tuple[float, float]:
@@ -78,11 +128,7 @@ class PhysicalProblem:
     def name(self) -> str:
         """Construct a name for the current case"""
         name = []
-        if self.spherical:
-            name.append("sph")
-            name.append(str(self.gamma).replace(".", "-"))
-        else:
-            name.append("cart")
+        name.append(self.geometry.name_stem())
         if self.phi_top is not None:
             name.append("phiT")
             name.append(str(self.phi_top).replace(".", "-"))

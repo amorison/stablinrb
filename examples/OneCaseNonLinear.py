@@ -23,7 +23,7 @@ import numpy as np
 
 import stablinrb.plotting as stabplt
 from stablinrb.nonlin import NonLinearAnalyzer
-from stablinrb.physics import PhysicalProblem
+from stablinrb.physics import Cartesian, PhysicalProblem
 
 # include tex fonts in pdf
 mpl.rc("font", **{"family": "sans-serif", "sans-serif": ["Helvetica"]})
@@ -34,7 +34,7 @@ mpl.rcParams["pdf.fonttype"] = 42
 FTSZ = 11
 
 pblm = PhysicalProblem(
-    gamma=None,  # Non-linear analysis is not available in spherical shell geom
+    geometry=Cartesian(),
     freeslip_top=True,
     freeslip_bot=True,
 )

@@ -9,7 +9,7 @@ from dmsuite.poly_diff import Chebyshev, DiffMatOnDomain
 from scipy import linalg
 
 from .matrix import Matrix, Slices, Vector
-from .physics import wtran
+from .physics import Spherical, wtran
 
 if typing.TYPE_CHECKING:
     from typing import Optional
@@ -162,8 +162,9 @@ def spherical_matrices(
     ra_comp: Optional[float] = None,
 ) -> tuple[Matrix, Matrix]:
     """Build left and right matrices in spherical case"""
-    gamma = self.phys.gamma
-    assert gamma is not None
+    # FIXME: delegate to a geometry-aware object
+    assert isinstance(self.phys.geometry, Spherical)
+    gamma = self.phys.geometry.gamma
     rad = self.rad
     dr1, dr2 = self.dr1, self.dr2
 
@@ -463,9 +464,10 @@ class LinearAnalyzer:
         p_mode = eigvec.extract("p")
         t_mode = eigvec.extract("T")
 
-        gamma = self.phys.gamma
-        assert gamma is not None
-        orl1 = (1 - gamma) / ((1 - gamma) * self.rad + 2 * gamma - 1)
+        # FIXME: delegate those computations to a geometry-aware object
+        geom = self.phys.geometry
+        assert isinstance(geom, Spherical)
+        orl1 = (1 - geom.gamma) / ((1 - geom.gamma) * self.rad + 2 * geom.gamma - 1)
         ur_mode = l_harm * (l_harm + 1) * p_mode * orl1
         up_mode = 1j * l_harm * (np.dot(self.dr1, p_mode) + p_mode * orl1)
 
@@ -572,8 +574,10 @@ class LinearAnalyzer:
         lmax = 2
         rans = [self.neutral_ra(h) for h in (1, 2)]
         ranp, ran = rans
-        assert self.phys.gamma is not None
-        while ran <= ranp or lmax <= np.pi / (1 - self.phys.gamma):
+        # FIXME: delegate to a geometry-aware object
+        geom = self.phys.geometry
+        assert isinstance(geom, Spherical)
+        while ran <= ranp or lmax <= np.pi / (1 - geom.gamma):
             lmax += 1
             ranp = ran
             ran = self.neutral_ra(lmax, ranp)

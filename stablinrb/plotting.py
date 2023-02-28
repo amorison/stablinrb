@@ -13,6 +13,7 @@ from scipy.special import sph_harm
 
 from .matrix import Vector
 from .misc import normalize
+from .physics import Spherical
 
 if typing.TYPE_CHECKING:
     from typing import Optional
@@ -491,7 +492,6 @@ def plot_fastest_mode(
     """
     spherical = analyzer.phys.spherical
 
-    gamma = analyzer.phys.gamma
     if name is None:
         name = analyzer.phys.name()
 
@@ -570,7 +570,9 @@ def plot_fastest_mode(
     if spherical:
         # 2D plot on annulus
         # mesh construction
-        assert gamma is not None
+        # FIXME: delegate to geometry-aware object
+        assert isinstance(analyzer.phys.geometry, Spherical)
+        gamma = analyzer.phys.geometry.gamma
         theta = np.pi / 2
         phi = np.linspace(0, 2 * np.pi, n_phi)
         rad = np.linspace(gamma, 1, n_rad)
@@ -738,9 +740,10 @@ def plot_viscosity(pblm: PhysicalProblem) -> None:
     if pblm.eta_r is None:
         return
     nrad = 100
-    gamma = pblm.gamma
     if pblm.spherical:
-        assert gamma is not None
+        # FIXME: delegate to geometry-aware object
+        assert isinstance(pblm.geometry, Spherical)
+        gamma = pblm.geometry.gamma
         rad = np.linspace(gamma / (1 - gamma), 1 / (1 - gamma), nrad)
     else:
         rad = np.linspace(-1 / 2, 1 / 2, nrad)
@@ -749,7 +752,6 @@ def plot_viscosity(pblm: PhysicalProblem) -> None:
     axis[0].plot(eta_r, rad)
     axis[1].semilogx(eta_r, rad)
     if pblm.spherical:
-        assert gamma is not None
         plt.setp(axis, ylim=[gamma / (1 - gamma), 1 / (1 - gamma)])
     else:
         plt.setp(axis, ylim=[-1 / 2, 1 / 2])

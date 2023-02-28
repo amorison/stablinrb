@@ -9,13 +9,13 @@ minimal value and the fastest growing mode.
 
 import stablinrb.plotting as plotting
 from stablinrb.analyzer import LinearAnalyzer
-from stablinrb.physics import PhysicalProblem
+from stablinrb.physics import Cartesian, PhysicalProblem
 
 # Define the physical problem.
 # Adjust the parameters and conditions here.
 # See physics.py for all the options
 pblm = PhysicalProblem(
-    gamma=None,  # aspect ratio for spherical shell. None for cartesian (default).
+    geometry=Cartesian(),
     freeslip_top=True,  # mechanical BC at top. True is default.
     freeslip_bot=True,  # mechanical BC at bottom. True is default.
 )
