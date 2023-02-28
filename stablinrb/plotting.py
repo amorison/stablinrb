@@ -11,9 +11,9 @@ from matplotlib.projections import PolarAxes
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 from scipy.special import sph_harm
 
+from .geometry import Spherical
 from .matrix import Vector
 from .misc import normalize
-from .physics import Spherical
 
 if typing.TYPE_CHECKING:
     from typing import Optional

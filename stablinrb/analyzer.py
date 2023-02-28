@@ -8,8 +8,9 @@ import numpy.ma as ma
 from dmsuite.poly_diff import Chebyshev, DiffMatOnDomain
 from scipy import linalg
 
+from .geometry import Spherical
 from .matrix import Matrix, Slices, Vector
-from .physics import Spherical, wtran
+from .physics import wtran
 
 if typing.TYPE_CHECKING:
     from typing import Optional
