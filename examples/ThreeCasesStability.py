@@ -11,19 +11,14 @@ mpl.rc("font", **{"family": "sans-serif", "sans-serif": ["Helvetica"]})
 mpl.rc("text", usetex=True)
 mpl.rcParams["pdf.fonttype"] = 42
 
-# Font and markers size
-FTSZ = 11
-MSIZE = 2
-GAMMA = 10 / 11
-
 # rigid--rigid case
 ana = LinearAnalyzer(
     phys=PhysicalProblem(geometry=Cartesian(), freeslip_top=False, freeslip_bot=False),
-    ncheb=20,
+    ncheb=10,
 )
 
 hmax = 7.0
-nharm = 100
+nharm = 75
 hmin = 1.0
 wnum = np.linspace(hmin, hmax, nharm)
 
@@ -50,7 +45,7 @@ plt.plot(
 # Free--rigid case
 ana = LinearAnalyzer(
     phys=PhysicalProblem(geometry=Cartesian(), freeslip_top=True, freeslip_bot=False),
-    ncheb=20,
+    ncheb=10,
 )
 hmin = 0.7
 wnum = np.linspace(hmin, hmax, nharm)
@@ -78,7 +73,7 @@ plt.plot(
 # Free--free case
 ana = LinearAnalyzer(
     phys=PhysicalProblem(geometry=Cartesian(), freeslip_top=True, freeslip_bot=True),
-    ncheb=20,
+    ncheb=10,
 )
 hmin = 0.5
 wnum = np.linspace(hmin, hmax, nharm)
