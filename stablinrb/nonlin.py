@@ -6,7 +6,7 @@ import numpy as np
 from numpy.linalg import lstsq, solve
 
 from .analyzer import Analyser, LinearAnalyzer
-from .misc import build_slices
+from .matrix import Slices
 
 if typing.TYPE_CHECKING:
     from typing import Optional
@@ -24,64 +24,61 @@ def cartesian_matrices_0(
     Only the pressure, temperature and uniform vertical velocity
     are solved for
     """
-    ncheb = self._ncheb
+    nnodes = self._ncheb + 1
     dz1, dz2 = self.dr1, self.dr2
-    one = np.identity(ncheb + 1)  # identity
-    heat_flux_top = self.phys.heat_flux_top
-    biot_top = self.phys.biot_top
-    biot_bot = self.phys.biot_bot
-    heat_flux_bot = self.phys.heat_flux_bot
+    one = np.identity(nnodes)  # identity
 
     # only in that case a translating vertical velocity is possible
     solve_for_w = self.phys.phi_top is not None and self.phys.phi_bot is not None
 
-    # pressure
-    if solve_for_w:
-        ip0 = 0
-        ipn = ncheb
-    else:
-        ip0 = 1
-        ipn = ncheb - 1
-    # temperature
-    it0 = 0 if (heat_flux_top is not None or biot_top is not None) else 1
-    itn = ncheb if (heat_flux_bot is not None or biot_bot is not None) else ncheb - 1
-    # global indices and slices in the solution containing only P and T
-    _, igf, slall, slint, slgall, slgint = build_slices([(ip0, ipn), (it0, itn)], ncheb)
-    ipg, itg = igf
-    pall, tall = slall
-    pint, tint = slint
-    pgall, tgall = slgall
-    pgint, tgint = slgint
+    slices = Slices(
+        include_bnd={
+            "p": (solve_for_w, solve_for_w),
+            "T": (
+                self.phys.heat_flux_top is not None or self.phys.biot_top is not None,
+                self.phys.heat_flux_bot is not None or self.phys.biot_bot is not None,
+            ),
+        },
+        nnodes=nnodes,
+    )
 
-    # index for vertical velocity
-    if solve_for_w:
-        igw = itg(itn + 1)
-    else:
-        igw = itg(itn)
+    # extra entry for the vertical velocity
+    size = slices.total_size + solve_for_w
+    igw = size - 1
 
-    # global indices and slices in the total solution
+    # slices
+    pgint = slices.bulk("p")
+    pgall = slices.all("p")
+    tgint = slices.bulk("T")
+    tgall = slices.all("T")
+    pall = slices.local_all("p")
+    tall = slices.local_all("T")
 
     # initialize matrix
-    lmat = np.zeros((igw + 1, igw + 1))
+    lmat = np.zeros((size, size))
     # pressure equation (z momentum)
-    lmat[pgint, pgall] = -dz1[pint, pall]
-    lmat[pgint, tgint] = ra_num * one[pint, tint]
+    lmat[pgint, pgall] = -dz1[1:-1, pall]
+    lmat[pgint, tgall] = ra_num * one[1:-1, tall]
     # temperature equation
-    lmat[tgint, tgall] = dz2[tint, tall]
+    lmat[tgint, tgall] = dz2[1:-1, tall]
+    # FIXME: missing boundary conditions on T (non-dirichlet)
     # the case for a translating vertical velocity (mode 0)
     if solve_for_w:
         assert self.phys.phi_top is not None and self.phys.phi_bot is not None
         # Uniform vertical velocity in the temperature equation
+        # FIXME: depends on grad T
         lmat[tgint, igw] = 1
         # Vertical velocity in momentum boundary conditions
-        lmat[0, 0] = -1
-        lmat[0, igw] = self.phys.phi_top
-        lmat[ipn, ipn] = 1
-        lmat[ipn, igw] = self.phys.phi_bot
+        iptop = slices.itop("p")
+        lmat[iptop, iptop] = -1
+        lmat[iptop, igw] = self.phys.phi_top
+        ipbot = slices.ibot("p")
+        lmat[ipbot, ipbot] = 1
+        lmat[ipbot, igw] = self.phys.phi_bot
         # equation for the uniform vertical velocity
         lmat[igw, igw] = self.phys.phi_top + self.phys.phi_bot
-        lmat[igw, 0] = 1
-        lmat[igw, ipn] = -1
+        lmat[igw, iptop] = 1
+        lmat[igw, ipbot] = -1
 
     return lmat, pgint, tgint, pgall, tgall, igw
 
