@@ -19,7 +19,7 @@ if typing.TYPE_CHECKING:
 
     from numpy.typing import NDArray
 
-    from .analyzer import Analyser, LinearAnalyzer
+    from .analyzer import LinearAnalyzer
     from .nonlin import NonLinearAnalyzer
     from .physics import PhysicalProblem
 
@@ -472,7 +472,7 @@ def plot_mode_profiles(
 
 
 def plot_fastest_mode(
-    analyzer: Analyser,
+    analyzer: LinearAnalyzer,
     harm: float,
     ra_num: float,
     ra_comp: Optional[float] = None,

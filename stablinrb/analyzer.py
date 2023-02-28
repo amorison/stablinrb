@@ -20,7 +20,7 @@ if typing.TYPE_CHECKING:
 
 
 def cartesian_matrices(
-    self: Analyser, wnk: float, ra_num: float, ra_comp: Optional[float] = None
+    self: LinearAnalyzer, wnk: float, ra_num: float, ra_comp: Optional[float] = None
 ) -> tuple[Matrix, Matrix]:
     """Build left- and right-hand-side matrices in cartesian geometry case"""
     # parameters
@@ -156,7 +156,7 @@ def cartesian_matrices(
 
 
 def spherical_matrices(
-    self: Analyser,
+    self: LinearAnalyzer,
     l_harm: int,
     ra_num: Optional[float] = None,
     ra_comp: Optional[float] = None,
@@ -375,11 +375,11 @@ def spherical_matrices(
     return lmat, rmat
 
 
-class Analyser:
-    """Define various elements common to both analysers"""
+class LinearAnalyzer:
+    """Linear stability analysis of a Rayleigh-Benard problem."""
 
     def __init__(self, phys: PhysicalProblem, ncheb: int = 15):
-        """Create a generic analyzer
+        """Create a linear analyzer.
 
         phys is the PhysicalProblem
         ncheb is the number of Chebyshev nodes
@@ -490,15 +490,6 @@ class Analyser:
             return self._split_mode_spherical(eigvec, int(harm))
         else:
             return self._split_mode_cartesian(eigvec)
-
-
-class LinearAnalyzer(Analyser):
-
-    """Perform linear analysis
-
-    The studied problem is the one of Rayleigh-Benard convection with
-    phase change at either or both boundaries.
-    """
 
     def neutral_ra(
         self,

@@ -5,7 +5,7 @@ import typing
 import numpy as np
 from numpy.linalg import lstsq, solve
 
-from .analyzer import Analyser, LinearAnalyzer
+from .analyzer import LinearAnalyzer
 from .matrix import Slices
 
 if typing.TYPE_CHECKING:
@@ -85,13 +85,9 @@ def cartesian_matrices_0(
     return lmat, pgint, tgint, pgall, tgall, igw
 
 
-class NonLinearAnalyzer(Analyser):
+class NonLinearAnalyzer(LinearAnalyzer):
 
-    """Perform non-linear analysis
-
-    The studied problem is the one of Rayleigh-Benard convection with
-    phase change at either or both boundaries.
-    """
+    """Perform non-linear analysis."""
 
     # FIXME: should use composition instead of inheritance here
     def __init__(self, phys: PhysicalProblem, ncheb: int = 15, nnonlin: int = 2):
