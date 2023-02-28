@@ -378,7 +378,7 @@ def spherical_matrices(
 class Analyser:
     """Define various elements common to both analysers"""
 
-    def __init__(self, phys: PhysicalProblem, ncheb: int = 15, nnonlin: int = 2):
+    def __init__(self, phys: PhysicalProblem, ncheb: int = 15):
         """Create a generic analyzer
 
         phys is the PhysicalProblem
@@ -387,7 +387,6 @@ class Analyser:
         """
         # get differentiation matrices
         self._ncheb = ncheb
-        self._nnonlin = nnonlin
         xmin, xmax = phys.domain_bounds
         # FIXME: flip xmin and xmax here because Chebyshev nodes are in
         # decreasing order, and interp methods from dmsuite depend on that.
@@ -411,17 +410,6 @@ class Analyser:
                 self._tmat[n, p] = (-1) ** n * np.cos(n * p * np.pi / ncheb)
 
         self._phys = phys
-
-    def _insert_boundaries(self, mode: NDArray, im0: int, imn: int) -> NDArray:
-        """Insert zero at boundaries of mode if needed
-
-        This need to be done when Dirichlet BCs are applied
-        """
-        if im0 == 1:
-            mode = np.insert(mode, [0], [0])
-        if imn == self._ncheb - 1:
-            mode = np.append(mode, 0)
-        return mode
 
     @property
     def phys(self) -> PhysicalProblem:

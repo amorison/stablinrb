@@ -13,6 +13,8 @@ if typing.TYPE_CHECKING:
 
     from numpy.typing import NDArray
 
+    from .physics import PhysicalProblem
+
 
 def cartesian_matrices_0(
     self: NonLinearAnalyzer, ra_num: float
@@ -90,6 +92,28 @@ class NonLinearAnalyzer(Analyser):
     The studied problem is the one of Rayleigh-Benard convection with
     phase change at either or both boundaries.
     """
+
+    # FIXME: should use composition instead of inheritance here
+    def __init__(self, phys: PhysicalProblem, ncheb: int = 15, nnonlin: int = 2):
+        """Create a non-linear analyzer.
+
+        phys is the PhysicalProblem
+        ncheb is the number of Chebyshev nodes
+        nnonlin is the maximum order of non-linear analysis
+        """
+        self._nnonlin = nnonlin
+        super().__init__(phys, ncheb)
+
+    def _insert_boundaries(self, mode: NDArray, im0: int, imn: int) -> NDArray:
+        """Insert zero at boundaries of mode if needed
+
+        This need to be done when Dirichlet BCs are applied
+        """
+        if im0 == 1:
+            mode = np.insert(mode, [0], [0])
+        if imn == self._ncheb - 1:
+            mode = np.append(mode, 0)
+        return mode
 
     def integz(self, prof: NDArray) -> NDArray:
         """Integral on the -1/2 <= z <= 1/2 interval"""
