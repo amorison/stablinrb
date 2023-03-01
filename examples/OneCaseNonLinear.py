@@ -22,8 +22,9 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 import stablinrb.plotting as stabplt
+from stablinrb.geometry import Cartesian
 from stablinrb.nonlin import NonLinearAnalyzer
-from stablinrb.physics import Cartesian, PhysicalProblem
+from stablinrb.physics import PhysicalProblem
 
 # include tex fonts in pdf
 mpl.rc("font", **{"family": "sans-serif", "sans-serif": ["Helvetica"]})

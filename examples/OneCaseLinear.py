@@ -9,7 +9,8 @@ minimal value and the fastest growing mode.
 
 import stablinrb.plotting as plotting
 from stablinrb.analyzer import LinearAnalyzer
-from stablinrb.physics import Cartesian, PhysicalProblem
+from stablinrb.geometry import Cartesian
+from stablinrb.physics import PhysicalProblem
 
 # Define the physical problem.
 # Adjust the parameters and conditions here.

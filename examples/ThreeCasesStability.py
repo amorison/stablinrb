@@ -5,7 +5,8 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 from stablinrb.analyzer import LinearAnalyzer
-from stablinrb.physics import Cartesian, PhysicalProblem
+from stablinrb.geometry import Cartesian
+from stablinrb.physics import PhysicalProblem
 
 mpl.rc("font", **{"family": "sans-serif", "sans-serif": ["Helvetica"]})
 mpl.rc("text", usetex=True)
