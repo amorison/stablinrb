@@ -21,7 +21,7 @@ pblm = PhysicalProblem(
     freeslip_bot=True,  # mechanical BC at bottom. True is default.
 )
 
-ana = LinearAnalyzer(pblm, ncheb=10)
+ana = LinearAnalyzer(pblm, chebyshev_degree=10)
 # Find the critical Ra and wavenumber and print.
 ra_c, harm_c = ana.critical_ra()
 print("Rac, kc = ", ra_c, harm_c)

@@ -29,7 +29,7 @@ def cartesian_matrices_0(
     are solved for
     """
     nnodes = self.ncheb + 1
-    dz1, dz2 = self.linear_analyzer.dr1, self.linear_analyzer.dr2
+    dz1, dz2 = self.linear_analyzer.diff_mat(1), self.linear_analyzer.diff_mat(2)
     one = np.identity(nnodes)  # identity
 
     # only in that case a translating vertical velocity is possible
@@ -281,7 +281,7 @@ class NonLinearAnalyzer:
             # index for the right mode in matrix
             indri = self.indexmat(mri, harmm=2 * lr + yri)[3]
             tloc[tall] = self.full_t[indri]  # type: ignore
-            dtr = np.dot(self.linear_analyzer.dr1, tloc)
+            dtr = self.linear_analyzer.diff_mat(1) @ tloc
             for ll in range(lle + 1):
                 # index for the left mode in matrix
                 indle = self.indexmat(mle, harmm=2 * ll + yle)[3]
@@ -465,7 +465,7 @@ class NonLinearAnalyzer:
                     # factor to account for the complex conjugate
                     prot = self._insert_boundaries(2 * np.real(sol[tgint0]), it0, itn)
                     meant[ii] = self.integz(prot)
-                    dprot = np.dot(ana.dr1, prot)
+                    dprot = ana.diff_mat(1) @ prot
                     qtop[ii] = -dprot[0]
                     # if phi_top is not None and phi_bot is not None:
                     # translation velocity possible

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import typing
+from dataclasses import dataclass
 from functools import cached_property
 
 import numpy as np
@@ -15,6 +16,7 @@ from .physics import wtran
 if typing.TYPE_CHECKING:
     from typing import Optional
 
+    from dmsuite.poly_diff import DiffMatrices
     from numpy.typing import NDArray
 
     from .physics import PhysicalProblem
@@ -25,7 +27,6 @@ def cartesian_matrices(
 ) -> tuple[Matrix, Matrix]:
     """Build left- and right-hand-side matrices in cartesian geometry case"""
     # parameters
-    ncheb = self._ncheb
     zphys = self.rad
     h_int = self.phys.h_int
     phi_top = self.phys.phi_top
@@ -45,9 +46,9 @@ def cartesian_matrices(
         raise ValueError("ra_comp must be specified for compositional problem")
 
     # first and second order z-derivatives
-    dz1, dz2 = self.dr1, self.dr2
+    dz1, dz2 = self.diff_mat(1), self.diff_mat(2)
     # Identity matrix
-    one = np.identity(ncheb + 1)
+    one = np.identity(zphys.size)
     # horizontal derivative
     dh1 = 1j * wnk * one
     # Laplace operator
@@ -167,7 +168,7 @@ def spherical_matrices(
     assert isinstance(self.phys.geometry, Spherical)
     gamma = self.phys.geometry.gamma
     rad = self.rad
-    dr1, dr2 = self.dr1, self.dr2
+    dr1, dr2 = self.diff_mat(1), self.diff_mat(2)
 
     lam_r = (2 * gamma - 1) / (1 - gamma)
     # r + lambda
@@ -176,6 +177,7 @@ def spherical_matrices(
     orl1 = (1 - gamma) / ((1 - gamma) * rad + 2 * gamma - 1)
     orl2 = orl1**2
     orl3 = orl1**3
+    one = np.identity(rad.size)  # identity
 
     rad = np.diag(rad)
     ral = np.diag(ral)
@@ -183,8 +185,6 @@ def spherical_matrices(
     orl2 = np.diag(orl2)
     orl3 = np.diag(orl3)
 
-    ncheb = self._ncheb
-    one = np.identity(ncheb + 1)  # identity
     lh2 = l_harm * (l_harm + 1)  # horizontal laplacian
     lapl = dr2 + 2 * np.dot(orl1, dr1) - lh2 * orl2  # laplacian
     phi_top = self.phys.phi_top
@@ -377,39 +377,35 @@ def spherical_matrices(
     return lmat, rmat
 
 
+@dataclass(frozen=True)
 class LinearAnalyzer:
     """Linear stability analysis of a Rayleigh-Benard problem."""
 
-    def __init__(self, phys: PhysicalProblem, ncheb: int = 15):
-        """Create a linear analyzer.
+    phys: PhysicalProblem
+    chebyshev_degree: int
 
-        phys is the PhysicalProblem
-        ncheb is the number of Chebyshev nodes
-        nnonlin is the maximum order of non-linear analysis
-        """
-        # get differentiation matrices
-        self._ncheb = ncheb
-        xmin, xmax = phys.domain_bounds
-        # FIXME: flip xmin and xmax here because Chebyshev nodes are in
-        # decreasing order, and interp methods from dmsuite depend on that.
-        cheb = DiffMatOnDomain(
+    @cached_property
+    def _diff_mat(self) -> DiffMatrices:
+        xmin, xmax = self.phys.domain_bounds
+        # flip xmin and xmax because Chebyshev nodes are in
+        # decreasing order, and interpolation methods from
+        # dmsuite depend on that.
+        return DiffMatOnDomain(
             xmin=xmax,
             xmax=xmin,
-            dmat=Chebyshev(degree=ncheb),
+            dmat=Chebyshev(degree=self.chebyshev_degree),
         )
-        self.rad = cheb.nodes
-        self.dr1 = cheb.at_order(1)  # first r-derivative
-        self.dr2 = cheb.at_order(2)  # second r-derivative
-        self._phys = phys
 
     @property
-    def phys(self) -> PhysicalProblem:
-        """Property holding the physical problem"""
-        return self._phys
+    def rad(self) -> NDArray:
+        return self._diff_mat.nodes
+
+    def diff_mat(self, order: int) -> NDArray:
+        return self._diff_mat.at_order(order)
 
     @cached_property
     def slices(self) -> Slices:
-        return Slices(include_bnd=self.phys.variables_at_bc(), nnodes=self._ncheb + 1)
+        return Slices(include_bnd=self.phys.variables_at_bc(), nnodes=self.rad.size)
 
     def matrices(
         self, harm: float, ra_num: float, ra_comp: Optional[float] = None
@@ -470,7 +466,7 @@ class LinearAnalyzer:
         assert isinstance(geom, Spherical)
         orl1 = (1 - geom.gamma) / ((1 - geom.gamma) * self.rad + 2 * geom.gamma - 1)
         ur_mode = l_harm * (l_harm + 1) * p_mode * orl1
-        up_mode = 1j * l_harm * (np.dot(self.dr1, p_mode) + p_mode * orl1)
+        up_mode = 1j * l_harm * (self.diff_mat(1) @ p_mode + p_mode * orl1)
 
         return (p_mode, up_mode, ur_mode, t_mode)
 
