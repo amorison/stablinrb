@@ -358,8 +358,8 @@ class NonLinearAnalyzer:
         self.full_w = self.full_sol[:, wgall]
         self.full_t = self.full_sol[:, tgall]
         self.full_w0 = np.zeros(self._nmodes_tot)  # translation velocity
-        self.nterm = np.zeros(self.full_sol.shape) * (1 + 1j)
-        self.rhs = np.zeros(self.full_sol.shape) * (1 + 1j)
+        self.nterm = np.zeros_like(self.full_sol)
+        self.rhs = np.zeros_like(self.full_sol)
 
         # temperature part, the only non-null one in the non-linear term
         self.ntermt = self.nterm[:, tgall]
@@ -444,7 +444,7 @@ class NonLinearAnalyzer:
                 ind = self.indexmat(ii, harmm=harmjj)[3]
                 if harmjj == 0:  # special treatment for 0 modes.
                     # should be possible to avoid the use of a rhs0
-                    rhs0 = np.zeros(lmat0.slices.total_size, dtype=complex)
+                    rhs0 = np.zeros(lmat0.slices.total_size, dtype=np.complex128)
                     rhs0[lmat0.slices.span(All("T"))] = self.rhs[ind, tgall]
 
                     sol = Vector(slices=lmat0.slices, arr=solve(lmat0.array(), rhs0))
