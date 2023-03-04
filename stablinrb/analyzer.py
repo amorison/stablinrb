@@ -428,7 +428,7 @@ class LinearAnalyzer:
         ra_comp: compositional Ra
         """
         lmat, rmat = self.matrices(harm, ra_num, ra_comp)
-        eigvals = linalg.eigvals(lmat.full_mat(), rmat.full_mat())
+        eigvals = linalg.eigvals(lmat.array(), rmat.array())
         return np.max(np.real(ma.masked_invalid(eigvals)))
 
     def eigvec(
@@ -441,7 +441,7 @@ class LinearAnalyzer:
         ra_comp: compositional Ra
         """
         lmat, rmat = self.matrices(harm, ra_num, ra_comp)
-        eigvals, eigvecs = linalg.eig(lmat.full_mat(), rmat.full_mat())
+        eigvals, eigvecs = linalg.eig(lmat.array(), rmat.array())
         iegv = np.argmax(np.real(ma.masked_invalid(eigvals)))
         return eigvals[iegv], Vector(slices=lmat.slices, arr=eigvecs[:, iegv])
 

@@ -241,5 +241,5 @@ class Matrix:
             operator = operator[..., self.slices.collocation(col)]
         self._mat[self.slices.span(row), self.slices.span(col)] += operator
 
-    def full_mat(self) -> NDArray:
+    def array(self) -> NDArray:
         return np.copy(self._mat)

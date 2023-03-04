@@ -402,11 +402,11 @@ class NonLinearAnalyzer:
 
         lmat = np.zeros((nnonlin + 1, nnodes, nnodes), dtype=np.complex128)
         lmat0, pgint0, tgint0, pgall0, tgall0, igw0 = cartesian_matrices_0(self, ra_c)
-        lmat[0] = lmat_c.full_mat()
+        lmat[0] = lmat_c.array()
         # loop on the orders
         for ii in range(2, nnonlin + 2):
             # also need the linear problem for wnk up to nnonlin*harm_c
-            lmat[ii - 1] = ana.matrices(ii * harm_c, ra_c)[0].full_mat()
+            lmat[ii - 1] = ana.matrices(ii * harm_c, ra_c)[0].array()
             (lii, yii) = divmod(ii, 2)
             # compute the N terms
             for ll in range(1, ii):
