@@ -75,6 +75,11 @@ class NonLinearAnalyzer:
                 tmat[n, p] = (-1) ** n * np.cos(n * p * np.pi / ncheb)
         return tmat
 
+    @cached_property
+    def _nmodes_tot(self) -> int:
+        order_max = self.nnonlin + 1
+        return sum(n // 2 + 1 for n in range(1, order_max + 1))
+
     def _cartesian_lmat_0(self, ra_num: float) -> Matrix:
         """LHS matrix for x-independent forcing
 
@@ -148,17 +153,15 @@ class NonLinearAnalyzer:
 
     def indexmat(
         self, order: int, ind: int = 1, harmm: Optional[int] = None
-    ) -> tuple[int, int, int, int]:
+    ) -> tuple[None, int, int, int]:
         """Indices of the matrix of modes for non-linear analysis
 
         Returns
-        nmax: the max number of matrix element to solve up to order.
         ordn, harm: order and harmonic number corresponding to ind in matrix.
         ind: matrix index corresponding to order and harmm
         """
         # if ordnn > order:
         # raise ValueError("in indexmat, ordnn > order")
-        nmax = 0
         ordn = 0
         harm = 0
         harms = np.array([], dtype=np.int64)
@@ -166,20 +169,17 @@ class NonLinearAnalyzer:
         index = 0
         for n in range(1, order + 1):
             if n % 2 == 0:
-                jj = int(n / 2)
                 indices = np.array([i for i in range(0, n + 1, 2)])
                 harms = np.concatenate((harms, indices))
                 ordns = np.concatenate(
                     (ordns, n * np.ones(indices.shape, dtype=np.int64))
                 )
             else:
-                jj = int((n - 1) / 2)
                 indices = np.array([i for i in range(1, n + 1, 2)])
                 harms = np.concatenate((harms, indices))
                 ordns = np.concatenate(
                     (ordns, n * np.ones(indices.shape, dtype=np.int64))
                 )
-            nmax += jj + 1
             if ordn == 0 and ordns.shape[0] >= ind + 1:
                 ordn = ordns[ind]
                 harm = harms[ind]
@@ -188,7 +188,7 @@ class NonLinearAnalyzer:
                     index += np.where(np.array(indices) == harmm)[0][0]
                 else:
                     index += len(indices)
-        return nmax, ordn, harm, index
+        return None, ordn, harm, index
 
     def dotprod(self, ord1: int, ord2: int, harm: int) -> NDArray:
         """dot product of two modes in the full solution
@@ -352,13 +352,12 @@ class NonLinearAnalyzer:
         mode_c = mode_c.normalize_by_max_of("w")
 
         # setup matrices for the non linear solution
-        nkmax = self.indexmat(nnonlin + 1)[0]
-        self.full_sol = np.zeros((nkmax, nnodes), dtype=np.complex128)
+        self.full_sol = np.zeros((self._nmodes_tot, nnodes), dtype=np.complex128)
         self.full_p = self.full_sol[:, pgall]
         self.full_u = self.full_sol[:, ugall]
         self.full_w = self.full_sol[:, wgall]
         self.full_t = self.full_sol[:, tgall]
-        self.full_w0 = np.zeros(nkmax)  # translation velocity
+        self.full_w0 = np.zeros(self._nmodes_tot)  # translation velocity
         self.nterm = np.zeros(self.full_sol.shape) * (1 + 1j)
         self.rhs = np.zeros(self.full_sol.shape) * (1 + 1j)
 
