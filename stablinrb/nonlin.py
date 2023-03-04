@@ -8,19 +8,18 @@ import numpy as np
 from numpy.linalg import lstsq, solve
 
 from .analyzer import LinearAnalyzer
-from .matrix import All, Bot, Bulk, Field, Slices, Top
+from .matrix import All, Bot, Bulk, Field, Matrix, Scalar, Single, Slices, Top, Vector
 
 if typing.TYPE_CHECKING:
     from typing import Optional
 
     from numpy.typing import NDArray
 
+    from .matrix import VarSpec
     from .physics import PhysicalProblem
 
 
-def cartesian_matrices_0(
-    self: NonLinearAnalyzer, ra_num: float
-) -> tuple[NDArray, slice, slice, slice, slice, int]:
+def cartesian_matrices_0(self: NonLinearAnalyzer, ra_num: float) -> Matrix:
     """LHS matrix for x-independent forcing
 
     When the RHS is independent of x, the solution also is,
@@ -28,66 +27,55 @@ def cartesian_matrices_0(
     Only the pressure, temperature and uniform vertical velocity
     are solved for
     """
-    nnodes = self.ncheb + 1
+    nnodes = self.linear_analyzer.rad.size
     dz1, dz2 = self.linear_analyzer.diff_mat(1), self.linear_analyzer.diff_mat(2)
     one = np.identity(nnodes)  # identity
 
     # only in that case a translating vertical velocity is possible
     solve_for_w = self.phys.phi_top is not None and self.phys.phi_bot is not None
 
-    slices = Slices(
-        var_specs=[
-            Field(var="p", include_top=solve_for_w, include_bot=solve_for_w),
-            Field(
-                var="T",
-                include_top=self.phys.heat_flux_top is not None
-                or self.phys.biot_top is not None,
-                include_bot=self.phys.heat_flux_bot is not None
-                or self.phys.biot_bot is not None,
-            ),
-        ],
-        nnodes=nnodes,
-    )
+    var_specs: list[VarSpec] = [
+        Field(var="p", include_top=solve_for_w, include_bot=solve_for_w),
+        Field(
+            var="T",
+            include_top=self.phys.heat_flux_top is not None
+            or self.phys.biot_top is not None,
+            include_bot=self.phys.heat_flux_bot is not None
+            or self.phys.biot_bot is not None,
+        ),
+    ]
+    if solve_for_w:
+        # translation velocity
+        var_specs.append(Scalar(var="w0"))
 
-    # extra entry for the vertical velocity
-    size = slices.total_size + solve_for_w
-    igw = size - 1
+    lmat = Matrix(slices=Slices(var_specs=var_specs, nnodes=nnodes))
 
-    # slices
-    pgint = slices.span(Bulk("p"))
-    pgall = slices.span(All("p"))
-    tgint = slices.span(Bulk("T"))
-    tgall = slices.span(All("T"))
-    pall = slices.collocation(All("p"))
-    tall = slices.collocation(All("T"))
-
-    # initialize matrix
-    lmat = np.zeros((size, size))
     # pressure equation (z momentum)
-    lmat[pgint, pgall] = -dz1[1:-1, pall]
-    lmat[pgint, tgall] = ra_num * one[1:-1, tall]
+    lmat.add_term(Bulk("p"), -dz1, "p")
+    lmat.add_term(Bulk("p"), ra_num * one, "T")
     # temperature equation
-    lmat[tgint, tgall] = dz2[1:-1, tall]
+    lmat.add_term(Bulk("T"), dz2, "T")
     # FIXME: missing boundary conditions on T (non-dirichlet)
     # the case for a translating vertical velocity (mode 0)
     if solve_for_w:
         assert self.phys.phi_top is not None and self.phys.phi_bot is not None
         # Uniform vertical velocity in the temperature equation
         # FIXME: depends on grad T
-        lmat[tgint, igw] = 1
+        one_row = np.diag(one)[:, np.newaxis]
+        lmat.add_term(Bulk("T"), one_row, "w0")
         # Vertical velocity in momentum boundary conditions
-        iptop = slices.span(Top("p"))
-        lmat[iptop, iptop] = -1
-        lmat[iptop, igw] = self.phys.phi_top
-        ipbot = slices.span(Bot("p"))
-        lmat[ipbot, ipbot] = 1
-        lmat[ipbot, igw] = self.phys.phi_bot
+        lmat.add_term(Top("p"), -one, "p")
+        lmat.add_term(Top("p"), self.phys.phi_top * one_row, "w0")
+        lmat.add_term(Bot("p"), one, "p")
+        lmat.add_term(Bot("p"), self.phys.phi_bot * one_row, "w0")
         # equation for the uniform vertical velocity
-        lmat[igw, igw] = self.phys.phi_top + self.phys.phi_bot
-        lmat[igw, iptop] = 1
-        lmat[igw, ipbot] = -1
+        lmat.add_term(
+            Single("w0"), np.asarray(self.phys.phi_top + self.phys.phi_bot), "w0"
+        )
+        lmat.add_term(Single("w0"), one[:1], "p")
+        lmat.add_term(Single("w0"), -one[-1:], "p")
 
-    return lmat, pgint, tgint, pgall, tgall, igw
+    return lmat
 
 
 @dataclass
@@ -401,7 +389,7 @@ class NonLinearAnalyzer:
         norm_x1 = self.dotprod(1, 1, 1)
 
         lmat = np.zeros((nnonlin + 1, nnodes, nnodes), dtype=np.complex128)
-        lmat0, pgint0, tgint0, pgall0, tgall0, igw0 = cartesian_matrices_0(self, ra_c)
+        lmat0 = cartesian_matrices_0(self, ra_c)
         lmat[0] = lmat_c.array()
         # loop on the orders
         for ii in range(2, nnonlin + 2):
@@ -458,21 +446,21 @@ class NonLinearAnalyzer:
                 ind = self.indexmat(ii, harmm=harmjj)[3]
                 if harmjj == 0:  # special treatment for 0 modes.
                     # should be possible to avoid the use of a rhs0
-                    rhs0 = np.zeros(lmat0.shape[1], dtype=complex)
-                    rhs0[tgall0] = self.rhs[ind, tgall]
+                    rhs0 = np.zeros(lmat0.slices.total_size, dtype=complex)
+                    rhs0[lmat0.slices.span(All("T"))] = self.rhs[ind, tgall]
 
-                    sol = solve(lmat0, rhs0)
-                    self.full_sol[ind, pgint] = sol[pgint0]
-                    self.full_sol[ind, tgint] = sol[tgint0]
+                    sol = Vector(slices=lmat0.slices, arr=solve(lmat0.array(), rhs0))
+                    self.full_sol[ind, pgint] = sol.extract("p")[1:-1]
+                    self.full_sol[ind, tgint] = sol.extract("T")[1:-1]
                     # compute coefficient ii in meant
                     # factor to account for the complex conjugate
-                    prot = self._insert_boundaries(2 * np.real(sol[tgint0]), it0, itn)
+                    prot = 2 * np.real(sol.extract("T"))
                     meant[ii] = self.integz(prot)
                     dprot = ana.diff_mat(1) @ prot
                     qtop[ii] = -dprot[0]
                     if self.phys.phi_top is not None and self.phys.phi_bot is not None:
                         # translation velocity possible
-                        self.full_w0[ind] = np.real(sol[igw0])
+                        self.full_w0[ind] = np.real(sol.extract("w0").item())
                     else:
                         self.full_w0[ind] = 0
                 else:
