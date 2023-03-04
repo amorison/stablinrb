@@ -155,7 +155,7 @@ def plot_mode_image(
         positions=np.linspace(-1, 1, n_rad),
     )
     for i in range(nmodes):
-        nord, nharm = analyzer.indexmat(nmodes, ind=i)[1:3]
+        nord, nharm = analyzer.mode_index.ord_harm(i)
 
         mode_vec = Vector(slices=analyzer.slices, arr=mode[i])
         (p_mode, u_mode, w_mode, t_mode) = analyzer.linear_analyzer.split_mode(
@@ -308,7 +308,7 @@ def plot_mode_profiles(
     nmodes = mode.shape[0]
 
     for i in range(nmodes):
-        nord, nharm = analyzer.indexmat(nmodes, ind=i)[1:3]
+        nord, nharm = analyzer.mode_index.ord_harm(i)
         mode_vec = Vector(slices=analyzer.slices, arr=mode[i])
         (p_mode, u_mode, w_mode, t_mode) = analyzer.linear_analyzer.split_mode(
             mode_vec, harm

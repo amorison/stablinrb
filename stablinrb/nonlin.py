@@ -3,6 +3,7 @@ from __future__ import annotations
 import typing
 from dataclasses import dataclass
 from functools import cached_property
+from itertools import repeat
 
 import numpy as np
 from numpy.linalg import lstsq, solve
@@ -11,12 +12,39 @@ from .analyzer import LinearAnalyzer
 from .matrix import All, Bot, Bulk, Field, Matrix, Scalar, Single, Slices, Top, Vector
 
 if typing.TYPE_CHECKING:
-    from typing import Optional
+    from typing import Mapping, Sequence
 
     from numpy.typing import NDArray
 
     from .matrix import VarSpec
     from .physics import PhysicalProblem
+
+
+@dataclass(frozen=True)
+class ModeIndex:
+    max_order: int
+
+    @cached_property
+    def _all_ord_harm(self) -> Sequence[tuple[int, int]]:
+        ord_harms: list[tuple[int, int]] = []
+        for n in range(1, self.max_order + 1):
+            indices = range(n % 2, n + 1, 2)
+            ord_harms.extend(zip(repeat(n), indices))
+        return ord_harms
+
+    @cached_property
+    def _oh_to_i(self) -> Mapping[tuple[int, int], int]:
+        return {oh: i for i, oh in enumerate(self._all_ord_harm)}
+
+    @property
+    def n_harmonics(self) -> int:
+        return len(self._all_ord_harm)
+
+    def ord_harm(self, index: int) -> tuple[int, int]:
+        return self._all_ord_harm[index]
+
+    def index(self, order: int, harmonic: int) -> int:
+        return self._oh_to_i[(order, harmonic)]
 
 
 @dataclass
@@ -37,6 +65,10 @@ class NonLinearAnalyzer:
     @cached_property
     def linear_analyzer(self) -> LinearAnalyzer:
         return LinearAnalyzer(self.phys, self.ncheb)
+
+    @cached_property
+    def mode_index(self) -> ModeIndex:
+        return ModeIndex(max_order=self.nnonlin + 1)
 
     @property
     def slices(self) -> Slices:
@@ -74,11 +106,6 @@ class NonLinearAnalyzer:
             for p in range(ncheb + 1):
                 tmat[n, p] = (-1) ** n * np.cos(n * p * np.pi / ncheb)
         return tmat
-
-    @cached_property
-    def _nmodes_tot(self) -> int:
-        order_max = self.nnonlin + 1
-        return sum(n // 2 + 1 for n in range(1, order_max + 1))
 
     def _cartesian_lmat_0(self, ra_num: float) -> Matrix:
         """LHS matrix for x-independent forcing
@@ -151,45 +178,6 @@ class NonLinearAnalyzer:
         # factor 1/2 is to account for the interval -1/2 < z < 1/2
         return intz
 
-    def indexmat(
-        self, order: int, ind: int = 1, harmm: Optional[int] = None
-    ) -> tuple[None, int, int, int]:
-        """Indices of the matrix of modes for non-linear analysis
-
-        Returns
-        ordn, harm: order and harmonic number corresponding to ind in matrix.
-        ind: matrix index corresponding to order and harmm
-        """
-        # if ordnn > order:
-        # raise ValueError("in indexmat, ordnn > order")
-        ordn = 0
-        harm = 0
-        harms = np.array([], dtype=np.int64)
-        ordns = np.array([], dtype=np.int64)
-        index = 0
-        for n in range(1, order + 1):
-            if n % 2 == 0:
-                indices = np.array([i for i in range(0, n + 1, 2)])
-                harms = np.concatenate((harms, indices))
-                ordns = np.concatenate(
-                    (ordns, n * np.ones(indices.shape, dtype=np.int64))
-                )
-            else:
-                indices = np.array([i for i in range(1, n + 1, 2)])
-                harms = np.concatenate((harms, indices))
-                ordns = np.concatenate(
-                    (ordns, n * np.ones(indices.shape, dtype=np.int64))
-                )
-            if ordn == 0 and ordns.shape[0] >= ind + 1:
-                ordn = ordns[ind]
-                harm = harms[ind]
-            if harmm is not None:
-                if n == order:
-                    index += np.where(np.array(indices) == harmm)[0][0]
-                else:
-                    index += len(indices)
-        return None, ordn, harm, index
-
     def dotprod(self, ord1: int, ord2: int, harm: int) -> NDArray:
         """dot product of two modes in the full solution
 
@@ -215,8 +203,8 @@ class NonLinearAnalyzer:
             # create local profiles
             prof = np.zeros(self.slices.nnodes, dtype=np.complex64)
             # get indices in the global matrix
-            ind1 = self.indexmat(ord1, harmm=harm)[3]
-            ind2 = self.indexmat(ord2, harmm=harm)[3]
+            ind1 = self.mode_index.index(ord1, harm)
+            ind2 = self.mode_index.index(ord2, harm)
             # pressure part
             prof[pall] = np.conj(self.full_p[ind1]) * self.full_p[ind2]  # type: ignore
             dprod = self.integz(prof)
@@ -269,15 +257,15 @@ class NonLinearAnalyzer:
             # outer loop on the right one to avoid computing
             # radial derivative several times
             # index for the right mode in matrix
-            indri = self.indexmat(mri, harmm=2 * lr + yri)[3]
+            indri = self.mode_index.index(mri, 2 * lr + yri)
             tloc[tall] = self.full_t[indri]  # type: ignore
             dtr = self.linear_analyzer.diff_mat(1) @ tloc
             for ll in range(lle + 1):
                 # index for the left mode in matrix
-                indle = self.indexmat(mle, harmm=2 * ll + yle)[3]
+                indle = self.mode_index.index(mle, 2 * ll + yle)
                 # index for nmo and ll+lr
                 nharmm = 2 * (ll + lr) + yle + yri
-                iind = self.indexmat(nmo, harmm=nharmm)[3]
+                iind = self.mode_index.index(nmo, nharmm)
                 # reduce to shape of t
                 uloc[uall] = self.full_u[indle]  # type: ignore
                 wloc[wall] = self.full_w[indle]  # type: ignore
@@ -287,7 +275,7 @@ class NonLinearAnalyzer:
                 )
                 # index for nmo and ll-lr
                 nharmm = 2 * (ll - lr) + yle - yri
-                iind = self.indexmat(nmo, harmm=np.abs(nharmm))[3]
+                iind = self.mode_index.index(nmo, abs(nharmm))
                 if nharmm > 0:
                     self.ntermt[iind] += -1j * harm * (2 * lr + yri) * uloc[  # type: ignore
                         tall
@@ -340,12 +328,13 @@ class NonLinearAnalyzer:
         mode_c = mode_c.normalize_by_max_of("w")
 
         # setup matrices for the non linear solution
-        self.full_sol = np.zeros((self._nmodes_tot, nnodes), dtype=np.complex128)
+        nmodes = self.mode_index.n_harmonics
+        self.full_sol = np.zeros((nmodes, nnodes), dtype=np.complex128)
         self.full_p = self.full_sol[:, pgall]
         self.full_u = self.full_sol[:, ugall]
         self.full_w = self.full_sol[:, wgall]
         self.full_t = self.full_sol[:, tgall]
-        self.full_w0 = np.zeros(self._nmodes_tot)  # translation velocity
+        self.full_w0 = np.zeros(nmodes)  # translation velocity
         self.nterm = np.zeros_like(self.full_sol)
         self.rhs = np.zeros_like(self.full_sol)
 
@@ -390,7 +379,7 @@ class NonLinearAnalyzer:
             if yii == 1:
                 # only term in harm_c from nterm contributes
                 # nterm already summed by harmonics.
-                ind = self.indexmat(ii, harmm=1)[3]
+                ind = self.mode_index.index(ii, 1)
                 prof = self._insert_boundaries(
                     np.real(self.full_t[0] * np.conj(self.ntermt[ind])), it0, itn
                 )
@@ -400,7 +389,7 @@ class NonLinearAnalyzer:
                 self.ratot[ii - 1] = self.ratot[0] * self.integz(prof)
                 for jj in range(1, lii):
                     # only the ones in harm_c can contribute for each degree
-                    ind = self.indexmat(2 * (lii - jj) + 1, harmm=1)[3]
+                    ind = self.mode_index.index(2 * (lii - jj) + 1, 1)
                     # + sign because denominator takes the minus.
                     wwloc = self._insert_boundaries(self.full_w[0], iw0, iwn)
                     ttloc = self._insert_boundaries(self.full_t[ind], it0, itn)
@@ -409,8 +398,8 @@ class NonLinearAnalyzer:
                 self.ratot[ii - 1] /= xcmxc
 
             # add mterm to nterm to get rhs
-            imin = self.indexmat(ii, harmm=yii)[3]
-            imax = self.indexmat(ii, harmm=ii)[3]
+            imin = self.mode_index.index(ii, yii)
+            imax = self.mode_index.index(ii, ii)
             self.rhs[imin : imax + 1] = self.nterm[imin : imax + 1]
             jmax = lii if yii == 0 else lii + 1
             for jj in range(2, jmax, 2):
@@ -418,7 +407,7 @@ class NonLinearAnalyzer:
                 # index for MX is ii-jj
                 (lmx, ymx) = divmod(ii - jj, 2)
                 for kk in range(lmx + 1):
-                    indjj = self.indexmat(ii, harmm=2 * kk + ymx)[3]
+                    indjj = self.mode_index.index(ii, 2 * kk + ymx)
                     self.rhs[indjj, wgint] -= self.ratot[jj] * self.full_t[indjj]
 
             # note that rhs contains only the positive harmonics of the total rhs
@@ -429,7 +418,7 @@ class NonLinearAnalyzer:
             for jj in range(lii + 1):
                 # index to fill in: same parity as ii
                 harmjj = 2 * jj + yii
-                ind = self.indexmat(ii, harmm=harmjj)[3]
+                ind = self.mode_index.index(ii, harmjj)
                 if harmjj == 0:  # special treatment for 0 modes.
                     # should be possible to avoid the use of a rhs0
                     rhs0 = np.zeros(lmat0.slices.total_size, dtype=np.complex128)
