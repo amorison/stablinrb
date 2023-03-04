@@ -19,65 +19,6 @@ if typing.TYPE_CHECKING:
     from .physics import PhysicalProblem
 
 
-def cartesian_matrices_0(self: NonLinearAnalyzer, ra_num: float) -> Matrix:
-    """LHS matrix for x-independent forcing
-
-    When the RHS is independent of x, the solution also is,
-    and the velocity is uniform and only vertical, possibly null.
-    Only the pressure, temperature and uniform vertical velocity
-    are solved for
-    """
-    nnodes = self.linear_analyzer.rad.size
-    dz1, dz2 = self.linear_analyzer.diff_mat(1), self.linear_analyzer.diff_mat(2)
-    one = np.identity(nnodes)  # identity
-
-    # only in that case a translating vertical velocity is possible
-    solve_for_w = self.phys.phi_top is not None and self.phys.phi_bot is not None
-
-    var_specs: list[VarSpec] = [
-        Field(var="p", include_top=solve_for_w, include_bot=solve_for_w),
-        Field(
-            var="T",
-            include_top=self.phys.heat_flux_top is not None
-            or self.phys.biot_top is not None,
-            include_bot=self.phys.heat_flux_bot is not None
-            or self.phys.biot_bot is not None,
-        ),
-    ]
-    if solve_for_w:
-        # translation velocity
-        var_specs.append(Scalar(var="w0"))
-
-    lmat = Matrix(slices=Slices(var_specs=var_specs, nnodes=nnodes))
-
-    # pressure equation (z momentum)
-    lmat.add_term(Bulk("p"), -dz1, "p")
-    lmat.add_term(Bulk("p"), ra_num * one, "T")
-    # temperature equation
-    lmat.add_term(Bulk("T"), dz2, "T")
-    # FIXME: missing boundary conditions on T (non-dirichlet)
-    # the case for a translating vertical velocity (mode 0)
-    if solve_for_w:
-        assert self.phys.phi_top is not None and self.phys.phi_bot is not None
-        # Uniform vertical velocity in the temperature equation
-        # FIXME: depends on grad T
-        one_row = np.diag(one)[:, np.newaxis]
-        lmat.add_term(Bulk("T"), one_row, "w0")
-        # Vertical velocity in momentum boundary conditions
-        lmat.add_term(Top("p"), -one, "p")
-        lmat.add_term(Top("p"), self.phys.phi_top * one_row, "w0")
-        lmat.add_term(Bot("p"), one, "p")
-        lmat.add_term(Bot("p"), self.phys.phi_bot * one_row, "w0")
-        # equation for the uniform vertical velocity
-        lmat.add_term(
-            Single("w0"), np.asarray(self.phys.phi_top + self.phys.phi_bot), "w0"
-        )
-        lmat.add_term(Single("w0"), one[:1], "p")
-        lmat.add_term(Single("w0"), -one[-1:], "p")
-
-    return lmat
-
-
 @dataclass
 class NonLinearAnalyzer:
 
@@ -133,6 +74,64 @@ class NonLinearAnalyzer:
             for p in range(ncheb + 1):
                 tmat[n, p] = (-1) ** n * np.cos(n * p * np.pi / ncheb)
         return tmat
+
+    def _cartesian_lmat_0(self, ra_num: float) -> Matrix:
+        """LHS matrix for x-independent forcing
+
+        When the RHS is independent of x, the solution also is,
+        and the velocity is uniform and only vertical, possibly null.
+        Only the pressure, temperature and uniform vertical velocity
+        are solved for
+        """
+        nnodes = self.linear_analyzer.rad.size
+        dz1, dz2 = self.linear_analyzer.diff_mat(1), self.linear_analyzer.diff_mat(2)
+        one = np.identity(nnodes)  # identity
+
+        # only in that case a translating vertical velocity is possible
+        solve_for_w = self.phys.phi_top is not None and self.phys.phi_bot is not None
+
+        var_specs: list[VarSpec] = [
+            Field(var="p", include_top=solve_for_w, include_bot=solve_for_w),
+            Field(
+                var="T",
+                include_top=self.phys.heat_flux_top is not None
+                or self.phys.biot_top is not None,
+                include_bot=self.phys.heat_flux_bot is not None
+                or self.phys.biot_bot is not None,
+            ),
+        ]
+        if solve_for_w:
+            # translation velocity
+            var_specs.append(Scalar(var="w0"))
+
+        lmat = Matrix(slices=Slices(var_specs=var_specs, nnodes=nnodes))
+
+        # pressure equation (z momentum)
+        lmat.add_term(Bulk("p"), -dz1, "p")
+        lmat.add_term(Bulk("p"), ra_num * one, "T")
+        # temperature equation
+        lmat.add_term(Bulk("T"), dz2, "T")
+        # FIXME: missing boundary conditions on T (non-dirichlet)
+        # the case for a translating vertical velocity (mode 0)
+        if solve_for_w:
+            assert self.phys.phi_top is not None and self.phys.phi_bot is not None
+            # Uniform vertical velocity in the temperature equation
+            # FIXME: depends on grad T
+            one_row = np.diag(one)[:, np.newaxis]
+            lmat.add_term(Bulk("T"), one_row, "w0")
+            # Vertical velocity in momentum boundary conditions
+            lmat.add_term(Top("p"), -one, "p")
+            lmat.add_term(Top("p"), self.phys.phi_top * one_row, "w0")
+            lmat.add_term(Bot("p"), one, "p")
+            lmat.add_term(Bot("p"), self.phys.phi_bot * one_row, "w0")
+            # equation for the uniform vertical velocity
+            lmat.add_term(
+                Single("w0"), np.asarray(self.phys.phi_top + self.phys.phi_bot), "w0"
+            )
+            lmat.add_term(Single("w0"), one[:1], "p")
+            lmat.add_term(Single("w0"), -one[-1:], "p")
+
+        return lmat
 
     def integz(self, prof: NDArray) -> NDArray:
         """Integral on the -1/2 <= z <= 1/2 interval"""
@@ -389,7 +388,7 @@ class NonLinearAnalyzer:
         norm_x1 = self.dotprod(1, 1, 1)
 
         lmat = np.zeros((nnonlin + 1, nnodes, nnodes), dtype=np.complex128)
-        lmat0 = cartesian_matrices_0(self, ra_c)
+        lmat0 = self._cartesian_lmat_0(ra_c)
         lmat[0] = lmat_c.array()
         # loop on the orders
         for ii in range(2, nnonlin + 2):
