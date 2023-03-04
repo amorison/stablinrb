@@ -6,12 +6,15 @@ from dataclasses import dataclass
 import numpy as np
 from scipy.optimize import brentq
 
+from .matrix import Field
+
 if typing.TYPE_CHECKING:
-    from typing import Callable, Mapping, Optional, Union
+    from typing import Callable, Optional, Sequence, Union
 
     from numpy.typing import NDArray
 
     from .geometry import Geometry
+    from .matrix import VarSpec
 
 
 @dataclass(frozen=True)
@@ -96,34 +99,41 @@ class PhysicalProblem:
             name.append("freeB" if self.freeslip_bot else "rigidB")
         return "_".join(name)
 
-    def variables_at_bc(self) -> Mapping[str, tuple[bool, bool]]:
-        common = {
-            "T": (
-                self.heat_flux_top is not None or self.biot_top is not None,
-                self.heat_flux_bot is not None or self.biot_bot is not None,
+    def var_specs(self) -> Sequence[VarSpec]:
+        common = [
+            Field(
+                var="T",
+                include_top=self.heat_flux_top is not None or self.biot_top is not None,
+                include_bot=self.heat_flux_bot is not None or self.biot_bot is not None,
             )  # temperature
-        }
+        ]
         if self.composition is not None or self.lewis is not None:
-            common["c"] = (False, False)
+            common.append(Field(var="c", include_top=False, include_bot=False))
         if self.spherical:
-            return {
-                "p": (True, True),  # poloidal potential
-                "q": (True, True),  # lapl(poloidal)
-                **common,
-            }
+            return [
+                # poloidal potential
+                Field(var="p", include_top=True, include_bot=True),
+                # lapl(poloidal)
+                Field(var="q", include_top=True, include_bot=True),
+                *common,
+            ]
         # cartesian
-        return {
-            "p": (True, True),  # pressure
-            "u": (
-                self.phi_top is not None or self.freeslip_top,
-                self.phi_bot is not None or self.freeslip_bot,
+        return [
+            # pressure
+            Field(var="p", include_top=True, include_bot=True),
+            # velocities
+            Field(
+                var="u",
+                include_top=self.phi_top is not None or self.freeslip_top,
+                include_bot=self.phi_bot is not None or self.freeslip_bot,
             ),
-            "w": (
-                self.phi_top is not None,
-                self.phi_bot is not None,
+            Field(
+                var="w",
+                include_top=self.phi_top is not None,
+                include_bot=self.phi_bot is not None,
             ),
-            **common,
-        }
+            *common,
+        ]
 
 
 def wtran(eps: float) -> tuple[float, float, float]:

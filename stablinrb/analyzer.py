@@ -10,7 +10,7 @@ from dmsuite.poly_diff import Chebyshev, DiffMatOnDomain
 from scipy import linalg
 
 from .geometry import Spherical
-from .matrix import Matrix, Slices, Vector
+from .matrix import All, Bot, Bulk, Matrix, Slices, Top, Vector
 from .physics import wtran
 
 if typing.TYPE_CHECKING:
@@ -64,68 +64,68 @@ def cartesian_matrices(
 
     # Pressure equations
     # mass conservation
-    lmat.add_all("p", "u", dh1)
-    lmat.add_all("p", "w", dz1)
+    lmat.add_term(All("p"), dh1, "u")
+    lmat.add_term(All("p"), dz1, "w")
 
     # U equations
     # free-slip at top
     if phi_top is not None or freeslip_top:
-        lmat.add_top("u", "u", dz1[0])
+        lmat.add_term(Top("u"), dz1, "u")
     if phi_top is not None:
-        lmat.add_top("u", "w", dh1[0])
+        lmat.add_term(Top("u"), dh1, "w")
     # horizontal momentum conservation
-    lmat.add_bulk("u", "p", -dh1)
-    lmat.add_bulk("u", "u", lapl)
+    lmat.add_term(Bulk("u"), -dh1, "p")
+    lmat.add_term(Bulk("u"), lapl, "u")
     # free-slip at bot
     if phi_bot is not None or freeslip_bot:
-        lmat.add_bot("u", "u", dz1[-1])
+        lmat.add_term(Bot("u"), dz1, "u")
     if phi_bot is not None:
-        lmat.add_bot("u", "w", dh1[-1])
+        lmat.add_term(Bot("u"), dh1, "w")
 
     # W equations
     if phi_top is not None:
         # phase change at top
-        lmat.add_top("w", "p", -one[0])
-        lmat.add_top("w", "w", phi_top * one[0] + 2 * dz1[0])
+        lmat.add_term(Top("w"), -one, "p")
+        lmat.add_term(Top("w"), phi_top * one + 2 * dz1, "w")
     # vertical momentum conservation
-    lmat.add_bulk("w", "p", -dz1)
-    lmat.add_bulk("w", "w", lapl)
+    lmat.add_term(Bulk("w"), -dz1, "p")
+    lmat.add_term(Bulk("w"), lapl, "w")
     if water:
         theta0 = thetar - zphys
-        lmat.add_bulk("w", "T", -ra_num * np.diag(theta0))
+        lmat.add_term(Bulk("w"), -ra_num * np.diag(theta0), "T")
     else:
-        lmat.add_bulk("w", "T", ra_num * one)
+        lmat.add_term(Bulk("w"), ra_num * one, "T")
     if comp_terms:
         assert ra_comp is not None
-        lmat.add_bulk("w", "c", ra_comp * one)
+        lmat.add_term(Bulk("w"), ra_comp * one, "c")
     if phi_bot is not None:
         # phase change at bot
-        lmat.add_bot("w", "p", -one[-1])
-        lmat.add_bot("w", "w", -phi_bot * one[-1] + 2 * dz1[-1])
+        lmat.add_term(Bot("w"), -one, "p")
+        lmat.add_term(Bot("w"), -phi_bot * one + 2 * dz1, "w")
 
     # Neumann boundary condition if imposed flux
     if heat_flux_top is not None:
-        lmat.add_top("T", "T", dz1[0])
+        lmat.add_term(Top("T"), dz1, "T")
     elif heat_flux_bot is not None:
-        lmat.add_bot("T", "T", dz1[-1])
+        lmat.add_term(Bot("T"), dz1, "T")
     if self.phys.biot_top is not None:
-        lmat.add_top("T", "T", self.phys.biot_top * one[0] + dz1[0])
+        lmat.add_term(Top("T"), self.phys.biot_top * one + dz1, "T")
     if self.phys.biot_bot is not None:
-        lmat.add_bot("T", "T", self.phys.biot_bot * one[-1] + dz1[-1])
+        lmat.add_term(Bot("T"), self.phys.biot_bot * one + dz1, "T")
 
-    lmat.add_bulk("T", "T", lapl)
+    lmat.add_term(Bulk("T"), lapl, "T")
 
     # need to take heat flux into account in T conductive
     if translation:
         # only written for Dirichlet BCs on T and without internal heating
-        lmat.add_bulk("T", "T", -wtrans * dz1)
+        lmat.add_term(Bulk("T"), -wtrans * dz1, "T")
         w_temp = np.diag(np.exp(wtrans * self.rad))
         if np.abs(wtrans) > 1.0e-3:
             w_temp *= wtrans / (2 * np.sinh(wtrans / 2))
         else:
             # use a limited development
             w_temp *= 1 - wtrans**2 / 24
-        lmat.add_bulk("T", "w", w_temp)
+        lmat.add_term(Bulk("T"), w_temp, "w")
     else:
         grad_tcond = -h_int * zphys
         if heat_flux_bot is not None:
@@ -138,22 +138,22 @@ def cartesian_matrices(
                 grad_tcond -= 1
             else:
                 grad_tcond += 1
-        lmat.add_bulk("T", "w", np.diag(grad_tcond))
+        lmat.add_term(Bulk("T"), np.diag(grad_tcond), "w")
 
-    rmat.add_bulk("T", "T", one)
+    rmat.add_term(Bulk("T"), one, "T")
     if prandtl is not None:
         # finite Prandtl number case
-        rmat.add_bulk("u", "u", one / prandtl)
-        rmat.add_bulk("w", "w", one / prandtl)
+        rmat.add_term(Bulk("u"), one / prandtl, "u")
+        rmat.add_term(Bulk("w"), one / prandtl, "w")
     # C equations
     # 1/Le lapl(C) - u.grad(C_reference) = sigma C
     if composition is not None:
-        lmat.add_bulk("c", "w", -np.diag(np.dot(dz1, composition(zphys))))
+        lmat.add_term(Bulk("c"), -np.diag(np.dot(dz1, composition(zphys))), "w")
     elif lewis is not None:
-        lmat.add_bulk("c", "w", one)
-        lmat.add_bulk("c", "c", lapl / lewis)
+        lmat.add_term(Bulk("c"), one, "w")
+        lmat.add_term(Bulk("c"), lapl / lewis, "c")
     if comp_terms:
-        rmat.add_bulk("c", "c", one)
+        rmat.add_term(Bulk("c"), one, "c")
     return lmat, rmat
 
 
@@ -228,79 +228,79 @@ def spherical_matrices(
     # Poloidal potential equations
     if phi_top is not None:
         # free-slip at top
-        lmat.add_top("p", "p", dr2[0] + (lh2 * (1 + C_top) - 2) * orl2[0])
+        lmat.add_term(Top("p"), dr2 + (lh2 * (1 + C_top) - 2) * orl2, "p")
     else:
         # no radial velocity, Dirichlet condition but
         # need to keep boundary point to ensure free-slip
         # or rigid boundary
-        lmat.add_top("p", "p", one[0])
+        lmat.add_term(Top("p"), one, "p")
     # laplacian(P) - Q = 0
-    lmat.add_bulk("p", "p", lapl)
-    lmat.add_bulk("p", "q", -one)
+    lmat.add_term(Bulk("p"), lapl, "p")
+    lmat.add_term(Bulk("p"), -one, "q")
     if phi_bot is not None:
         # free-slip at bot
-        lmat.add_bot("p", "p", dr2[-1] + (lh2 * (1 - C_bot) - 2) * orl2[-1])
+        lmat.add_term(Bot("p"), dr2 + (lh2 * (1 - C_bot) - 2) * orl2, "p")
     else:
-        lmat.add_bot("p", "p", one[-1])
+        lmat.add_term(Bot("p"), one, "p")
 
     # Q equations
     # normal stress continuity at top
     if phi_top is not None:
-        lmat.add_top(
-            "q",
-            "p",
+        lmat.add_term(
+            Top("q"),
             lh2
             * (
-                (phi_top - 2 * C_top * (1 - gamma)) * orl1[0]
-                - 2 * np.dot(eta_r, orl2)[0]
-                + 2 * np.dot(eta_r, np.dot(orl1, dr1))[0]
+                (phi_top - 2 * C_top * (1 - gamma)) * orl1
+                - 2 * np.dot(eta_r, orl2)
+                + 2 * np.dot(eta_r, np.dot(orl1, dr1))
             ),
+            "p",
         )
-        lmat.add_top("q", "q", -eta_r[0] - np.dot(eta_r, np.dot(ral, dr1))[0])
+        lmat.add_term(Top("q"), -eta_r - np.dot(eta_r, np.dot(ral, dr1)), "q")
     elif freeslip_top:
-        lmat.add_top("q", "p", dr2[0])
+        lmat.add_term(Top("q"), dr2, "p")
     else:
         # rigid
-        lmat.add_top("q", "p", dr1[0])
+        lmat.add_term(Top("q"), dr1, "p")
     if self.phys.eta_r is not None:
         deta_dr = np.diag(np.dot(dr1, np.diag(eta_r)))
         d2eta_dr2 = np.diag(np.dot(dr2, np.diag(eta_r)))
-        lmat.add_bulk(
-            "q",
-            "p",
+        lmat.add_term(
+            Bulk("q"),
             2 * (lh2 - 1) * (np.dot(orl2, d2eta_dr2) - np.dot(orl3, deta_dr))
             - 2 * np.dot(np.dot(orl1, d2eta_dr2) - np.dot(orl2, deta_dr), dr1),
+            "p",
         )
-        lmat.add_bulk(
-            "q", "q", np.dot(eta_r, lapl) + d2eta_dr2 + 2 * np.dot(deta_dr, dr1)
+        lmat.add_term(
+            Bulk("q"), np.dot(eta_r, lapl) + d2eta_dr2 + 2 * np.dot(deta_dr, dr1), "q"
         )
     else:
         # laplacian(Q) - RaT/r = 0
-        lmat.add_bulk("q", "q", lapl)
+        lmat.add_term(Bulk("q"), lapl, "q")
     if temp_terms:
         assert ra_num is not None
-        lmat.add_bulk("q", "T", -ra_num * orl1)
+        lmat.add_term(Bulk("q"), -ra_num * orl1, "T")
     if comp_terms:
         assert ra_comp is not None
-        lmat.add_bulk("q", "c", -ra_comp * orl1)
+        lmat.add_term(Bulk("q"), -ra_comp * orl1, "c")
     # normal stress continuity at bot
     if phi_bot is not None:
-        lmat.add_bot(
-            "q",
-            "p",
+        lmat.add_term(
+            Bot("q"),
             lh2
             * (
-                -(phi_bot - 2 * C_bot * (1 - gamma) / gamma) * orl1[-1]
-                - 2 * np.dot(eta_r, orl2)[-1]
-                + 2 * np.dot(eta_r, np.dot(orl1, dr1))[-1]
+                -(phi_bot - 2 * C_bot * (1 - gamma) / gamma) * orl1
+                - 2 * np.dot(eta_r, orl2)
+                + 2 * np.dot(eta_r, np.dot(orl1, dr1))
             ),
+            "p",
         )
-        lmat.add_bot("q", "q", -eta_r[-1] - np.dot(eta_r, np.dot(ral, dr1))[-1])
+        lmat.add_term(Bot("q"), -eta_r - np.dot(eta_r, np.dot(ral, dr1)), "q")
     elif freeslip_bot:
-        lmat.add_bot("q", "p", dr2[-1])
+        lmat.add_term(Bot("q"), dr2, "p")
     else:
         # rigid
-        lmat.add_bot("q", "p", dr1[-1])
+        lmat.add_term(Bot("q"), dr1, "p")
 
     if self.phys.cooling_smo is not None:
         gamt_f, w_f = self.phys.cooling_smo
@@ -312,21 +312,23 @@ def spherical_matrices(
     if temp_terms:
         # Neumann boundary condition if imposed flux
         if heat_flux_top is not None:
-            lmat.add_top("T", "T", dr1[0])
+            lmat.add_term(Top("T"), dr1, "T")
         elif heat_flux_bot is not None:
-            lmat.add_bot("T", "T", dr1[-1])
+            lmat.add_term(Bot("T"), dr1, "T")
         if self.phys.biot_top is not None:
-            lmat.add_top("T", "T", self.phys.biot_top * one[0] + dr1[0])
+            lmat.add_term(Top("T"), self.phys.biot_top * one + dr1, "T")
         if self.phys.biot_bot is not None:
-            lmat.add_bot("T", "T", self.phys.biot_bot * one[-1] + dr1[-1])
+            lmat.add_term(Bot("T"), self.phys.biot_bot * one + dr1, "T")
 
-        lmat.add_bulk("T", "T", lapl)
+        lmat.add_term(Bulk("T"), lapl, "T")
         if not self.phys.frozen_time and self.phys.cooling_smo is not None:
             # TYPE SAFETY: there is an implicit assumption that grad_ref_temperature is a callable
             # with those options
             grad_ref_temp_top = grad_ref_temperature(np.diag(rad)[0])  # type: ignore
-            lmat.add_bulk(
-                "T", "T", w_smo * (np.dot(rad - one, dr1) + grad_ref_temp_top * one)
+            lmat.add_term(
+                Bulk("T"),
+                w_smo * (np.dot(rad - one, dr1) + grad_ref_temp_top * one),
+                "T",
             )
 
         # advection of reference profile
@@ -352,27 +354,27 @@ def spherical_matrices(
             # TYPE SAFETY: there is an implicit assumption that grad_ref_temperature is a callable
             # if not "conductive"
             grad_tcond = np.dot(orl1, -grad_ref_temperature(np.diag(rad)))  # type: ignore
-        lmat.add_bulk("T", "p", np.diag(lh2 * grad_tcond))
+        lmat.add_term(Bulk("T"), np.diag(lh2 * grad_tcond), "p")
 
         if not self.phys.frozen_time and self.phys.cooling_smo:
-            rmat.add_bulk("T", "T", one * gam2_smo)
+            rmat.add_term(Bulk("T"), one * gam2_smo, "T")
         else:
-            rmat.add_bulk("T", "T", one)
+            rmat.add_term(Bulk("T"), one, "T")
 
     # C equations
     # 1/Le lapl(C) - u.grad(C_reference) = sigma C
     if composition is not None:
         grad_comp = np.diag(np.dot(dr1, composition(np.diag(rad))))
-        lmat.add_bulk("c", "p", -lh2 * np.dot(orl1, grad_comp))
+        lmat.add_term(Bulk("c"), -lh2 * np.dot(orl1, grad_comp), "p")
     elif lewis is not None:
         raise ValueError("Finite Lewis not implemented in spherical")
     if comp_terms:
         if not self.phys.frozen_time and self.phys.cooling_smo is not None:
-            lmat.add_bulk("c", "c", w_smo * np.dot(rad - one, dr1))
+            lmat.add_term(Bulk("c"), w_smo * np.dot(rad - one, dr1), "c")
         if not self.phys.frozen_time and self.phys.cooling_smo is not None:
-            rmat.add_bulk("c", "c", one * gam2_smo)
+            rmat.add_term(Bulk("c"), one * gam2_smo, "c")
         else:
-            rmat.add_bulk("c", "c", one)
+            rmat.add_term(Bulk("c"), one, "c")
 
     return lmat, rmat
 
@@ -405,7 +407,7 @@ class LinearAnalyzer:
 
     @cached_property
     def slices(self) -> Slices:
-        return Slices(include_bnd=self.phys.variables_at_bc(), nnodes=self.rad.size)
+        return Slices(var_specs=self.phys.var_specs(), nnodes=self.rad.size)
 
     def matrices(
         self, harm: float, ra_num: float, ra_comp: Optional[float] = None

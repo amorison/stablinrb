@@ -8,7 +8,7 @@ import numpy as np
 from numpy.linalg import lstsq, solve
 
 from .analyzer import LinearAnalyzer
-from .matrix import Slices
+from .matrix import All, Bot, Bulk, Field, Slices, Top
 
 if typing.TYPE_CHECKING:
     from typing import Optional
@@ -36,13 +36,16 @@ def cartesian_matrices_0(
     solve_for_w = self.phys.phi_top is not None and self.phys.phi_bot is not None
 
     slices = Slices(
-        include_bnd={
-            "p": (solve_for_w, solve_for_w),
-            "T": (
-                self.phys.heat_flux_top is not None or self.phys.biot_top is not None,
-                self.phys.heat_flux_bot is not None or self.phys.biot_bot is not None,
+        var_specs=[
+            Field(var="p", include_top=solve_for_w, include_bot=solve_for_w),
+            Field(
+                var="T",
+                include_top=self.phys.heat_flux_top is not None
+                or self.phys.biot_top is not None,
+                include_bot=self.phys.heat_flux_bot is not None
+                or self.phys.biot_bot is not None,
             ),
-        },
+        ],
         nnodes=nnodes,
     )
 
@@ -51,12 +54,12 @@ def cartesian_matrices_0(
     igw = size - 1
 
     # slices
-    pgint = slices.bulk("p")
-    pgall = slices.all("p")
-    tgint = slices.bulk("T")
-    tgall = slices.all("T")
-    pall = slices.local_all("p")
-    tall = slices.local_all("T")
+    pgint = slices.span(Bulk("p"))
+    pgall = slices.span(All("p"))
+    tgint = slices.span(Bulk("T"))
+    tgall = slices.span(All("T"))
+    pall = slices.collocation(All("p"))
+    tall = slices.collocation(All("T"))
 
     # initialize matrix
     lmat = np.zeros((size, size))
@@ -73,10 +76,10 @@ def cartesian_matrices_0(
         # FIXME: depends on grad T
         lmat[tgint, igw] = 1
         # Vertical velocity in momentum boundary conditions
-        iptop = slices.itop("p")
+        iptop = slices.span(Top("p"))
         lmat[iptop, iptop] = -1
         lmat[iptop, igw] = self.phys.phi_top
-        ipbot = slices.ibot("p")
+        ipbot = slices.span(Bot("p"))
         lmat[ipbot, ipbot] = 1
         lmat[ipbot, igw] = self.phys.phi_bot
         # equation for the uniform vertical velocity
@@ -216,10 +219,10 @@ class NonLinearAnalyzer:
         rac = self.ratot[0]  # type: ignore
 
         # get indices
-        pall = self.slices.local_all("p")
-        uall = self.slices.local_all("u")
-        wall = self.slices.local_all("w")
-        tall = self.slices.local_all("T")
+        pall = self.slices.collocation(All("p"))
+        uall = self.slices.collocation(All("u"))
+        wall = self.slices.collocation(All("w"))
+        tall = self.slices.collocation(All("T"))
 
         if (ord1 % 2 == 0 and ord2 % 2 == 0) or (ord1 % 2 == 1 and ord2 % 2 == 1):
             # create local profiles
@@ -258,9 +261,9 @@ class NonLinearAnalyzer:
         ordered by wavenumber
         """
         # get indices
-        uall = self.slices.local_all("u")
-        wall = self.slices.local_all("w")
-        tall = self.slices.local_all("T")
+        uall = self.slices.collocation(All("u"))
+        wall = self.slices.collocation(All("w"))
+        tall = self.slices.collocation(All("T"))
 
         # create local profiles
         uloc = np.zeros(self.slices.nnodes, dtype=np.complex64)
@@ -341,17 +344,17 @@ class NonLinearAnalyzer:
         nnonlin = self.nnonlin
         # global indices and slices
         # FIXME: use Vector and Matrix to avoid manipulating those by hand
-        pgall = self.slices.all("p")
-        ugall = self.slices.all("u")
-        wgall = self.slices.all("w")
-        tgall = self.slices.all("T")
-        pgint = self.slices.bulk("p")
-        wgint = self.slices.bulk("w")
-        tgint = self.slices.bulk("T")
-        iw0 = self.slices.local_all("w").start
-        iwn = self.slices.local_all("w").stop - 1
-        it0 = self.slices.local_all("T").start
-        itn = self.slices.local_all("T").stop - 1
+        pgall = self.slices.span(All("p"))
+        ugall = self.slices.span(All("u"))
+        wgall = self.slices.span(All("w"))
+        tgall = self.slices.span(All("T"))
+        pgint = self.slices.span(Bulk("p"))
+        wgint = self.slices.span(Bulk("w"))
+        tgint = self.slices.span(Bulk("T"))
+        iw0 = self.slices.collocation(All("w")).start
+        iwn = self.slices.collocation(All("w")).stop - 1
+        it0 = self.slices.collocation(All("T")).start
+        itn = self.slices.collocation(All("T")).stop - 1
 
         # First compute the linear mode and matrix
         ana = self.linear_analyzer

@@ -1,71 +1,192 @@
 from __future__ import annotations
 
 import typing
+from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from functools import cached_property
+from itertools import chain
+from typing import ClassVar
 
 import numpy as np
 
 if typing.TYPE_CHECKING:
-    from typing import Mapping, Sequence
+    from typing import Mapping, Optional, Sequence
 
     from numpy.typing import NDArray
 
 
+class Position(ABC):
+    collocated: ClassVar[bool]
+
+    @abstractmethod
+    def length(self, nnodes: int) -> int:
+        """Number of points at this position."""
+
+
+@dataclass(frozen=True)
+class Top(Position):
+    var: str
+    collocated: ClassVar[bool] = True
+
+    def length(self, nnodes: int) -> int:
+        return 1
+
+
+@dataclass(frozen=True)
+class Bulk(Position):
+    var: str
+    collocated: ClassVar[bool] = True
+
+    def length(self, nnodes: int) -> int:
+        return nnodes - 2
+
+
+@dataclass(frozen=True)
+class Bot(Position):
+    var: str
+    collocated: ClassVar[bool] = True
+
+    def length(self, nnodes: int) -> int:
+        return 1
+
+
+@dataclass(frozen=True)
+class All(Position):
+    var: str
+    collocated: ClassVar[bool] = True
+
+    def length(self, nnodes: int) -> int:
+        return nnodes
+
+
+@dataclass(frozen=True)
+class Single(Position):
+    var: str
+    collocated: ClassVar[bool] = False
+
+    def length(self, nnodes: int) -> int:
+        return 1
+
+
+class VarSpec(ABC):
+    @abstractmethod
+    def name(self) -> str:
+        """Variable name."""
+
+    @abstractmethod
+    def length(self, nnodes: int) -> int:
+        """Number of points for this variable."""
+
+    @abstractmethod
+    def elements(self) -> Sequence[Position]:
+        """Elements over which the variable spans."""
+
+    @abstractmethod
+    def collocation(self, nnodes: int) -> Optional[slice]:
+        """Slice of collocation nodes relevant for this variable."""
+
+
+@dataclass(frozen=True)
+class Field(VarSpec):
+    var: str
+    include_top: bool
+    include_bot: bool
+
+    def name(self) -> str:
+        return self.var
+
+    def length(self, nnodes: int) -> int:
+        return nnodes - 2 + self.include_top + self.include_bot
+
+    def elements(self) -> Sequence[Position]:
+        elts: list[Position] = [Top(self.var)] if self.include_top else []
+        elts.append(Bulk(self.var))
+        if self.include_bot:
+            elts.append(Bot(self.var))
+        return elts
+
+    def collocation(self, nnodes: int) -> slice:
+        imin = 1 - self.include_top
+        imax = nnodes - 1 + self.include_bot
+        return slice(imin, imax)
+
+
+@dataclass(frozen=True)
+class Scalar(VarSpec):
+    var: str
+
+    def name(self) -> str:
+        return self.var
+
+    def length(self, nnodes: int) -> int:
+        return 1
+
+    def elements(self) -> Sequence[Position]:
+        return (Single(self.var),)
+
+    def collocation(self, nnodes: int) -> None:
+        return None
+
+
 @dataclass(frozen=True)
 class Slices:
-    include_bnd: Mapping[str, tuple[bool, bool]]  # top, bot
+    var_specs: Sequence[VarSpec]
     nnodes: int
 
     @cached_property
     def variables(self) -> Sequence[str]:
-        return tuple(self.include_bnd.keys())
+        """All the variable names."""
+        return tuple(spec.name() for spec in self.var_specs)
 
     @cached_property
-    def _lengths(self) -> Sequence[int]:
-        """Length of each chunk, one chunk per variable."""
-        return tuple(
-            (self.nnodes - 2 + sum(self.include_bnd[var]) for var in self.variables)
-        )
-
-    @property
     def total_size(self) -> int:
-        return sum(self._lengths)
+        """Full number of points to describe all the variables."""
+        return sum(spec.length(self.nnodes) for spec in self.var_specs)
 
     @cached_property
-    def _var_to_len(self) -> Mapping[str, int]:
-        return dict(zip(self.variables, self._lengths))
+    def _spans(self) -> Mapping[Position, slice]:
+        spans = {}
+        cur_index = 0
+        for elt in chain.from_iterable(spec.elements() for spec in self.var_specs):
+            elt_len = elt.length(self.nnodes)
+            assert elt_len > 0
+            spans[elt] = slice(cur_index, cur_index + elt_len)
+            cur_index += elt_len
+        for spec in self.var_specs:
+            var = spec.name()
+            if Bulk(var) in spans:
+                bslc = spans[Bulk(var)]
+                spans[All(var)] = slice(
+                    bslc.start - (Top(var) in spans),
+                    bslc.stop + (Bot(var) in spans),
+                )
+        return spans
 
     @cached_property
-    def _var_to_i0(self) -> Mapping[str, int]:
-        cumlen = np.zeros(len(self.variables), dtype=np.int64)
-        cumlen[1:] = np.cumsum(self._lengths[:-1])
-        return dict(zip(self.variables, cumlen))
+    def _collocs(self) -> Mapping[Position, slice]:
+        colloc: dict[Position, slice] = {}
+        for spec in self.var_specs:
+            if (col := spec.collocation(self.nnodes)) is not None:
+                var = spec.name()
+                colloc[All(var)] = col
+                colloc[Bulk(var)] = slice(1, self.nnodes - 1)
+                colloc[Top(var)] = slice(0, 1)
+                colloc[Bot(var)] = slice(self.nnodes - 1, self.nnodes)
+        return colloc
 
-    def bulk(self, var: str) -> slice:
-        imin = self._var_to_i0[var] + self.include_bnd[var][0]
-        imax = self._var_to_i0[var] + self._var_to_len[var] - self.include_bnd[var][1]
-        return slice(imin, imax)
+    def span(self, position: Position) -> slice:
+        """Relevant indices in the global matrices/vectors."""
+        return self._spans[position]
 
-    def all(self, var: str) -> slice:
-        imin = self._var_to_i0[var]
-        imax = self._var_to_i0[var] + self._var_to_len[var]
-        return slice(imin, imax)
+    def full_position(self, var: str) -> Position:
+        """Position of all points of this variable."""
+        if (pos := All(var)) in self._spans:
+            return pos
+        return Single(var)
 
-    def local_all(self, var: str) -> slice:
-        imin = 1 - self.include_bnd[var][0]
-        imax = self.nnodes - 1 + self.include_bnd[var][1]
-        return slice(imin, imax)
-
-    def itop(self, var: str) -> int:
-        if not self.include_bnd[var][0]:
-            raise RuntimeError(f"top boundary of {var} is not included")
-        return self._var_to_i0[var]
-
-    def ibot(self, var: str) -> int:
-        if not self.include_bnd[var][1]:
-            raise RuntimeError(f"bot boundary of {var} is not included")
-        return self._var_to_i0[var] + self._var_to_len[var] - 1
+    def collocation(self, position: Position) -> slice:
+        """Relevant collocation nodes."""
+        return self._collocs[position]
 
 
 @dataclass(frozen=True)
@@ -77,9 +198,13 @@ class Vector:
         assert self.arr.shape == (self.slices.total_size,)
 
     def extract(self, var: str) -> NDArray:
-        values = np.zeros(self.slices.nnodes, dtype=self.arr.dtype)
-        values[self.slices.local_all(var)] = self.arr[self.slices.all(var)]
-        return values
+        """Values of the variable, adding boundaries if needed."""
+        pos = self.slices.full_position(var)
+        if pos.collocated:
+            values = np.zeros(self.slices.nnodes, dtype=self.arr.dtype)
+            values[self.slices.collocation(pos)] = self.arr[self.slices.span(pos)]
+            return values
+        return self.arr[self.slices.span(pos)]
 
     def normalize_by(self, norm: complex) -> Vector:
         """Normalize by given value."""
@@ -103,30 +228,18 @@ class Matrix:
             dtype=self.dtype,
         )
 
-    def add_top(self, rowvar: str, colvar: str, values: NDArray) -> None:
-        g_row = self.slices.itop(rowvar)
-        g_cols = self.slices.all(colvar)
-        l_cols = self.slices.local_all(colvar)
-        self._mat[g_row, g_cols] += values[l_cols]
+    def add_term(self, row: Position, operator: NDArray, var: str) -> None:
+        """Add term to matrix.
 
-    def add_bot(self, rowvar: str, colvar: str, values: NDArray) -> None:
-        g_row = self.slices.ibot(rowvar)
-        g_cols = self.slices.all(colvar)
-        l_cols = self.slices.local_all(colvar)
-        self._mat[g_row, g_cols] += values[l_cols]
-
-    def add_all(self, rowvar: str, colvar: str, values: NDArray) -> None:
-        g_rows = self.slices.all(rowvar)
-        l_rows = self.slices.local_all(rowvar)
-        g_cols = self.slices.all(colvar)
-        l_cols = self.slices.local_all(colvar)
-        self._mat[g_rows, g_cols] += values[l_rows, l_cols]
-
-    def add_bulk(self, rowvar: str, colvar: str, values: NDArray) -> None:
-        g_rows = self.slices.bulk(rowvar)
-        g_cols = self.slices.all(colvar)
-        l_cols = self.slices.local_all(colvar)
-        self._mat[g_rows, g_cols] += values[1:-1, l_cols]
+        Operator is sliced along row and/or var (column) if the position
+        in that direction is at collocation nodes.
+        """
+        col = self.slices.full_position(var)
+        if row.collocated:
+            operator = operator[self.slices.collocation(row)]
+        if col.collocated:
+            operator = operator[..., self.slices.collocation(col)]
+        self._mat[self.slices.span(row), self.slices.span(col)] += operator
 
     def full_mat(self) -> NDArray:
         return np.copy(self._mat)
