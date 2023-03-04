@@ -470,11 +470,11 @@ class NonLinearAnalyzer:
                     meant[ii] = self.integz(prot)
                     dprot = ana.diff_mat(1) @ prot
                     qtop[ii] = -dprot[0]
-                    # if phi_top is not None and phi_bot is not None:
-                    # translation velocity possible
-                    # self.full_w0[ind] = np.real(sol[igw0])
-                    # else:
-                    self.full_w0[ind] = 0
+                    if self.phys.phi_top is not None and self.phys.phi_bot is not None:
+                        # translation velocity possible
+                        self.full_w0[ind] = np.real(sol[igw0])
+                    else:
+                        self.full_w0[ind] = 0
                 else:
                     # Only the positive power of exp(1j k x)
                     # eigva = linalg.eigvals(lmat[harmjj - 1], rmat)
