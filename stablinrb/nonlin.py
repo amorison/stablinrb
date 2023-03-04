@@ -314,18 +314,6 @@ class NonLinearAnalyzer:
                         + np.conj(wloc[tall]) * dtr[tall]
                     )
 
-    def symmetrize(self, ind: int) -> None:
-        """Make the solution symmetric with respect to z -> -z
-
-        ind: index of the mode in the full solution
-        """
-        # TYPE SAFETY: there is an implicit assumption on call order to other methods
-        # so that full_* modes are known when calling this function.
-        self.full_p[ind] = 0.5 * (self.full_p[ind] + np.flipud(self.full_p[ind]))  # type: ignore
-        self.full_u[ind] = 0.5 * (self.full_u[ind] - np.flipud(self.full_u[ind]))  # type: ignore
-        self.full_w[ind] = 0.5 * (self.full_w[ind] + np.flipud(self.full_w[ind]))  # type: ignore
-        self.full_t[ind] = 0.5 * (self.full_t[ind] + np.flipud(self.full_t[ind]))  # type: ignore
-
     def nonlinana(self) -> tuple[float, NDArray, NDArray, NDArray, NDArray]:
         """Ra2 and X2"""
         nnonlin = self.nnonlin
