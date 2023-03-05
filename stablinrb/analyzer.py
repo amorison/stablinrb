@@ -27,7 +27,7 @@ def cartesian_matrices(
 ) -> tuple[Matrix, Matrix]:
     """Build left- and right-hand-side matrices in cartesian geometry case"""
     # parameters
-    zphys = self.rad
+    zphys = self.nodes
     h_int = self.phys.h_int
     phi_top = self.phys.phi_top
     phi_bot = self.phys.phi_bot
@@ -119,7 +119,7 @@ def cartesian_matrices(
     if translation:
         # only written for Dirichlet BCs on T and without internal heating
         lmat.add_term(Bulk("T"), -wtrans * dz1, "T")
-        w_temp = np.diag(np.exp(wtrans * self.rad))
+        w_temp = np.diag(np.exp(wtrans * self.nodes))
         if np.abs(wtrans) > 1.0e-3:
             w_temp *= wtrans / (2 * np.sinh(wtrans / 2))
         else:
@@ -167,7 +167,7 @@ def spherical_matrices(
     # FIXME: delegate to a geometry-aware object
     assert isinstance(self.phys.geometry, Spherical)
     gamma = self.phys.geometry.gamma
-    rad = self.rad
+    rad = self.nodes
     dr1, dr2 = self.diff_mat(1), self.diff_mat(2)
 
     lam_r = (2 * gamma - 1) / (1 - gamma)
@@ -399,7 +399,7 @@ class LinearAnalyzer:
         )
 
     @property
-    def rad(self) -> NDArray:
+    def nodes(self) -> NDArray:
         return self._diff_mat.nodes
 
     def diff_mat(self, order: int) -> NDArray:
@@ -407,7 +407,7 @@ class LinearAnalyzer:
 
     @cached_property
     def slices(self) -> Slices:
-        return Slices(var_specs=self.phys.var_specs(), nnodes=self.rad.size)
+        return Slices(var_specs=self.phys.var_specs(), nnodes=self.nodes.size)
 
     def matrices(
         self, harm: float, ra_num: float, ra_comp: Optional[float] = None
@@ -466,7 +466,7 @@ class LinearAnalyzer:
         # FIXME: delegate those computations to a geometry-aware object
         geom = self.phys.geometry
         assert isinstance(geom, Spherical)
-        orl1 = (1 - geom.gamma) / ((1 - geom.gamma) * self.rad + 2 * geom.gamma - 1)
+        orl1 = (1 - geom.gamma) / ((1 - geom.gamma) * self.nodes + 2 * geom.gamma - 1)
         ur_mode = l_harm * (l_harm + 1) * p_mode * orl1
         up_mode = 1j * l_harm * (self.diff_mat(1) @ p_mode + p_mode * orl1)
 

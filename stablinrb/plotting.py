@@ -149,7 +149,7 @@ def plot_mode_image(
     tcond = 0.5 - zgr
 
     cheb_sampling = ChebyshevSampling(
-        degree=analyzer.rad.size - 1,
+        degree=analyzer.ncheb,
         positions=np.linspace(-1, 1, n_rad),
     )
     for i, mode in enumerate(modes):
@@ -301,7 +301,7 @@ def plot_mode_profiles(
     phitop = analyzer.phys.phi_top
     phibot = analyzer.phys.phi_bot
 
-    rad_cheb = analyzer.rad
+    rad_cheb = analyzer.nodes
 
     for i, mode in enumerate(modes):
         nord, nharm = analyzer.mode_index.ord_harm(i)
@@ -496,7 +496,7 @@ def plot_fastest_mode(
     # poloidal potential in spherical geometry
     (p_mode, u_mode, w_mode, t_mode) = analyzer.split_mode(modes, harm)
 
-    rad_cheb = analyzer.rad
+    rad_cheb = analyzer.nodes
     if spherical:
         # stream function
         psi_mode = 1.0j * harm * p_mode

@@ -113,8 +113,8 @@ class NonLinearAnalyzer:
         return self.linear_analyzer.slices
 
     @property
-    def rad(self) -> NDArray:
-        return self.linear_analyzer.rad
+    def nodes(self) -> NDArray:
+        return self.linear_analyzer.nodes
 
     def _cartesian_lmat_0(self, ra_num: float) -> Matrix:
         """LHS matrix for x-independent forcing
@@ -124,7 +124,7 @@ class NonLinearAnalyzer:
         Only the pressure, temperature and uniform vertical velocity
         are solved for
         """
-        nnodes = self.linear_analyzer.rad.size
+        nnodes = self.linear_analyzer.nodes.size
         dz1, dz2 = self.linear_analyzer.diff_mat(1), self.linear_analyzer.diff_mat(2)
         one = np.identity(nnodes)  # identity
 
