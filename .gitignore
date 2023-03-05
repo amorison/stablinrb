@@ -1,6 +1,7 @@
 /build
 /stablinrb.egg-info
 /stablinrb/_version.py
+/.tox
 
 *.pdf
 *.swp
