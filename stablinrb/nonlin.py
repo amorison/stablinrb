@@ -47,6 +47,47 @@ class ModeIndex:
         return self._oh_to_i[(order, harmonic)]
 
 
+@dataclass(frozen=True)
+class IntegralCheb:
+    """Integral on the -1/2 <= z <= 1/2 interval of profile at Chebyshev nodes."""
+
+    max_degree: int
+
+    @property
+    def nnodes(self) -> int:
+        return self.max_degree + 1
+
+    @cached_property
+    def _invcp(self) -> NDArray:
+        """Weights for integration."""
+        invcp = np.ones(self.nnodes)
+        invcp[0] = 1 / 2
+        invcp[-1] = 1 / 2
+        return invcp
+
+    @cached_property
+    def _tmat(self) -> NDArray:
+        """Matrix to get pseudo-spectrum."""
+        tmat = np.zeros((self.nnodes, self.nnodes))
+        for n in range(self.nnodes):
+            for p in range(self.nnodes):
+                tmat[n, p] = (-1) ** n * np.cos(n * p * np.pi / self.max_degree)
+        return tmat
+
+    def apply(self, prof: NDArray) -> np.complexfloating:
+        assert prof.shape == (self.nnodes,)
+        # pseudo-spectrum
+        spec = np.dot(self._tmat, prof * self._invcp)
+        spec *= 2 / self.max_degree * self._invcp
+        intz = (
+            -1
+            / 2
+            * np.sum(spec[i] * 2 / (i**2 - 1) for i in range(len(spec)) if i % 2 == 0)  # type: ignore
+        )
+        # factor 1/2 is to account for the interval -1/2 < z < 1/2
+        return intz
+
+
 @dataclass
 class NonLinearAnalyzer:
 
@@ -70,6 +111,10 @@ class NonLinearAnalyzer:
     def mode_index(self) -> ModeIndex:
         return ModeIndex(max_order=self.nnonlin + 1)
 
+    @cached_property
+    def z_integ(self) -> IntegralCheb:
+        return IntegralCheb(max_degree=self.ncheb)
+
     @property
     def slices(self) -> Slices:
         return self.linear_analyzer.slices
@@ -77,24 +122,6 @@ class NonLinearAnalyzer:
     @property
     def rad(self) -> NDArray:
         return self.linear_analyzer.rad
-
-    @cached_property
-    def _invcp(self) -> NDArray:
-        """Weights for integration."""
-        invcp = np.ones(self.ncheb + 1)
-        invcp[0] = 1 / 2
-        invcp[-1] = 1 / 2
-        return invcp
-
-    @cached_property
-    def _tmat(self) -> NDArray:
-        """Matrix to get pseudo-spectrum."""
-        ncheb = self.ncheb
-        tmat = np.zeros((ncheb + 1, ncheb + 1))
-        for n in range(ncheb + 1):
-            for p in range(ncheb + 1):
-                tmat[n, p] = (-1) ** n * np.cos(n * p * np.pi / ncheb)
-        return tmat
 
     def _cartesian_lmat_0(self, ra_num: float) -> Matrix:
         """LHS matrix for x-independent forcing
@@ -154,19 +181,6 @@ class NonLinearAnalyzer:
 
         return lmat
 
-    def integz(self, prof: NDArray) -> np.complexfloating:
-        """Integral on the -1/2 <= z <= 1/2 interval"""
-        # pseudo-spectrum
-        spec = np.dot(self._tmat, prof * self._invcp)
-        spec *= 2 / self.ncheb * self._invcp
-        intz = (
-            -1
-            / 2
-            * np.sum(spec[i] * 2 / (i**2 - 1) for i in range(len(spec)) if i % 2 == 0)  # type: ignore
-        )
-        # factor 1/2 is to account for the interval -1/2 < z < 1/2
-        return intz
-
     def dotprod(self, ord1: int, ord2: int, harm: int) -> np.complexfloating:
         """dot product of two modes in the full solution
 
@@ -189,7 +203,7 @@ class NonLinearAnalyzer:
             mode2 = self.full_sol[self.mode_index.index(ord2, harm)]
             for var in ("p", "u", "w", "T"):
                 prof = np.conj(mode1.extract(var)) * mode2.extract(var)
-                dprod += (rac if var == "T" else 1) * self.integz(prof)
+                dprod += (rac if var == "T" else 1) * self.z_integ.apply(prof)
         # Complex conjugate needed to get the full dot product. CHECK!
         # no because otherwise we loose the phase, needed to remove the contribution
         # from mode 1 in other modes
@@ -295,7 +309,7 @@ class NonLinearAnalyzer:
         t_c = mode_c.extract("T")
 
         # denominator in Ra_i
-        xcmxc = self.integz(np.real(w_c * t_c))
+        xcmxc = self.z_integ.apply(np.real(w_c * t_c))
 
         # norm of the linear mode
         norm_x1 = self.dotprod(1, 1, 1)
@@ -324,7 +338,7 @@ class NonLinearAnalyzer:
                 # <X_1|N(X_l, X_2n+1-l)>
                 # Beware: do not forget to multiply by Rac since this is
                 # the temperature part of the dot product.
-                self.ratot[ii - 1] = self.ratot[0] * self.integz(prof)
+                self.ratot[ii - 1] = self.ratot[0] * self.z_integ.apply(prof)
                 for jj in range(1, lii):
                     # only the ones in harm_c can contribute for each degree
                     ind = self.mode_index.index(2 * (lii - jj) + 1, 1)
@@ -332,7 +346,7 @@ class NonLinearAnalyzer:
                     wwloc = self.full_sol[0].extract("w")
                     ttloc = self.full_sol[ind].extract("T")
                     prof = np.real(wwloc * ttloc)
-                    self.ratot[ii - 1] += self.ratot[2 * jj] * self.integz(prof)
+                    self.ratot[ii - 1] += self.ratot[2 * jj] * self.z_integ.apply(prof)
                 self.ratot[ii - 1] /= xcmxc
 
             # add mterm to nterm to get rhs
@@ -379,7 +393,7 @@ class NonLinearAnalyzer:
                     # compute coefficient ii in meant
                     # factor to account for the complex conjugate
                     prot = 2 * np.real(sol.extract("T"))
-                    meant[ii] = self.integz(prot)
+                    meant[ii] = self.z_integ.apply(prot)
                     dprot = ana.diff_mat(1) @ prot
                     qtop[ii] = -dprot[0]
                     if self.phys.phi_top is not None and self.phys.phi_bot is not None:
