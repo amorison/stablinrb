@@ -226,6 +226,7 @@ class NonLinearAnalyzer:
             tloc = self.full_sol[indri].extract("T")
             dtr = self.linear_analyzer.diff_mat(1) @ tloc
             for ll in range(lle + 1):
+                factor = 1j * harm * (2 * lr + yri)
                 # index for the left mode in matrix
                 indle = self.mode_index.index(mle, 2 * ll + yle)
                 # index for nmo and ll+lr
@@ -234,26 +235,17 @@ class NonLinearAnalyzer:
 
                 uloc = self.full_sol[indle].extract("u")
                 wloc = self.full_sol[indle].extract("w")
-                ntermt = 1j * harm * (2 * lr + yri) * uloc * tloc + wloc * dtr
+                ntermt = factor * uloc * tloc + wloc * dtr
                 # FIXME: in-place modification of ntermt
                 self.nterm[iind].arr[self.slices.span(All("T"))] += ntermt[tall]
 
                 # index for nmo and ll-lr
                 nharmm = 2 * (ll - lr) + yle - yri
                 iind = self.mode_index.index(nmo, abs(nharmm))
-                if nharmm > 0:
-                    ntermt = -1j * harm * (2 * lr + yri) * uloc * np.conj(
-                        tloc
-                    ) + wloc * np.conj(dtr)
-                elif nharmm == 0:
-                    ntermt = -1j * harm * (2 * lr + yri) * uloc * np.conj(
-                        tloc
-                    ) + wloc * np.conj(dtr)
+                if nharmm >= 0:
+                    ntermt = -factor * uloc * np.conj(tloc) + wloc * np.conj(dtr)
                 else:
-                    ntermt = (
-                        1j * harm * (2 * lr + yri) * np.conj(uloc) * tloc
-                        + np.conj(wloc) * dtr
-                    )
+                    ntermt = factor * np.conj(uloc) * tloc + np.conj(wloc) * dtr
                 # FIXME: in-place modification of ntermt
                 self.nterm[iind].arr[self.slices.span(All("T"))] += ntermt[tall]
 
