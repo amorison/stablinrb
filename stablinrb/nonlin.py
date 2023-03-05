@@ -78,17 +78,6 @@ class NonLinearAnalyzer:
     def rad(self) -> NDArray:
         return self.linear_analyzer.rad
 
-    def _insert_boundaries(self, mode: NDArray, im0: int, imn: int) -> NDArray:
-        """Insert zero at boundaries of mode if needed
-
-        This need to be done when Dirichlet BCs are applied
-        """
-        if im0 == 1:
-            mode = np.insert(mode, [0], [0])
-        if imn == self.ncheb - 1:
-            mode = np.append(mode, 0)
-        return mode
-
     @cached_property
     def _invcp(self) -> NDArray:
         """Weights for integration."""
@@ -228,7 +217,7 @@ class NonLinearAnalyzer:
         (lri, yri) = divmod(mri, 2)
         # compute the sum
         # TYPE SAFETY: there is an implicit assumption on call order to other methods
-        # so that ntermt and full_* modes are known when calling this function.
+        # so that nterm and full_* modes are known when calling this function.
         for lr in range(lri + 1):
             # outer loop on the right one to avoid computing
             # radial derivative several times
@@ -245,36 +234,32 @@ class NonLinearAnalyzer:
 
                 uloc = self.full_sol[indle].extract("u")
                 wloc = self.full_sol[indle].extract("w")
-                self.ntermt[iind] += (  # type: ignore
-                    1j * harm * (2 * lr + yri) * uloc * tloc + wloc * dtr
-                )[tall]
+                ntermt = 1j * harm * (2 * lr + yri) * uloc * tloc + wloc * dtr
+                # FIXME: in-place modification of ntermt
+                self.nterm[iind].arr[self.slices.span(All("T"))] += ntermt[tall]
+
                 # index for nmo and ll-lr
                 nharmm = 2 * (ll - lr) + yle - yri
                 iind = self.mode_index.index(nmo, abs(nharmm))
                 if nharmm > 0:
-                    self.ntermt[iind] += (
-                        -1j * harm * (2 * lr + yri) * uloc * np.conj(tloc)
-                        + wloc * np.conj(dtr)
-                    )[tall]
+                    ntermt = -1j * harm * (2 * lr + yri) * uloc * np.conj(
+                        tloc
+                    ) + wloc * np.conj(dtr)
                 elif nharmm == 0:
-                    self.ntermt[iind] += (
-                        -1j * harm * (2 * lr + yri) * uloc * np.conj(tloc)
-                        + wloc * np.conj(dtr)
-                    )[tall]
+                    ntermt = -1j * harm * (2 * lr + yri) * uloc * np.conj(
+                        tloc
+                    ) + wloc * np.conj(dtr)
                 else:
-                    self.ntermt[iind] += (  # type: ignore
+                    ntermt = (
                         1j * harm * (2 * lr + yri) * np.conj(uloc) * tloc
                         + np.conj(wloc) * dtr
-                    )[tall]
+                    )
+                # FIXME: in-place modification of ntermt
+                self.nterm[iind].arr[self.slices.span(All("T"))] += ntermt[tall]
 
     def nonlinana(self) -> tuple[float, NDArray, list[Vector], NDArray, NDArray]:
         """Ra2 and X2"""
         nnonlin = self.nnonlin
-        # global indices and slices
-        # FIXME: use Vector and Matrix to avoid manipulating those by hand
-        tgall = self.slices.span(All("T"))
-        it0 = self.slices.collocation(All("T")).start
-        itn = self.slices.collocation(All("T")).stop - 1
 
         # First compute the linear mode and matrix
         ana = self.linear_analyzer
@@ -291,11 +276,15 @@ class NonLinearAnalyzer:
             for _ in range(nmodes)
         ]
         self.full_w0 = np.zeros(nmodes)  # translation velocity
-        self.nterm = np.zeros((nmodes, nnodes), dtype=np.complex128)
-        self.rhs = np.zeros_like(self.nterm)
-
-        # temperature part, the only non-null one in the non-linear term
-        self.ntermt = self.nterm[:, tgall]
+        # non-linear term, only the temperature part is non-null
+        self.nterm = [
+            Vector(slices=self.slices, arr=np.zeros(nnodes, dtype=np.complex128))
+            for _ in range(nmodes)
+        ]
+        rhs = [
+            Vector(slices=self.slices, arr=np.zeros(nnodes, dtype=np.complex128))
+            for _ in range(nmodes)
+        ]
         # the suite of Rayleigh numbers
         self.ratot = np.zeros(nnonlin + 1)
         self.ratot[0] = ra_c
@@ -338,7 +327,7 @@ class NonLinearAnalyzer:
                 ind = self.mode_index.index(ii, 1)
                 prof = np.real(
                     self.full_sol[0].extract("T")
-                    * self._insert_boundaries(np.conj(self.ntermt[ind]), it0, itn)
+                    * np.conj(self.nterm[ind].extract("T"))
                 )
                 # <X_1|N(X_l, X_2n+1-l)>
                 # Beware: do not forget to multiply by Rac since this is
@@ -357,7 +346,8 @@ class NonLinearAnalyzer:
             # add mterm to nterm to get rhs
             imin = self.mode_index.index(ii, yii)
             imax = self.mode_index.index(ii, ii)
-            self.rhs[imin : imax + 1] = self.nterm[imin : imax + 1]
+            for irhs in range(imin, imax + 1):
+                rhs[irhs] = self.nterm[irhs]
             jmax = lii if yii == 0 else lii + 1
             for jj in range(2, jmax, 2):
                 # jj is index for Ra
@@ -368,7 +358,7 @@ class NonLinearAnalyzer:
                     temp_mode = self.full_sol[indjj].extract("T")
                     # FIXME: handling of boundaries?
                     wgint = self.slices.span(Bulk("w"))
-                    self.rhs[indjj, wgint] -= self.ratot[jj] * temp_mode[1:-1]
+                    rhs[indjj].arr[wgint] -= self.ratot[jj] * temp_mode[1:-1]
 
             # note that rhs contains only the positive harmonics of the total rhs
             # which contains an additional complex conjugate. Therefore, the solution
@@ -384,7 +374,10 @@ class NonLinearAnalyzer:
                 if harmjj == 0:  # special treatment for 0 modes.
                     # should be possible to avoid the use of a rhs0
                     rhs0 = np.zeros(lmat0.slices.total_size, dtype=np.complex128)
-                    rhs0[lmat0.slices.span(All("T"))] = self.rhs[ind, tgall]
+                    # FIXME: handling of boundaries?  These don't necessarily match.
+                    rhs0[lmat0.slices.span(All("T"))] = rhs[ind].arr[
+                        self.slices.span(All("T"))
+                    ]
 
                     sol = Vector(slices=lmat0.slices, arr=solve(lmat0.array(), rhs0))
                     # FIXME: how to handle boundaries?  Potentially,
@@ -410,7 +403,7 @@ class NonLinearAnalyzer:
                         # matrix is singular. Solve using least square
                         sol_arr[:] = lstsq(
                             lmat[harmjj - 1],
-                            self.rhs[ind],
+                            rhs[ind].arr,
                             rcond=None,
                         )[0]
                         # remove the contribution proportional to X1, if it exists
@@ -418,6 +411,6 @@ class NonLinearAnalyzer:
                             dp1 = self.dotprod(1, ii, 1)
                             sol_arr[:] -= dp1 / norm_x1 * self.full_sol[0].arr
                     else:
-                        sol_arr[:] = solve(lmat[harmjj - 1], self.rhs[ind])
+                        sol_arr[:] = solve(lmat[harmjj - 1], rhs[ind].arr)
 
         return harm_c, self.ratot, self.full_sol, meant, qtop
