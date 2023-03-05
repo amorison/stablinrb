@@ -81,7 +81,7 @@ class IntegralCheb:
         return -1 / 2 * np.sum(spec[::2] * 2 / (indices**2 - 1))
 
 
-@dataclass
+@dataclass(frozen=True)
 class NonLinearAnalyzer:
 
     """Weakly non-linear analysis.
@@ -174,7 +174,7 @@ class NonLinearAnalyzer:
 
         return lmat
 
-    def dotprod(
+    def _dotprod(
         self, rac: float, full_sol: list[Vector], ord1: int, ord2: int, harm: int
     ) -> np.complexfloating:
         """dot product of two modes in the full solution
@@ -201,7 +201,7 @@ class NonLinearAnalyzer:
         # from mode 1 in other modes
         return dprod  # + np.conj(dprod)
 
-    def ntermprod(
+    def _ntermprod(
         self,
         full_sol: list[Vector],
         nterm: list[Vector],
@@ -260,7 +260,8 @@ class NonLinearAnalyzer:
                 # FIXME: in-place modification of ntermt
                 nterm[iind].arr[self.slices.span(All("T"))] += ntermt[tall]
 
-    def nonlinana(self) -> tuple[float, NDArray, list[Vector], NDArray, NDArray]:
+    @cached_property
+    def _nonlinana(self) -> tuple[float, NDArray, list[Vector], NDArray, NDArray]:
         """Ra2 and X2"""
         nnonlin = self.nnonlin
 
@@ -309,7 +310,7 @@ class NonLinearAnalyzer:
         xcmxc = self.z_integ.apply(np.real(w_c * t_c))
 
         # norm of the linear mode
-        norm_x1 = self.dotprod(ratot[0], full_sol, 1, 1, 1)
+        norm_x1 = self._dotprod(ratot[0], full_sol, 1, 1, 1)
 
         lmat = np.zeros((nnonlin + 1, nnodes, nnodes), dtype=np.complex128)
         lmat0 = self._cartesian_lmat_0(ra_c)
@@ -321,7 +322,7 @@ class NonLinearAnalyzer:
             (lii, yii) = divmod(ii, 2)
             # compute the N terms
             for ll in range(1, ii):
-                self.ntermprod(full_sol, nterm, ll, ii - ll, harm_c)
+                self._ntermprod(full_sol, nterm, ll, ii - ll, harm_c)
 
             # compute Ra_{ii-1} if ii is odd (otherwise keep it 0).
             if yii == 1:
@@ -410,9 +411,34 @@ class NonLinearAnalyzer:
                         )[0]
                         # remove the contribution proportional to X1, if it exists
                         for jj in range(2):
-                            dp1 = self.dotprod(ratot[0], full_sol, 1, ii, 1)
+                            dp1 = self._dotprod(ratot[0], full_sol, 1, ii, 1)
                             sol_arr[:] -= dp1 / norm_x1 * full_sol[0].arr
                     else:
                         sol_arr[:] = solve(lmat[harmjj - 1], rhs[ind].arr)
 
         return harm_c, ratot, full_sol, meant, qtop
+
+    @property
+    def harm_c(self) -> float:
+        """Critical linear mode."""
+        return self._nonlinana[0]
+
+    @property
+    def ratot(self) -> NDArray:
+        """Coefficients of development in Rayleigh."""
+        return self._nonlinana[1]
+
+    @property
+    def all_modes(self) -> list[Vector]:
+        """Harmonic modes."""
+        return self._nonlinana[2]
+
+    @property
+    def meant(self) -> NDArray:
+        """Coefficients for the mean temperature."""
+        return self._nonlinana[3]
+
+    @property
+    def qtop(self) -> NDArray:
+        """Coefficients for the heat flux at the top."""
+        return self._nonlinana[4]

@@ -12,7 +12,6 @@ from mpl_toolkits.axes_grid1 import make_axes_locatable
 from scipy.special import sph_harm
 
 from .geometry import Spherical
-from .matrix import Vector
 from .misc import normalize
 
 if typing.TYPE_CHECKING:
@@ -105,8 +104,6 @@ def image_mode(
 
 def plot_mode_image(
     analyzer: NonLinearAnalyzer,
-    modes: list[Vector],
-    harm: float,
     eps: float = 1,
     name: Optional[str] = None,
     plot_ords: bool = False,
@@ -117,7 +114,6 @@ def plot_mode_image(
     Used also for non-linear solutions, only in cartesian for now
     inputs:
     analyser: holding all numerical and physical parameters
-    harm: wavenumber of the mode
     eps: epsilon value for the non-linear mode
     plot_ords: if True, plots individual modes on separate figures, in addition to the full solution
     """
@@ -139,6 +135,7 @@ def plot_mode_image(
     w2dl = np.zeros((n_rad, n_phi))
 
     rad = np.linspace(-1 / 2, 1 / 2, n_rad)
+    harm = analyzer.harm_c
 
     # 2D cartesian box
     # make a version with the total temperature
@@ -152,7 +149,7 @@ def plot_mode_image(
         degree=analyzer.ncheb,
         positions=np.linspace(-1, 1, n_rad),
     )
-    for i, mode in enumerate(modes):
+    for i, mode in enumerate(analyzer.all_modes):
         nord, nharm = analyzer.mode_index.ord_harm(i)
 
         (p_mode, u_mode, w_mode, t_mode) = analyzer.linear_analyzer.split_mode(
@@ -290,8 +287,6 @@ def u22(rad: NDArray, phi: float) -> tuple[NDArray, NDArray]:
 
 def plot_mode_profiles(
     analyzer: NonLinearAnalyzer,
-    modes: list[Vector],
-    harm: float,
     name: Optional[str] = None,
     plot_theory: bool = False,
 ) -> None:
@@ -302,8 +297,9 @@ def plot_mode_profiles(
     phibot = analyzer.phys.phi_bot
 
     rad_cheb = analyzer.nodes
+    harm = analyzer.harm_c
 
-    for i, mode in enumerate(modes):
+    for i, mode in enumerate(analyzer.all_modes):
         nord, nharm = analyzer.mode_index.ord_harm(i)
         (p_mode, u_mode, w_mode, t_mode) = analyzer.linear_analyzer.split_mode(
             mode, harm

@@ -41,9 +41,11 @@ pblm = PhysicalProblem(
 )
 
 ana = NonLinearAnalyzer(pblm, ncheb=30, nnonlin=2)
-harm_c, ray, mode, moyt, qtop = ana.nonlinana()
+ray = ana.ratot
+qtop = ana.qtop
+moyt = ana.meant
 
-print("Critical wavenumber kc = ", harm_c)
+print("Critical wavenumber kc = ", ana.harm_c)
 print("Coefficients of development in Rayleigh = ", ray)
 coef_nu = ray[0] * qtop[2] / ray[2]
 print("Nusselt  = 1 + %.2f (Ra - Rc) / Rc" % (coef_nu))
@@ -54,7 +56,7 @@ print("Mean temperature = 0.5 + %.2f (Ra - Rc) / Rc" % (coef_t))
 # plot the solution for a given finite value of the reduced Rayleigh number
 epsmax = 5.58
 print("Plotting the temperature and velocity for Ra = %.2f" % (ray[0] * (1 + epsmax)))
-stabplt.plot_mode_image(ana, mode, harm_c, eps=epsmax, plot_ords=False)
+stabplt.plot_mode_image(ana, eps=epsmax, plot_ords=False)
 
 # plot Nusselt number and mean temperature as function of the Rayleigh number
 nterms = qtop.shape[0]
