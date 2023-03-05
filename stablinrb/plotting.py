@@ -105,7 +105,7 @@ def image_mode(
 
 def plot_mode_image(
     analyzer: NonLinearAnalyzer,
-    mode: NDArray,
+    modes: list[Vector],
     harm: float,
     eps: float = 1,
     name: Optional[str] = None,
@@ -148,18 +148,15 @@ def plot_mode_image(
     # conduction solution
     tcond = 0.5 - zgr
 
-    nmodes = mode.shape[0]
-
     cheb_sampling = ChebyshevSampling(
         degree=analyzer.rad.size - 1,
         positions=np.linspace(-1, 1, n_rad),
     )
-    for i in range(nmodes):
+    for i, mode in enumerate(modes):
         nord, nharm = analyzer.mode_index.ord_harm(i)
 
-        mode_vec = Vector(slices=analyzer.slices, arr=mode[i])
         (p_mode, u_mode, w_mode, t_mode) = analyzer.linear_analyzer.split_mode(
-            mode_vec, harm
+            mode, harm
         )
 
         # interpolate and normalize according to vertical velocity
@@ -293,7 +290,7 @@ def u22(rad: NDArray, phi: float) -> tuple[NDArray, NDArray]:
 
 def plot_mode_profiles(
     analyzer: NonLinearAnalyzer,
-    mode: NDArray,
+    modes: list[Vector],
     harm: float,
     name: Optional[str] = None,
     plot_theory: bool = False,
@@ -305,13 +302,11 @@ def plot_mode_profiles(
     phibot = analyzer.phys.phi_bot
 
     rad_cheb = analyzer.rad
-    nmodes = mode.shape[0]
 
-    for i in range(nmodes):
+    for i, mode in enumerate(modes):
         nord, nharm = analyzer.mode_index.ord_harm(i)
-        mode_vec = Vector(slices=analyzer.slices, arr=mode[i])
         (p_mode, u_mode, w_mode, t_mode) = analyzer.linear_analyzer.split_mode(
-            mode_vec, harm
+            mode, harm
         )
 
         fig, axe = plt.subplots(1, 4, sharey=True)

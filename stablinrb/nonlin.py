@@ -165,7 +165,7 @@ class NonLinearAnalyzer:
 
         return lmat
 
-    def integz(self, prof: NDArray) -> NDArray:
+    def integz(self, prof: NDArray) -> np.complexfloating:
         """Integral on the -1/2 <= z <= 1/2 interval"""
         # pseudo-spectrum
         spec = np.dot(self._tmat, prof * self._invcp)
@@ -178,7 +178,7 @@ class NonLinearAnalyzer:
         # factor 1/2 is to account for the interval -1/2 < z < 1/2
         return intz
 
-    def dotprod(self, ord1: int, ord2: int, harm: int) -> NDArray:
+    def dotprod(self, ord1: int, ord2: int, harm: int) -> np.complexfloating:
         """dot product of two modes in the full solution
 
         serves to remove the first order solution from any mode
@@ -191,37 +191,16 @@ class NonLinearAnalyzer:
         """
         # TYPE SAFETY: there is an implicit assumption on call order to other methods
         # so that ratot and full_* modes are known when calling this function.
-        rac = self.ratot[0]  # type: ignore
+        dprod = np.complex128(0.0)
 
-        # get indices
-        pall = self.slices.collocation(All("p"))
-        uall = self.slices.collocation(All("u"))
-        wall = self.slices.collocation(All("w"))
-        tall = self.slices.collocation(All("T"))
-
-        if (ord1 % 2 == 0 and ord2 % 2 == 0) or (ord1 % 2 == 1 and ord2 % 2 == 1):
-            # create local profiles
-            prof = np.zeros(self.slices.nnodes, dtype=np.complex64)
-            # get indices in the global matrix
-            ind1 = self.mode_index.index(ord1, harm)
-            ind2 = self.mode_index.index(ord2, harm)
-            # pressure part
-            prof[pall] = np.conj(self.full_p[ind1]) * self.full_p[ind2]  # type: ignore
-            dprod = self.integz(prof)
-            # horizontal velocity part
-            prof.fill(0)
-            prof[uall] = np.conj(self.full_u[ind1]) * self.full_u[ind2]  # type: ignore
-            dprod += self.integz(prof)
-            # vertical velocity part
-            prof.fill(0)
-            prof[wall] = np.conj(self.full_w[ind1]) * self.full_w[ind2]  # type: ignore
-            dprod += self.integz(prof)
-            # temperature part
-            prof.fill(0)
-            prof[tall] = np.conj(self.full_t[ind1]) * self.full_t[ind2]  # type: ignore
-            dprod += rac * self.integz(prof)
-        else:
-            dprod = np.asarray(0)
+        if ord1 % 2 == ord2 % 2:
+            rac = self.ratot[0]
+            # get both harmonics indices
+            mode1 = self.full_sol[self.mode_index.index(ord1, harm)]
+            mode2 = self.full_sol[self.mode_index.index(ord2, harm)]
+            for var in ("p", "u", "w", "T"):
+                prof = np.conj(mode1.extract(var)) * mode2.extract(var)
+                dprod += (rac if var == "T" else 1) * self.integz(prof)
         # Complex conjugate needed to get the full dot product. CHECK!
         # no because otherwise we loose the phase, needed to remove the contribution
         # from mode 1 in other modes
@@ -236,14 +215,11 @@ class NonLinearAnalyzer:
         ordered by wavenumber
         """
         # get indices
-        uall = self.slices.collocation(All("u"))
-        wall = self.slices.collocation(All("w"))
         tall = self.slices.collocation(All("T"))
 
         # create local profiles
         uloc = np.zeros(self.slices.nnodes, dtype=np.complex64)
         wloc = np.zeros_like(uloc)
-        tloc = np.zeros_like(uloc)
 
         # order of the produced mode
         nmo = mle + mri
@@ -258,7 +234,7 @@ class NonLinearAnalyzer:
             # radial derivative several times
             # index for the right mode in matrix
             indri = self.mode_index.index(mri, 2 * lr + yri)
-            tloc[tall] = self.full_t[indri]  # type: ignore
+            tloc = self.full_sol[indri].extract("T")
             dtr = self.linear_analyzer.diff_mat(1) @ tloc
             for ll in range(lle + 1):
                 # index for the left mode in matrix
@@ -266,56 +242,37 @@ class NonLinearAnalyzer:
                 # index for nmo and ll+lr
                 nharmm = 2 * (ll + lr) + yle + yri
                 iind = self.mode_index.index(nmo, nharmm)
-                # reduce to shape of t
-                uloc[uall] = self.full_u[indle]  # type: ignore
-                wloc[wall] = self.full_w[indle]  # type: ignore
+
+                uloc = self.full_sol[indle].extract("u")
+                wloc = self.full_sol[indle].extract("w")
                 self.ntermt[iind] += (  # type: ignore
-                    1j * harm * (2 * lr + yri) * uloc[tall] * tloc[tall]
-                    + wloc[tall] * dtr[tall]
-                )
+                    1j * harm * (2 * lr + yri) * uloc * tloc + wloc * dtr
+                )[tall]
                 # index for nmo and ll-lr
                 nharmm = 2 * (ll - lr) + yle - yri
                 iind = self.mode_index.index(nmo, abs(nharmm))
                 if nharmm > 0:
-                    self.ntermt[iind] += -1j * harm * (2 * lr + yri) * uloc[  # type: ignore
-                        tall
-                    ] * np.conj(
-                        tloc[tall]
-                    ) + wloc[
-                        tall
-                    ] * np.conj(
-                        dtr[tall]
-                    )
+                    self.ntermt[iind] += (
+                        -1j * harm * (2 * lr + yri) * uloc * np.conj(tloc)
+                        + wloc * np.conj(dtr)
+                    )[tall]
                 elif nharmm == 0:
-                    self.ntermt[iind] += -1j * harm * (2 * lr + yri) * uloc[  # type: ignore
-                        tall
-                    ] * np.conj(
-                        tloc[tall]
-                    ) + wloc[
-                        tall
-                    ] * np.conj(
-                        dtr[tall]
-                    )
+                    self.ntermt[iind] += (
+                        -1j * harm * (2 * lr + yri) * uloc * np.conj(tloc)
+                        + wloc * np.conj(dtr)
+                    )[tall]
                 else:
                     self.ntermt[iind] += (  # type: ignore
-                        1j * harm * (2 * lr + yri) * np.conj(uloc[tall]) * tloc[tall]
-                        + np.conj(wloc[tall]) * dtr[tall]
-                    )
+                        1j * harm * (2 * lr + yri) * np.conj(uloc) * tloc
+                        + np.conj(wloc) * dtr
+                    )[tall]
 
-    def nonlinana(self) -> tuple[float, NDArray, NDArray, NDArray, NDArray]:
+    def nonlinana(self) -> tuple[float, NDArray, list[Vector], NDArray, NDArray]:
         """Ra2 and X2"""
         nnonlin = self.nnonlin
         # global indices and slices
         # FIXME: use Vector and Matrix to avoid manipulating those by hand
-        pgall = self.slices.span(All("p"))
-        ugall = self.slices.span(All("u"))
-        wgall = self.slices.span(All("w"))
         tgall = self.slices.span(All("T"))
-        pgint = self.slices.span(Bulk("p"))
-        wgint = self.slices.span(Bulk("w"))
-        tgint = self.slices.span(Bulk("T"))
-        iw0 = self.slices.collocation(All("w")).start
-        iwn = self.slices.collocation(All("w")).stop - 1
         it0 = self.slices.collocation(All("T")).start
         itn = self.slices.collocation(All("T")).stop - 1
 
@@ -329,14 +286,13 @@ class NonLinearAnalyzer:
 
         # setup matrices for the non linear solution
         nmodes = self.mode_index.n_harmonics
-        self.full_sol = np.zeros((nmodes, nnodes), dtype=np.complex128)
-        self.full_p = self.full_sol[:, pgall]
-        self.full_u = self.full_sol[:, ugall]
-        self.full_w = self.full_sol[:, wgall]
-        self.full_t = self.full_sol[:, tgall]
+        self.full_sol = [
+            Vector(slices=self.slices, arr=np.zeros(nnodes, dtype=np.complex128))
+            for _ in range(nmodes)
+        ]
         self.full_w0 = np.zeros(nmodes)  # translation velocity
-        self.nterm = np.zeros_like(self.full_sol)
-        self.rhs = np.zeros_like(self.full_sol)
+        self.nterm = np.zeros((nmodes, nnodes), dtype=np.complex128)
+        self.rhs = np.zeros_like(self.nterm)
 
         # temperature part, the only non-null one in the non-linear term
         self.ntermt = self.nterm[:, tgall]
@@ -353,7 +309,7 @@ class NonLinearAnalyzer:
 
         # devide by 2 to get the same value as for a sin, cos representation.
         mode_c = mode_c.normalize_by(2)
-        self.full_sol[0] = mode_c.arr
+        self.full_sol[0] = mode_c
         w_c = mode_c.extract("w")
         t_c = mode_c.extract("T")
 
@@ -380,8 +336,9 @@ class NonLinearAnalyzer:
                 # only term in harm_c from nterm contributes
                 # nterm already summed by harmonics.
                 ind = self.mode_index.index(ii, 1)
-                prof = self._insert_boundaries(
-                    np.real(self.full_t[0] * np.conj(self.ntermt[ind])), it0, itn
+                prof = np.real(
+                    self.full_sol[0].extract("T")
+                    * self._insert_boundaries(np.conj(self.ntermt[ind]), it0, itn)
                 )
                 # <X_1|N(X_l, X_2n+1-l)>
                 # Beware: do not forget to multiply by Rac since this is
@@ -391,8 +348,8 @@ class NonLinearAnalyzer:
                     # only the ones in harm_c can contribute for each degree
                     ind = self.mode_index.index(2 * (lii - jj) + 1, 1)
                     # + sign because denominator takes the minus.
-                    wwloc = self._insert_boundaries(self.full_w[0], iw0, iwn)
-                    ttloc = self._insert_boundaries(self.full_t[ind], it0, itn)
+                    wwloc = self.full_sol[0].extract("w")
+                    ttloc = self.full_sol[ind].extract("T")
                     prof = np.real(wwloc * ttloc)
                     self.ratot[ii - 1] += self.ratot[2 * jj] * self.integz(prof)
                 self.ratot[ii - 1] /= xcmxc
@@ -408,7 +365,10 @@ class NonLinearAnalyzer:
                 (lmx, ymx) = divmod(ii - jj, 2)
                 for kk in range(lmx + 1):
                     indjj = self.mode_index.index(ii, 2 * kk + ymx)
-                    self.rhs[indjj, wgint] -= self.ratot[jj] * self.full_t[indjj]
+                    temp_mode = self.full_sol[indjj].extract("T")
+                    # FIXME: handling of boundaries?
+                    wgint = self.slices.span(Bulk("w"))
+                    self.rhs[indjj, wgint] -= self.ratot[jj] * temp_mode[1:-1]
 
             # note that rhs contains only the positive harmonics of the total rhs
             # which contains an additional complex conjugate. Therefore, the solution
@@ -419,14 +379,18 @@ class NonLinearAnalyzer:
                 # index to fill in: same parity as ii
                 harmjj = 2 * jj + yii
                 ind = self.mode_index.index(ii, harmjj)
+                # FIXME: full_sol is modified in place
+                sol_arr = self.full_sol[ind].arr
                 if harmjj == 0:  # special treatment for 0 modes.
                     # should be possible to avoid the use of a rhs0
                     rhs0 = np.zeros(lmat0.slices.total_size, dtype=np.complex128)
                     rhs0[lmat0.slices.span(All("T"))] = self.rhs[ind, tgall]
 
                     sol = Vector(slices=lmat0.slices, arr=solve(lmat0.array(), rhs0))
-                    self.full_sol[ind, pgint] = sol.extract("p")[1:-1]
-                    self.full_sol[ind, tgint] = sol.extract("T")[1:-1]
+                    # FIXME: how to handle boundaries?  Potentially,
+                    # sol has boundary points that full_sol hasn't
+                    sol_arr[self.slices.span(Bulk("p"))] = sol.extract("p")[1:-1]
+                    sol_arr[self.slices.span(Bulk("T"))] = sol.extract("T")[1:-1]
                     # compute coefficient ii in meant
                     # factor to account for the complex conjugate
                     prot = 2 * np.real(sol.extract("T"))
@@ -444,14 +408,16 @@ class NonLinearAnalyzer:
                     # print('harm, eig lmat0 =', harmjj, np.sort(np.real(eigva)))
                     if harmjj == 1:
                         # matrix is singular. Solve using least square
-                        self.full_sol[ind] = lstsq(
-                            lmat[harmjj - 1], self.rhs[ind], rcond=None
+                        sol_arr[:] = lstsq(
+                            lmat[harmjj - 1],
+                            self.rhs[ind],
+                            rcond=None,
                         )[0]
                         # remove the contribution proportional to X1, if it exists
                         for jj in range(2):
                             dp1 = self.dotprod(1, ii, 1)
-                            self.full_sol[ind] -= dp1 / norm_x1 * self.full_sol[0]
+                            sol_arr[:] -= dp1 / norm_x1 * self.full_sol[0].arr
                     else:
-                        self.full_sol[ind] = solve(lmat[harmjj - 1], self.rhs[ind])
+                        sol_arr[:] = solve(lmat[harmjj - 1], self.rhs[ind])
 
         return harm_c, self.ratot, self.full_sol, meant, qtop
