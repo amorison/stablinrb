@@ -68,24 +68,17 @@ class IntegralCheb:
     @cached_property
     def _tmat(self) -> NDArray:
         """Matrix to get pseudo-spectrum."""
-        tmat = np.zeros((self.nnodes, self.nnodes))
-        for n in range(self.nnodes):
-            for p in range(self.nnodes):
-                tmat[n, p] = (-1) ** n * np.cos(n * p * np.pi / self.max_degree)
-        return tmat
+        n, p = np.meshgrid(range(self.nnodes), range(self.nnodes), indexing="ij")
+        return (-1) ** n * np.cos(n * p * np.pi / self.max_degree)
 
     def apply(self, prof: NDArray) -> np.complexfloating:
         assert prof.shape == (self.nnodes,)
         # pseudo-spectrum
-        spec = np.dot(self._tmat, prof * self._invcp)
+        spec = self._tmat @ (prof * self._invcp)
         spec *= 2 / self.max_degree * self._invcp
-        intz = (
-            -1
-            / 2
-            * np.sum(spec[i] * 2 / (i**2 - 1) for i in range(len(spec)) if i % 2 == 0)  # type: ignore
-        )
+        indices = np.arange(0, self.nnodes, 2)
         # factor 1/2 is to account for the interval -1/2 < z < 1/2
-        return intz
+        return -1 / 2 * np.sum(spec[::2] * 2 / (indices**2 - 1))
 
 
 @dataclass
