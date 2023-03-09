@@ -131,14 +131,13 @@ class NonLinearAnalyzer:
         # only in that case a translating vertical velocity is possible
         solve_for_w = self.phys.phi_top is not None and self.phys.phi_bot is not None
 
+        assert self.phys.temperature is not None
         var_specs: list[VarSpec] = [
             Field(var="p", include_top=solve_for_w, include_bot=solve_for_w),
             Field(
                 var="T",
-                include_top=self.phys.heat_flux_top is not None
-                or self.phys.biot_top is not None,
-                include_bot=self.phys.heat_flux_bot is not None
-                or self.phys.biot_bot is not None,
+                include_top=self.phys.temperature.top_in_pert_eq(),
+                include_bot=self.phys.temperature.bot_in_pert_eq(),
             ),
         ]
         if solve_for_w:

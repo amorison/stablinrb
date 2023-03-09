@@ -10,7 +10,7 @@ from scipy.optimize import brentq
 from .matrix import Bot, Bulk, Field, Matrix, Slices, Top
 
 if typing.TYPE_CHECKING:
-    from typing import Callable, Optional, Sequence, Union
+    from typing import Callable, Optional, Sequence
 
     from numpy.typing import NDArray
 
@@ -96,11 +96,7 @@ class ScalarField(ABC):
         ...
 
     @abstractmethod
-    def add_top(self, var: str, mat: Matrix, operators: RadialOperators) -> None:
-        ...
-
-    @abstractmethod
-    def add_bot(self, var: str, mat: Matrix, operators: RadialOperators) -> None:
+    def add_bcs(self, var: str, mat: Matrix, operators: RadialOperators) -> None:
         ...
 
 
@@ -129,11 +125,9 @@ class DiffusiveField(ScalarField):
     def bot_in_pert_eq(self) -> bool:
         return self.bcs_bot.include_in_pert_eq()
 
-    def add_top(self, var: str, mat: Matrix, operators: RadialOperators) -> None:
+    def add_bcs(self, var: str, mat: Matrix, operators: RadialOperators) -> None:
         if self.bcs_top.include_in_pert_eq():
             self.bcs_top.add_top(var, mat, operators)
-
-    def add_bot(self, var: str, mat: Matrix, operators: RadialOperators) -> None:
         if self.bcs_bot.include_in_pert_eq():
             self.bcs_bot.add_bot(var, mat, operators)
 
@@ -153,11 +147,9 @@ class ArbitraryField(ScalarField):
     def bot_in_pert_eq(self) -> bool:
         return self.bcs_bot.include_in_pert_eq()
 
-    def add_top(self, var: str, mat: Matrix, operators: RadialOperators) -> None:
+    def add_bcs(self, var: str, mat: Matrix, operators: RadialOperators) -> None:
         if self.bcs_top.include_in_pert_eq():
             self.bcs_top.add_top(var, mat, operators)
-
-    def add_bot(self, var: str, mat: Matrix, operators: RadialOperators) -> None:
         if self.bcs_bot.include_in_pert_eq():
             self.bcs_bot.add_bot(var, mat, operators)
 
@@ -166,10 +158,6 @@ class ArbitraryField(ScalarField):
 class PhysicalProblem:
     """Description of the physical problem.
 
-    grad_ref_temperature (spherical only): can be an arbitrary function of
-        the radius. If set to 'conductive', the conductive temperature
-        profile is used. If set to None, all temperature effects are
-        switched off.
     lewis: Lewis number if finite
     composition: reference compositional profile if Le->infinity
 
@@ -177,7 +165,6 @@ class PhysicalProblem:
     phi_*: phase change number, no phase change if None
     C_*: Chambat's parameter for phase change. Set to 0 if None
     freeslip_*: whether free-slip of rigid if no phase change
-    heat_flux_*: heat flux, Dirichlet condition if None
     prandtl: None if infinite
     water: to study convection in a layer of water cooled from below, around 4C.
     thetar: (T0-T1)/Delta T -1/2 with T0 the temperature of maximum density (4C),
@@ -185,21 +172,18 @@ class PhysicalProblem:
     """
 
     geometry: Geometry
-    h_int: float = 0.0
+    temperature: Optional[ScalarField] = DiffusiveField(
+        bcs_top=Dirichlet(0.0), bcs_bot=Dirichlet(1.0)
+    )
     phi_top: Optional[float] = None
     phi_bot: Optional[float] = None
     C_top: Optional[float] = None
     C_bot: Optional[float] = None
     freeslip_top: bool = True
     freeslip_bot: bool = True
-    heat_flux_top: Optional[float] = None
-    heat_flux_bot: Optional[float] = None
-    biot_top: Optional[float] = None
-    biot_bot: Optional[float] = None
     lewis: Optional[float] = None
     composition: Optional[Callable[[NDArray], NDArray]] = None
     prandtl: Optional[float] = None
-    grad_ref_temperature: Union[str, Callable[[NDArray], NDArray]] = "conductive"
     eta_r: Optional[Callable[[NDArray], NDArray]] = None
     cooling_smo: Optional[tuple[Callable, Callable]] = None
     frozen_time: bool = False
@@ -208,8 +192,6 @@ class PhysicalProblem:
     thetar: float = 0.0
 
     def __post_init__(self) -> None:
-        # only one heat flux imposed at the same time
-        assert self.heat_flux_bot is None or self.heat_flux_top is None
         # composition profile only at infinite Lewis
         assert not (self.composition and self.lewis is not None)
 
@@ -245,13 +227,15 @@ class PhysicalProblem:
         return "_".join(name)
 
     def var_specs(self) -> Sequence[VarSpec]:
-        common = [
-            Field(
-                var="T",
-                include_top=self.heat_flux_top is not None or self.biot_top is not None,
-                include_bot=self.heat_flux_bot is not None or self.biot_bot is not None,
-            )  # temperature
-        ]
+        common = []
+        if self.temperature is not None:
+            common.append(
+                Field(
+                    var="T",
+                    include_top=self.temperature.top_in_pert_eq(),
+                    include_bot=self.temperature.bot_in_pert_eq(),
+                )
+            )
         if self.composition is not None or self.lewis is not None:
             common.append(Field(var="c", include_top=False, include_bot=False))
         if self.spherical:

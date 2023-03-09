@@ -19,7 +19,7 @@ if typing.TYPE_CHECKING:
     from dmsuite.poly_diff import DiffMatrices
     from numpy.typing import NDArray
 
-    from .physics import PhysicalProblem
+    from .physics import PhysicalProblem, RadialOperators
 
 
 def cartesian_matrices(
@@ -27,32 +27,26 @@ def cartesian_matrices(
 ) -> tuple[Matrix, Matrix]:
     """Build left- and right-hand-side matrices in cartesian geometry case"""
     # parameters
-    zphys = self.nodes
-    h_int = self.phys.h_int
     phi_top = self.phys.phi_top
     phi_bot = self.phys.phi_bot
     freeslip_top = self.phys.freeslip_top
     freeslip_bot = self.phys.freeslip_bot
-    heat_flux_top = self.phys.heat_flux_top
-    heat_flux_bot = self.phys.heat_flux_bot
     lewis = self.phys.lewis
     composition = self.phys.composition
     prandtl = self.phys.prandtl
     comp_terms = lewis is not None or composition is not None
     translation = self.phys.ref_state_translation
-    water = self.phys.water
-    thetar = self.phys.thetar
+    assert self.phys.temperature is not None
     if comp_terms and ra_comp is None:
         raise ValueError("ra_comp must be specified for compositional problem")
 
-    # first and second order z-derivatives
-    dz1, dz2 = self.diff_mat(1), self.diff_mat(2)
-    # Identity matrix
-    one = np.identity(zphys.size)
+    operators = self.operators
+    dz1 = operators.grad_r
+    one = operators.identity
     # horizontal derivative
     dh1 = 1j * wnk * one
     # Laplace operator
-    lapl = dz2 - wnk**2 * one
+    lapl = operators.lapl_r - wnk**2 * one
 
     if translation:
         assert phi_bot is not None and phi_top is not None
@@ -90,8 +84,10 @@ def cartesian_matrices(
     # vertical momentum conservation
     lmat.add_term(Bulk("w"), -dz1, "p")
     lmat.add_term(Bulk("w"), lapl, "w")
-    if water:
-        theta0 = thetar - zphys
+    if self.phys.water:
+        # FIXME: abstract this away, this would also deserve its own
+        # ScalarField implementation for temperature (cooled from below)
+        theta0 = self.phys.thetar - operators.phys_coord
         lmat.add_term(Bulk("w"), -ra_num * np.diag(theta0), "T")
     else:
         lmat.add_term(Bulk("w"), ra_num * one, "T")
@@ -103,16 +99,7 @@ def cartesian_matrices(
         lmat.add_term(Bot("w"), -one, "p")
         lmat.add_term(Bot("w"), -phi_bot * one + 2 * dz1, "w")
 
-    # Neumann boundary condition if imposed flux
-    if heat_flux_top is not None:
-        lmat.add_term(Top("T"), dz1, "T")
-    elif heat_flux_bot is not None:
-        lmat.add_term(Bot("T"), dz1, "T")
-    if self.phys.biot_top is not None:
-        lmat.add_term(Top("T"), self.phys.biot_top * one + dz1, "T")
-    if self.phys.biot_bot is not None:
-        lmat.add_term(Bot("T"), self.phys.biot_bot * one + dz1, "T")
-
+    self.phys.temperature.add_bcs("T", lmat, operators)
     lmat.add_term(Bulk("T"), lapl, "T")
 
     # need to take heat flux into account in T conductive
@@ -127,18 +114,8 @@ def cartesian_matrices(
             w_temp *= 1 - wtrans**2 / 24
         lmat.add_term(Bulk("T"), w_temp, "w")
     else:
-        grad_tcond = -h_int * zphys
-        if heat_flux_bot is not None:
-            grad_tcond += heat_flux_bot - h_int / 2
-        elif heat_flux_top is not None:
-            grad_tcond += heat_flux_top + h_int / 2
-        else:
-            if water:
-                # cooled from below
-                grad_tcond -= 1
-            else:
-                grad_tcond += 1
-        lmat.add_term(Bulk("T"), np.diag(grad_tcond), "w")
+        grad_tcond = dz1 @ self.phys.temperature.ref_profile(operators)
+        lmat.add_term(Bulk("T"), -np.diag(grad_tcond), "w")
 
     rmat.add_term(Bulk("T"), one, "T")
     if prandtl is not None:
@@ -148,7 +125,9 @@ def cartesian_matrices(
     # C equations
     # 1/Le lapl(C) - u.grad(C_reference) = sigma C
     if composition is not None:
-        lmat.add_term(Bulk("c"), -np.diag(np.dot(dz1, composition(zphys))), "w")
+        lmat.add_term(
+            Bulk("c"), -np.diag(np.dot(dz1, composition(operators.phys_coord))), "w"
+        )
     elif lewis is not None:
         lmat.add_term(Bulk("c"), one, "w")
         lmat.add_term(Bulk("c"), lapl / lewis, "c")
@@ -167,17 +146,17 @@ def spherical_matrices(
     # FIXME: delegate to a geometry-aware object
     assert isinstance(self.phys.geometry, Spherical)
     gamma = self.phys.geometry.gamma
+    operators = self.operators
     rad = self.nodes
     dr1, dr2 = self.diff_mat(1), self.diff_mat(2)
 
-    lam_r = (2 * gamma - 1) / (1 - gamma)
     # r + lambda
-    ral = rad + lam_r
+    ral = operators.phys_coord
     # 1 / (r + lambda)
     orl1 = (1 - gamma) / ((1 - gamma) * rad + 2 * gamma - 1)
     orl2 = orl1**2
     orl3 = orl1**3
-    one = np.identity(rad.size)  # identity
+    one = operators.identity
 
     rad = np.diag(rad)
     ral = np.diag(ral)
@@ -186,7 +165,7 @@ def spherical_matrices(
     orl3 = np.diag(orl3)
 
     lh2 = l_harm * (l_harm + 1)  # horizontal laplacian
-    lapl = dr2 + 2 * np.dot(orl1, dr1) - lh2 * orl2  # laplacian
+    lapl = operators.lapl_r - lh2 * orl2  # laplacian
     phi_top = self.phys.phi_top
     phi_bot = self.phys.phi_bot
     if self.phys.C_top is not None:
@@ -200,11 +179,7 @@ def spherical_matrices(
     freeslip_top = self.phys.freeslip_top
     freeslip_bot = self.phys.freeslip_bot
 
-    h_int = self.phys.h_int
-    heat_flux_top = self.phys.heat_flux_top
-    heat_flux_bot = self.phys.heat_flux_bot
-    grad_ref_temperature = self.phys.grad_ref_temperature
-    temp_terms = grad_ref_temperature is not None
+    temp_terms = self.phys.temperature is not None
 
     if self.phys.eta_r is not None:
         eta_r = np.diag(np.vectorize(self.phys.eta_r)(np.diag(ral)))
@@ -309,51 +284,23 @@ def spherical_matrices(
 
     # T equations
     # laplacian(T) - u.grad(T_conductive) = sigma T
-    if temp_terms:
-        # Neumann boundary condition if imposed flux
-        if heat_flux_top is not None:
-            lmat.add_term(Top("T"), dr1, "T")
-        elif heat_flux_bot is not None:
-            lmat.add_term(Bot("T"), dr1, "T")
-        if self.phys.biot_top is not None:
-            lmat.add_term(Top("T"), self.phys.biot_top * one + dr1, "T")
-        if self.phys.biot_bot is not None:
-            lmat.add_term(Bot("T"), self.phys.biot_bot * one + dr1, "T")
-
+    if self.phys.temperature is not None:
+        self.phys.temperature.add_bcs("T", lmat, operators)
         lmat.add_term(Bulk("T"), lapl, "T")
-        if not self.phys.frozen_time and self.phys.cooling_smo is not None:
-            # TYPE SAFETY: there is an implicit assumption that grad_ref_temperature is a callable
-            # with those options
-            grad_ref_temp_top = grad_ref_temperature(np.diag(rad)[0])  # type: ignore
-            lmat.add_term(
-                Bulk("T"),
-                w_smo * (np.dot(rad - one, dr1) + grad_ref_temp_top * one),
-                "T",
-            )
 
         # advection of reference profile
         # using u_r = l(l+1)/r P
         # first compute - 1/r * nabla T
         # then multiply by l(l+1)
-        if grad_ref_temperature == "conductive":
-            # reference is conductive profile
-            grad_tcond = h_int / 3 * np.ones(rad.shape[0])
-            if heat_flux_bot is not None:
-                grad_tcond -= (
-                    -((1 + lam_r) ** 2) * heat_flux_bot + h_int * (1 + lam_r) ** 3 / 3
-                ) * np.diag(orl3)
-            elif heat_flux_top is not None:
-                grad_tcond -= (
-                    -((2 + lam_r) ** 2) * heat_flux_top + h_int * (2 + lam_r) ** 3 / 3
-                ) * np.diag(orl3)
-            else:
-                grad_tcond -= (
-                    (h_int / 6 * (3 + 2 * lam_r) - 1) * (2 + lam_r) * (1 + lam_r)
-                ) * np.diag(orl3)
-        else:
-            # TYPE SAFETY: there is an implicit assumption that grad_ref_temperature is a callable
-            # if not "conductive"
-            grad_tcond = np.dot(orl1, -grad_ref_temperature(np.diag(rad)))  # type: ignore
+        grad_tcond = operators.grad_r @ self.phys.temperature.ref_profile(operators)
+        if not self.phys.frozen_time and self.phys.cooling_smo is not None:
+            grad_ref_temp_top = grad_tcond[0]
+            lmat.add_term(
+                Bulk("T"),
+                w_smo * (np.dot(rad - one, dr1) + grad_ref_temp_top * one),
+                "T",
+            )
+        grad_tcond *= -np.diag(orl1)
         lmat.add_term(Bulk("T"), np.diag(lh2 * grad_tcond), "p")
 
         if not self.phys.frozen_time and self.phys.cooling_smo:
@@ -401,6 +348,10 @@ class LinearAnalyzer:
     @property
     def nodes(self) -> NDArray:
         return self._diff_mat.nodes
+
+    @cached_property
+    def operators(self) -> RadialOperators:
+        return self.phys.geometry.with_dmat(self._diff_mat)
 
     def diff_mat(self, order: int) -> NDArray:
         return self._diff_mat.at_order(order)
