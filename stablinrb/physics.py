@@ -182,7 +182,7 @@ class PhysicalProblem:
     freeslip_top: bool = True
     freeslip_bot: bool = True
     lewis: Optional[float] = None
-    composition: Optional[Callable[[NDArray], NDArray]] = None
+    composition: Optional[ScalarField] = None
     prandtl: Optional[float] = None
     eta_r: Optional[Callable[[NDArray], NDArray]] = None
     cooling_smo: Optional[tuple[Callable, Callable]] = None
@@ -190,10 +190,6 @@ class PhysicalProblem:
     ref_state_translation: bool = False
     water: bool = False
     thetar: float = 0.0
-
-    def __post_init__(self) -> None:
-        # composition profile only at infinite Lewis
-        assert not (self.composition and self.lewis is not None)
 
     @property
     def spherical(self) -> bool:

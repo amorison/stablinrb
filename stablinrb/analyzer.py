@@ -31,14 +31,9 @@ def cartesian_matrices(
     phi_bot = self.phys.phi_bot
     freeslip_top = self.phys.freeslip_top
     freeslip_bot = self.phys.freeslip_bot
-    lewis = self.phys.lewis
-    composition = self.phys.composition
     prandtl = self.phys.prandtl
-    comp_terms = lewis is not None or composition is not None
     translation = self.phys.ref_state_translation
     assert self.phys.temperature is not None
-    if comp_terms and ra_comp is None:
-        raise ValueError("ra_comp must be specified for compositional problem")
 
     operators = self.operators
     dz1 = operators.grad_r
@@ -91,7 +86,7 @@ def cartesian_matrices(
         lmat.add_term(Bulk("w"), -ra_num * np.diag(theta0), "T")
     else:
         lmat.add_term(Bulk("w"), ra_num * one, "T")
-    if comp_terms:
+    if self.phys.composition is not None:
         assert ra_comp is not None
         lmat.add_term(Bulk("w"), ra_comp * one, "c")
     if phi_bot is not None:
@@ -124,14 +119,11 @@ def cartesian_matrices(
         rmat.add_term(Bulk("w"), one / prandtl, "w")
     # C equations
     # 1/Le lapl(C) - u.grad(C_reference) = sigma C
-    if composition is not None:
-        lmat.add_term(
-            Bulk("c"), -np.diag(np.dot(dz1, composition(operators.phys_coord))), "w"
-        )
-    elif lewis is not None:
-        lmat.add_term(Bulk("c"), one, "w")
-        lmat.add_term(Bulk("c"), lapl / lewis, "c")
-    if comp_terms:
+    if self.phys.composition is not None:
+        grad_c_ref = operators.grad_r @ self.phys.composition.ref_profile(operators)
+        lmat.add_term(Bulk("c"), -np.diag(grad_c_ref), "w")
+        if self.phys.lewis is not None:
+            lmat.add_term(Bulk("c"), lapl / self.phys.lewis, "c")
         rmat.add_term(Bulk("c"), one, "c")
     return lmat, rmat
 
@@ -186,15 +178,9 @@ def spherical_matrices(
     else:
         eta_r = one
 
-    lewis = self.phys.lewis
-    composition = self.phys.composition
-    comp_terms = lewis is not None or composition is not None
-
     if temp_terms and ra_num is None:
         raise ValueError("Temperature effect requires ra_num")
-    if comp_terms and ra_comp is None:
-        raise ValueError("Composition effect requires ra_comp")
-    if not (temp_terms or comp_terms):
+    if (not temp_terms) and self.phys.composition is None:
         raise ValueError("No buoyancy terms!")
 
     lmat = Matrix(self.slices)
@@ -255,7 +241,7 @@ def spherical_matrices(
     if temp_terms:
         assert ra_num is not None
         lmat.add_term(Bulk("q"), -ra_num * orl1, "T")
-    if comp_terms:
+    if self.phys.composition is not None:
         assert ra_comp is not None
         lmat.add_term(Bulk("q"), -ra_comp * orl1, "c")
     # normal stress continuity at bot
@@ -310,15 +296,14 @@ def spherical_matrices(
 
     # C equations
     # 1/Le lapl(C) - u.grad(C_reference) = sigma C
-    if composition is not None:
-        grad_comp = np.diag(np.dot(dr1, composition(np.diag(rad))))
-        lmat.add_term(Bulk("c"), -lh2 * np.dot(orl1, grad_comp), "p")
-    elif lewis is not None:
-        raise ValueError("Finite Lewis not implemented in spherical")
-    if comp_terms:
+    if self.phys.composition is not None:
+        grad_comp = operators.grad_r @ self.phys.composition.ref_profile(operators)
+        lmat.add_term(Bulk("c"), -lh2 * np.diag(orl1 @ grad_comp), "p")
+        if self.phys.lewis is not None:
+            lmat.add_term(Bulk("c"), lapl / self.phys.lewis, "c")
+
         if not self.phys.frozen_time and self.phys.cooling_smo is not None:
             lmat.add_term(Bulk("c"), w_smo * np.dot(rad - one, dr1), "c")
-        if not self.phys.frozen_time and self.phys.cooling_smo is not None:
             rmat.add_term(Bulk("c"), one * gam2_smo, "c")
         else:
             rmat.add_term(Bulk("c"), one, "c")
