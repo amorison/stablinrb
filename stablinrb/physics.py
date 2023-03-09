@@ -21,6 +21,10 @@ if typing.TYPE_CHECKING:
 # FIXME: difference between BCs for the reference and for the perturbation
 class BoundaryCondition(ABC):
     @abstractmethod
+    def include_in_pert_eq(self) -> bool:
+        ...
+
+    @abstractmethod
     def add_top(self, var: str, mat: Matrix, operators: RadialOperators) -> float:
         ...
 
@@ -32,6 +36,9 @@ class BoundaryCondition(ABC):
 @dataclass(frozen=True)
 class Dirichlet(BoundaryCondition):
     value: float
+
+    def include_in_pert_eq(self) -> bool:
+        return False
 
     def add_top(self, var: str, mat: Matrix, operators: RadialOperators) -> float:
         mat.add_term(Top(var), operators.identity, var)
@@ -45,6 +52,9 @@ class Dirichlet(BoundaryCondition):
 @dataclass(frozen=True)
 class Neumann(BoundaryCondition):
     value: float
+
+    def include_in_pert_eq(self) -> bool:
+        return True
 
     def add_top(self, var: str, mat: Matrix, operators: RadialOperators) -> float:
         mat.add_term(Top(var), operators.grad_r, var)
@@ -60,6 +70,9 @@ class Robin(BoundaryCondition):
     value: float
     biot: float
 
+    def include_in_pert_eq(self) -> bool:
+        return True
+
     def add_top(self, var: str, mat: Matrix, operators: RadialOperators) -> float:
         mat.add_term(Top(var), self.biot * operators.identity + operators.grad_r, var)
         return self.value
@@ -69,8 +82,30 @@ class Robin(BoundaryCondition):
         return self.value
 
 
+class ScalarField(ABC):
+    @abstractmethod
+    def ref_profile(self, operators: RadialOperators) -> NDArray:
+        ...
+
+    @abstractmethod
+    def top_in_pert_eq(self) -> bool:
+        ...
+
+    @abstractmethod
+    def bot_in_pert_eq(self) -> bool:
+        ...
+
+    @abstractmethod
+    def add_top(self, var: str, mat: Matrix, operators: RadialOperators) -> None:
+        ...
+
+    @abstractmethod
+    def add_bot(self, var: str, mat: Matrix, operators: RadialOperators) -> None:
+        ...
+
+
 @dataclass(frozen=True)
-class DiffusiveField:
+class DiffusiveField(ScalarField):
     bcs_top: BoundaryCondition
     bcs_bot: BoundaryCondition
     source: float = 0.0
@@ -87,6 +122,44 @@ class DiffusiveField:
         rhs[0] = self.bcs_top.add_top("f", mat, operators)
         rhs[-1] = self.bcs_bot.add_bot("f", mat, operators)
         return np.linalg.solve(mat.array(), rhs)
+
+    def top_in_pert_eq(self) -> bool:
+        return self.bcs_top.include_in_pert_eq()
+
+    def bot_in_pert_eq(self) -> bool:
+        return self.bcs_bot.include_in_pert_eq()
+
+    def add_top(self, var: str, mat: Matrix, operators: RadialOperators) -> None:
+        if self.bcs_top.include_in_pert_eq():
+            self.bcs_top.add_top(var, mat, operators)
+
+    def add_bot(self, var: str, mat: Matrix, operators: RadialOperators) -> None:
+        if self.bcs_bot.include_in_pert_eq():
+            self.bcs_bot.add_bot(var, mat, operators)
+
+
+@dataclass(frozen=True)
+class ArbitraryField(ScalarField):
+    bcs_top: BoundaryCondition
+    bcs_bot: BoundaryCondition
+    ref_prof_from_coord: Callable[[NDArray], NDArray]
+
+    def ref_profile(self, operators: RadialOperators) -> NDArray:
+        return self.ref_prof_from_coord(operators.phys_coord)
+
+    def top_in_pert_eq(self) -> bool:
+        return self.bcs_top.include_in_pert_eq()
+
+    def bot_in_pert_eq(self) -> bool:
+        return self.bcs_bot.include_in_pert_eq()
+
+    def add_top(self, var: str, mat: Matrix, operators: RadialOperators) -> None:
+        if self.bcs_top.include_in_pert_eq():
+            self.bcs_top.add_top(var, mat, operators)
+
+    def add_bot(self, var: str, mat: Matrix, operators: RadialOperators) -> None:
+        if self.bcs_bot.include_in_pert_eq():
+            self.bcs_bot.add_bot(var, mat, operators)
 
 
 @dataclass(frozen=True)
