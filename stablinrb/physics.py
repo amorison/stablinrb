@@ -1,20 +1,92 @@
 from __future__ import annotations
 
 import typing
+from abc import ABC, abstractmethod
 from dataclasses import dataclass
 
 import numpy as np
 from scipy.optimize import brentq
 
-from .matrix import Field
+from .matrix import Bot, Bulk, Field, Matrix, Slices, Top
 
 if typing.TYPE_CHECKING:
     from typing import Callable, Optional, Sequence, Union
 
     from numpy.typing import NDArray
 
-    from .geometry import Geometry
+    from .geometry import Geometry, RadialOperators
     from .matrix import VarSpec
+
+
+# FIXME: difference between BCs for the reference and for the perturbation
+class BoundaryCondition(ABC):
+    @abstractmethod
+    def add_top(self, var: str, mat: Matrix, operators: RadialOperators) -> float:
+        ...
+
+    @abstractmethod
+    def add_bot(self, var: str, mat: Matrix, operators: RadialOperators) -> float:
+        ...
+
+
+@dataclass(frozen=True)
+class Dirichlet(BoundaryCondition):
+    value: float
+
+    def add_top(self, var: str, mat: Matrix, operators: RadialOperators) -> float:
+        mat.add_term(Top(var), operators.identity, var)
+        return self.value
+
+    def add_bot(self, var: str, mat: Matrix, operators: RadialOperators) -> float:
+        mat.add_term(Bot(var), operators.identity, var)
+        return self.value
+
+
+@dataclass(frozen=True)
+class Neumann(BoundaryCondition):
+    value: float
+
+    def add_top(self, var: str, mat: Matrix, operators: RadialOperators) -> float:
+        mat.add_term(Top(var), operators.grad_r, var)
+        return self.value
+
+    def add_bot(self, var: str, mat: Matrix, operators: RadialOperators) -> float:
+        mat.add_term(Bot(var), operators.grad_r, var)
+        return self.value
+
+
+@dataclass(frozen=True)
+class Robin(BoundaryCondition):
+    value: float
+    biot: float
+
+    def add_top(self, var: str, mat: Matrix, operators: RadialOperators) -> float:
+        mat.add_term(Top(var), self.biot * operators.identity + operators.grad_r, var)
+        return self.value
+
+    def add_bot(self, var: str, mat: Matrix, operators: RadialOperators) -> float:
+        mat.add_term(Bot(var), self.biot * operators.identity + operators.grad_r, var)
+        return self.value
+
+
+@dataclass(frozen=True)
+class DiffusiveField:
+    bcs_top: BoundaryCondition
+    bcs_bot: BoundaryCondition
+    source: float = 0.0
+
+    def ref_profile(self, operators: RadialOperators) -> NDArray:
+        mat = Matrix(
+            slices=Slices(
+                var_specs=(Field(var="f", include_top=True, include_bot=True),),
+                nnodes=operators.phys_coord.size,
+            ),
+        )
+        mat.add_term(Bulk("f"), operators.lapl_r, "f")
+        rhs = np.full_like(operators.phys_coord, -self.source)
+        rhs[0] = self.bcs_top.add_top("f", mat, operators)
+        rhs[-1] = self.bcs_bot.add_bot("f", mat, operators)
+        return np.linalg.solve(mat.array(), rhs)
 
 
 @dataclass(frozen=True)
