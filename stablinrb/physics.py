@@ -14,11 +14,10 @@ if typing.TYPE_CHECKING:
 
     from numpy.typing import NDArray
 
-    from .geometry import Geometry, RadialOperators
+    from .geometry import Geometry, Operators, RadialOperators
     from .matrix import VarSpec
 
 
-# FIXME: difference between BCs for the reference and for the perturbation
 class BoundaryCondition(ABC):
     @abstractmethod
     def include_in_pert_eq(self) -> bool:
@@ -155,6 +154,19 @@ class ArbitraryField(ReferenceProfile):
 
 
 @dataclass(frozen=True)
+class AdvDiffEq:
+    ref_prof: ReferenceProfile
+
+    # FIXME: also handle lhs here
+    def add_pert_eq(self, var: str, mat: Matrix, operators: Operators) -> None:
+        # FIXME: BCs defined in AdvDiffEq instead of ReferenceProfile
+        self.ref_prof.add_bcs(var, mat, operators.radial_ops)
+        mat.add_term(Bulk(var), operators.lapl, var)
+        adv_tcond = operators.adv_r @ self.ref_prof.ref_profile(operators.radial_ops)
+        mat.add_term(Bulk(var), -np.diag(adv_tcond), operators.adv_vel_var)
+
+
+@dataclass(frozen=True)
 class PhysicalProblem:
     """Description of the physical problem.
 
@@ -172,8 +184,8 @@ class PhysicalProblem:
     """
 
     geometry: Geometry
-    temperature: Optional[ReferenceProfile] = DiffusiveField(
-        bcs_top=Dirichlet(0.0), bcs_bot=Dirichlet(1.0)
+    temperature: Optional[AdvDiffEq] = AdvDiffEq(
+        ref_prof=DiffusiveField(bcs_top=Dirichlet(0.0), bcs_bot=Dirichlet(1.0)),
     )
     phi_top: Optional[float] = None
     phi_bot: Optional[float] = None
@@ -228,8 +240,8 @@ class PhysicalProblem:
             common.append(
                 Field(
                     var="T",
-                    include_top=self.temperature.top_in_pert_eq(),
-                    include_bot=self.temperature.bot_in_pert_eq(),
+                    include_top=self.temperature.ref_prof.top_in_pert_eq(),
+                    include_bot=self.temperature.ref_prof.bot_in_pert_eq(),
                 )
             )
         if self.composition is not None or self.lewis is not None:

@@ -80,7 +80,7 @@ class RadialOperators(ABC):
     def phys_coord(self) -> NDArray:
         """Physical radial coordinate."""
 
-    @cached_property
+    @property
     @abstractmethod
     def identity(self) -> NDArray:
         """Identity operator."""
@@ -151,3 +151,114 @@ class SphRadOps(RadialOperators):
         two_o_rad = np.diag(2 / self.phys_coord)
         dr1 = self.diff_mat.at_order(1)
         return self.diff_mat.at_order(2) + two_o_rad @ dr1
+
+
+class Operators(ABC):
+    @property
+    @abstractmethod
+    def radial_ops(self) -> RadialOperators:
+        """Radial operators."""
+
+    @property
+    @abstractmethod
+    def phys_coord(self) -> NDArray:
+        """Physical radial coordinate."""
+
+    @property
+    @abstractmethod
+    def identity(self) -> NDArray:
+        """Identity operator."""
+
+    @property
+    @abstractmethod
+    def grad_r(self) -> NDArray:
+        """Radial gradient."""
+
+    @property
+    @abstractmethod
+    def lapl(self) -> NDArray:
+        """Laplacian."""
+
+    @property
+    @abstractmethod
+    def adv_r(self) -> NDArray:
+        """Radial advection."""
+
+    @property
+    @abstractmethod
+    def adv_vel_var(self) -> str:
+        """Name of velocity variable to combine with `adv_r`."""
+
+
+@dataclass(frozen=True)
+class CartOps(Operators):
+    rad_ops: CartRadOps
+    wavenumber: float
+
+    @property
+    def radial_ops(self) -> CartRadOps:
+        return self.rad_ops
+
+    @property
+    def phys_coord(self) -> NDArray:
+        return self.rad_ops.phys_coord
+
+    @property
+    def identity(self) -> NDArray:
+        return self.rad_ops.identity
+
+    @property
+    def grad_r(self) -> NDArray:
+        return self.rad_ops.grad_r
+
+    @property
+    def lapl(self) -> NDArray:
+        return self.rad_ops.lapl_r - self.wavenumber**2 * self.identity
+
+    @property
+    def adv_r(self) -> NDArray:
+        return self.rad_ops.grad_r
+
+    @property
+    def adv_vel_var(self) -> str:
+        return "w"
+
+
+@dataclass(frozen=True)
+class SphOps(Operators):
+    rad_ops: SphRadOps
+    harm_degree: int
+
+    @property
+    def radial_ops(self) -> SphRadOps:
+        return self.rad_ops
+
+    @property
+    def ell2(self) -> int:
+        return self.harm_degree * (self.harm_degree + 1)
+
+    @property
+    def phys_coord(self) -> NDArray:
+        return self.rad_ops.phys_coord
+
+    @property
+    def identity(self) -> NDArray:
+        return self.rad_ops.identity
+
+    @property
+    def grad_r(self) -> NDArray:
+        return self.rad_ops.grad_r
+
+    @property
+    def lapl(self) -> NDArray:
+        return self.rad_ops.lapl_r - np.diag(self.ell2 / self.phys_coord**2)
+
+    @property
+    def adv_r(self) -> NDArray:
+        # u_r = l(l+1)/r P
+        ur_o_pol = np.diag(self.ell2 / self.phys_coord)
+        return ur_o_pol @ self.rad_ops.grad_r
+
+    @property
+    def adv_vel_var(self) -> str:
+        return "p"

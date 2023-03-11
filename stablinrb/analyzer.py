@@ -9,7 +9,7 @@ import numpy.ma as ma
 from dmsuite.poly_diff import Chebyshev, DiffMatOnDomain
 from scipy import linalg
 
-from .geometry import Spherical
+from .geometry import CartOps, Spherical, SphOps
 from .matrix import All, Bot, Bulk, Matrix, Slices, Top, Vector
 from .physics import wtran
 
@@ -35,18 +35,11 @@ def cartesian_matrices(
     translation = self.phys.ref_state_translation
     assert self.phys.temperature is not None
 
-    operators = self.operators
-    dz1 = operators.grad_r
-    one = operators.identity
+    ops = CartOps(rad_ops=self.operators, wavenumber=wnk)  # type: ignore
+    dz1 = ops.grad_r
+    one = ops.identity
     # horizontal derivative
     dh1 = 1j * wnk * one
-    # Laplace operator
-    lapl = operators.lapl_r - wnk**2 * one
-
-    if translation:
-        assert phi_bot is not None and phi_top is not None
-        rtr = 12 * (phi_top + phi_bot)
-        wtrans = wtran((ra_num - rtr) / rtr)[0]
 
     lmat = Matrix(self.slices, dtype=np.complex128)
     rmat = Matrix(self.slices)
@@ -64,7 +57,7 @@ def cartesian_matrices(
         lmat.add_term(Top("u"), dh1, "w")
     # horizontal momentum conservation
     lmat.add_term(Bulk("u"), -dh1, "p")
-    lmat.add_term(Bulk("u"), lapl, "u")
+    lmat.add_term(Bulk("u"), ops.lapl, "u")
     # free-slip at bot
     if phi_bot is not None or freeslip_bot:
         lmat.add_term(Bot("u"), dz1, "u")
@@ -78,11 +71,11 @@ def cartesian_matrices(
         lmat.add_term(Top("w"), phi_top * one + 2 * dz1, "w")
     # vertical momentum conservation
     lmat.add_term(Bulk("w"), -dz1, "p")
-    lmat.add_term(Bulk("w"), lapl, "w")
+    lmat.add_term(Bulk("w"), ops.lapl, "w")
     if self.phys.water:
         # FIXME: abstract this away, this would also deserve its own
         # ScalarField implementation for temperature (cooled from below)
-        theta0 = self.phys.thetar - operators.phys_coord
+        theta0 = self.phys.thetar - ops.phys_coord
         lmat.add_term(Bulk("w"), -ra_num * np.diag(theta0), "T")
     else:
         lmat.add_term(Bulk("w"), ra_num * one, "T")
@@ -94,12 +87,14 @@ def cartesian_matrices(
         lmat.add_term(Bot("w"), -one, "p")
         lmat.add_term(Bot("w"), -phi_bot * one + 2 * dz1, "w")
 
-    self.phys.temperature.add_bcs("T", lmat, operators)
-    lmat.add_term(Bulk("T"), lapl, "T")
-
-    # need to take heat flux into account in T conductive
     if translation:
         # only written for Dirichlet BCs on T and without internal heating
+        # FIXME: abstract away translation case with AdvDiffEq formalism
+        assert phi_bot is not None and phi_top is not None
+        rtr = 12 * (phi_top + phi_bot)
+        wtrans = wtran((ra_num - rtr) / rtr)[0]
+        self.phys.temperature.ref_prof.add_bcs("T", lmat, ops.radial_ops)
+        lmat.add_term(Bulk("T"), ops.lapl, "T")
         lmat.add_term(Bulk("T"), -wtrans * dz1, "T")
         w_temp = np.diag(np.exp(wtrans * self.nodes))
         if np.abs(wtrans) > 1.0e-3:
@@ -109,8 +104,7 @@ def cartesian_matrices(
             w_temp *= 1 - wtrans**2 / 24
         lmat.add_term(Bulk("T"), w_temp, "w")
     else:
-        grad_tcond = dz1 @ self.phys.temperature.ref_profile(operators)
-        lmat.add_term(Bulk("T"), -np.diag(grad_tcond), "w")
+        self.phys.temperature.add_pert_eq("T", lmat, ops)
 
     rmat.add_term(Bulk("T"), one, "T")
     if prandtl is not None:
@@ -120,10 +114,10 @@ def cartesian_matrices(
     # C equations
     # 1/Le lapl(C) - u.grad(C_reference) = sigma C
     if self.phys.composition is not None:
-        grad_c_ref = operators.grad_r @ self.phys.composition.ref_profile(operators)
+        grad_c_ref = ops.grad_r @ self.phys.composition.ref_profile(ops.radial_ops)
         lmat.add_term(Bulk("c"), -np.diag(grad_c_ref), "w")
         if self.phys.lewis is not None:
-            lmat.add_term(Bulk("c"), lapl / self.phys.lewis, "c")
+            lmat.add_term(Bulk("c"), ops.lapl / self.phys.lewis, "c")
         rmat.add_term(Bulk("c"), one, "c")
     return lmat, rmat
 
@@ -138,17 +132,17 @@ def spherical_matrices(
     # FIXME: delegate to a geometry-aware object
     assert isinstance(self.phys.geometry, Spherical)
     gamma = self.phys.geometry.gamma
-    operators = self.operators
+    ops = SphOps(rad_ops=self.operators, harm_degree=l_harm)  # type: ignore
     rad = self.nodes
     dr1, dr2 = self.diff_mat(1), self.diff_mat(2)
 
     # r + lambda
-    ral = operators.phys_coord
+    ral = ops.phys_coord
     # 1 / (r + lambda)
     orl1 = (1 - gamma) / ((1 - gamma) * rad + 2 * gamma - 1)
     orl2 = orl1**2
     orl3 = orl1**3
-    one = operators.identity
+    one = ops.identity
 
     rad = np.diag(rad)
     ral = np.diag(ral)
@@ -157,7 +151,6 @@ def spherical_matrices(
     orl3 = np.diag(orl3)
 
     lh2 = l_harm * (l_harm + 1)  # horizontal laplacian
-    lapl = operators.lapl_r - lh2 * orl2  # laplacian
     phi_top = self.phys.phi_top
     phi_bot = self.phys.phi_bot
     if self.phys.C_top is not None:
@@ -196,7 +189,7 @@ def spherical_matrices(
         # or rigid boundary
         lmat.add_term(Top("p"), one, "p")
     # laplacian(P) - Q = 0
-    lmat.add_term(Bulk("p"), lapl, "p")
+    lmat.add_term(Bulk("p"), ops.lapl, "p")
     lmat.add_term(Bulk("p"), -one, "q")
     if phi_bot is not None:
         # free-slip at bot
@@ -233,11 +226,11 @@ def spherical_matrices(
             "p",
         )
         lmat.add_term(
-            Bulk("q"), np.dot(eta_r, lapl) + d2eta_dr2 + 2 * np.dot(deta_dr, dr1), "q"
+            Bulk("q"), (eta_r @ ops.lapl) + d2eta_dr2 + 2 * (deta_dr @ dr1), "q"
         )
     else:
         # laplacian(Q) - RaT/r = 0
-        lmat.add_term(Bulk("q"), lapl, "q")
+        lmat.add_term(Bulk("q"), ops.lapl, "q")
     if temp_terms:
         assert ra_num is not None
         lmat.add_term(Bulk("q"), -ra_num * orl1, "T")
@@ -271,23 +264,19 @@ def spherical_matrices(
     # T equations
     # laplacian(T) - u.grad(T_conductive) = sigma T
     if self.phys.temperature is not None:
-        self.phys.temperature.add_bcs("T", lmat, operators)
-        lmat.add_term(Bulk("T"), lapl, "T")
+        self.phys.temperature.add_pert_eq("T", lmat, ops)
 
-        # advection of reference profile
-        # using u_r = l(l+1)/r P
-        # first compute - 1/r * nabla T
-        # then multiply by l(l+1)
-        grad_tcond = operators.grad_r @ self.phys.temperature.ref_profile(operators)
         if not self.phys.frozen_time and self.phys.cooling_smo is not None:
+            # FIXME: define proper operators for the moving-front approach
+            grad_tcond = ops.grad_r @ self.phys.temperature.ref_prof.ref_profile(
+                ops.radial_ops
+            )
             grad_ref_temp_top = grad_tcond[0]
             lmat.add_term(
                 Bulk("T"),
                 w_smo * (np.dot(rad - one, dr1) + grad_ref_temp_top * one),
                 "T",
             )
-        grad_tcond *= -np.diag(orl1)
-        lmat.add_term(Bulk("T"), np.diag(lh2 * grad_tcond), "p")
 
         if not self.phys.frozen_time and self.phys.cooling_smo:
             rmat.add_term(Bulk("T"), one * gam2_smo, "T")
@@ -297,10 +286,10 @@ def spherical_matrices(
     # C equations
     # 1/Le lapl(C) - u.grad(C_reference) = sigma C
     if self.phys.composition is not None:
-        grad_comp = operators.grad_r @ self.phys.composition.ref_profile(operators)
+        grad_comp = ops.grad_r @ self.phys.composition.ref_profile(ops.radial_ops)
         lmat.add_term(Bulk("c"), -lh2 * np.diag(orl1 @ grad_comp), "p")
         if self.phys.lewis is not None:
-            lmat.add_term(Bulk("c"), lapl / self.phys.lewis, "c")
+            lmat.add_term(Bulk("c"), ops.lapl / self.phys.lewis, "c")
 
         if not self.phys.frozen_time and self.phys.cooling_smo is not None:
             lmat.add_term(Bulk("c"), w_smo * np.dot(rad - one, dr1), "c")
