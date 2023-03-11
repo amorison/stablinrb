@@ -82,7 +82,7 @@ class Robin(BoundaryCondition):
         return self.value
 
 
-class ScalarField(ABC):
+class ReferenceProfile(ABC):
     @abstractmethod
     def ref_profile(self, operators: RadialOperators) -> NDArray:
         ...
@@ -101,7 +101,7 @@ class ScalarField(ABC):
 
 
 @dataclass(frozen=True)
-class DiffusiveField(ScalarField):
+class DiffusiveField(ReferenceProfile):
     bcs_top: BoundaryCondition
     bcs_bot: BoundaryCondition
     source: float = 0.0
@@ -133,7 +133,7 @@ class DiffusiveField(ScalarField):
 
 
 @dataclass(frozen=True)
-class ArbitraryField(ScalarField):
+class ArbitraryField(ReferenceProfile):
     bcs_top: BoundaryCondition
     bcs_bot: BoundaryCondition
     ref_prof_from_coord: Callable[[NDArray], NDArray]
@@ -172,7 +172,7 @@ class PhysicalProblem:
     """
 
     geometry: Geometry
-    temperature: Optional[ScalarField] = DiffusiveField(
+    temperature: Optional[ReferenceProfile] = DiffusiveField(
         bcs_top=Dirichlet(0.0), bcs_bot=Dirichlet(1.0)
     )
     phi_top: Optional[float] = None
@@ -182,7 +182,7 @@ class PhysicalProblem:
     freeslip_top: bool = True
     freeslip_bot: bool = True
     lewis: Optional[float] = None
-    composition: Optional[ScalarField] = None
+    composition: Optional[ReferenceProfile] = None
     prandtl: Optional[float] = None
     eta_r: Optional[Callable[[NDArray], NDArray]] = None
     cooling_smo: Optional[tuple[Callable, Callable]] = None
