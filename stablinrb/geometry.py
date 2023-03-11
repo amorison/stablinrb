@@ -43,8 +43,8 @@ class Cartesian(Geometry):
     def is_spherical(self) -> bool:
         return False
 
-    def with_dmat(self, diff_mat: DiffMatrices) -> CartesianOps:
-        return CartesianOps(diff_mat=diff_mat)
+    def with_dmat(self, diff_mat: DiffMatrices) -> CartRadOps:
+        return CartRadOps(diff_mat=diff_mat)
 
 
 @dataclass(frozen=True)
@@ -70,8 +70,8 @@ class Spherical(Geometry):
     def is_spherical(self) -> bool:
         return True
 
-    def with_dmat(self, diff_mat: DiffMatrices) -> SphericalOps:
-        return SphericalOps(geom=self, diff_mat=diff_mat)
+    def with_dmat(self, diff_mat: DiffMatrices) -> SphRadOps:
+        return SphRadOps(geom=self, diff_mat=diff_mat)
 
 
 class RadialOperators(ABC):
@@ -97,7 +97,7 @@ class RadialOperators(ABC):
 
 
 @dataclass(frozen=True)
-class CartesianOps(RadialOperators):
+class CartRadOps(RadialOperators):
     diff_mat: DiffMatrices
 
     @property
@@ -122,7 +122,7 @@ class CartesianOps(RadialOperators):
 
 
 @dataclass(frozen=True)
-class SphericalOps(RadialOperators):
+class SphRadOps(RadialOperators):
     geom: Spherical
     diff_mat: DiffMatrices
 
