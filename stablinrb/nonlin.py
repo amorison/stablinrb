@@ -136,8 +136,8 @@ class NonLinearAnalyzer:
             Field(var="p", include_top=solve_for_w, include_bot=solve_for_w),
             Field(
                 var="T",
-                include_top=self.phys.temperature.ref_prof.top_in_pert_eq(),
-                include_bot=self.phys.temperature.ref_prof.bot_in_pert_eq(),
+                include_top=self.phys.temperature.bc_top.include(),
+                include_bot=self.phys.temperature.bc_bot.include(),
             ),
         ]
         if solve_for_w:

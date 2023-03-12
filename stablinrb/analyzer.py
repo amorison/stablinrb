@@ -93,7 +93,8 @@ def cartesian_matrices(
         assert phi_bot is not None and phi_top is not None
         rtr = 12 * (phi_top + phi_bot)
         wtrans = wtran((ra_num - rtr) / rtr)[0]
-        self.phys.temperature.ref_prof.add_bcs("T", lmat, ops.radial_ops)
+        self.phys.temperature.bc_top.add_top("T", lmat, ops)
+        self.phys.temperature.bc_bot.add_bot("T", lmat, ops)
         lmat.add_term(Bulk("T"), ops.lapl, "T")
         lmat.add_term(Bulk("T"), -wtrans * dz1, "T")
         w_temp = np.diag(np.exp(wtrans * self.nodes))

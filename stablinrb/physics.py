@@ -20,10 +20,6 @@ if typing.TYPE_CHECKING:
 
 class BoundaryCondition(ABC):
     @abstractmethod
-    def include_in_pert_eq(self) -> bool:
-        ...
-
-    @abstractmethod
     def add_top(self, var: str, mat: Matrix, operators: RadialOperators) -> float:
         ...
 
@@ -35,9 +31,6 @@ class BoundaryCondition(ABC):
 @dataclass(frozen=True)
 class Dirichlet(BoundaryCondition):
     value: float
-
-    def include_in_pert_eq(self) -> bool:
-        return False
 
     def add_top(self, var: str, mat: Matrix, operators: RadialOperators) -> float:
         mat.add_term(Top(var), operators.identity, var)
@@ -51,9 +44,6 @@ class Dirichlet(BoundaryCondition):
 @dataclass(frozen=True)
 class Neumann(BoundaryCondition):
     value: float
-
-    def include_in_pert_eq(self) -> bool:
-        return True
 
     def add_top(self, var: str, mat: Matrix, operators: RadialOperators) -> float:
         mat.add_term(Top(var), operators.grad_r, var)
@@ -69,9 +59,6 @@ class Robin(BoundaryCondition):
     value: float
     biot: float
 
-    def include_in_pert_eq(self) -> bool:
-        return True
-
     def add_top(self, var: str, mat: Matrix, operators: RadialOperators) -> float:
         mat.add_term(Top(var), self.biot * operators.identity + operators.grad_r, var)
         return self.value
@@ -84,18 +71,6 @@ class Robin(BoundaryCondition):
 class ReferenceProfile(ABC):
     @abstractmethod
     def ref_profile(self, operators: RadialOperators) -> NDArray:
-        ...
-
-    @abstractmethod
-    def top_in_pert_eq(self) -> bool:
-        ...
-
-    @abstractmethod
-    def bot_in_pert_eq(self) -> bool:
-        ...
-
-    @abstractmethod
-    def add_bcs(self, var: str, mat: Matrix, operators: RadialOperators) -> None:
         ...
 
 
@@ -118,49 +93,83 @@ class DiffusiveField(ReferenceProfile):
         rhs[-1] = self.bcs_bot.add_bot("f", mat, operators)
         return np.linalg.solve(mat.array(), rhs)
 
-    def top_in_pert_eq(self) -> bool:
-        return self.bcs_top.include_in_pert_eq()
-
-    def bot_in_pert_eq(self) -> bool:
-        return self.bcs_bot.include_in_pert_eq()
-
-    def add_bcs(self, var: str, mat: Matrix, operators: RadialOperators) -> None:
-        if self.bcs_top.include_in_pert_eq():
-            self.bcs_top.add_top(var, mat, operators)
-        if self.bcs_bot.include_in_pert_eq():
-            self.bcs_bot.add_bot(var, mat, operators)
-
 
 @dataclass(frozen=True)
 class ArbitraryField(ReferenceProfile):
-    bcs_top: BoundaryCondition
-    bcs_bot: BoundaryCondition
     ref_prof_from_coord: Callable[[NDArray], NDArray]
 
     def ref_profile(self, operators: RadialOperators) -> NDArray:
         return self.ref_prof_from_coord(operators.phys_coord)
 
-    def top_in_pert_eq(self) -> bool:
-        return self.bcs_top.include_in_pert_eq()
 
-    def bot_in_pert_eq(self) -> bool:
-        return self.bcs_bot.include_in_pert_eq()
+class BCPerturbation(ABC):
+    """Boundary condition for perturbations."""
 
-    def add_bcs(self, var: str, mat: Matrix, operators: RadialOperators) -> None:
-        if self.bcs_top.include_in_pert_eq():
-            self.bcs_top.add_top(var, mat, operators)
-        if self.bcs_bot.include_in_pert_eq():
-            self.bcs_bot.add_bot(var, mat, operators)
+    @abstractmethod
+    def include(self) -> bool:
+        ...
+
+    @abstractmethod
+    def add_top(self, var: str, mat: Matrix, operators: Operators) -> None:
+        ...
+
+    @abstractmethod
+    def add_bot(self, var: str, mat: Matrix, operators: Operators) -> None:
+        ...
+
+
+@dataclass(frozen=True)
+class Zero(BCPerturbation):
+    def include(self) -> bool:
+        return False
+
+    def add_top(self, var: str, mat: Matrix, operators: Operators) -> None:
+        pass
+
+    def add_bot(self, var: str, mat: Matrix, operators: Operators) -> None:
+        pass
+
+
+@dataclass(frozen=True)
+class ZeroFlux(BCPerturbation):
+    def include(self) -> bool:
+        return True
+
+    def add_top(self, var: str, mat: Matrix, operators: Operators) -> None:
+        mat.add_term(Top(var), operators.grad_r, var)
+
+    def add_bot(self, var: str, mat: Matrix, operators: Operators) -> None:
+        mat.add_term(Bot(var), operators.grad_r, var)
+
+
+@dataclass(frozen=True)
+class RobinPert(BCPerturbation):
+    coef_var: float
+    coef_grad: float
+
+    def include(self) -> bool:
+        return False
+
+    def _opt(self, ops: Operators) -> NDArray:
+        return self.coef_var * ops.identity + self.coef_grad * ops.grad_r
+
+    def add_top(self, var: str, mat: Matrix, operators: Operators) -> None:
+        mat.add_term(Top(var), self._opt(operators), var)
+
+    def add_bot(self, var: str, mat: Matrix, operators: Operators) -> None:
+        mat.add_term(Bot(var), self._opt(operators), var)
 
 
 @dataclass(frozen=True)
 class AdvDiffEq:
+    bc_top: BCPerturbation
+    bc_bot: BCPerturbation
     ref_prof: ReferenceProfile
 
     # FIXME: also handle lhs here
     def add_pert_eq(self, var: str, mat: Matrix, operators: Operators) -> None:
-        # FIXME: BCs defined in AdvDiffEq instead of ReferenceProfile
-        self.ref_prof.add_bcs(var, mat, operators.radial_ops)
+        self.bc_top.add_top(var, mat, operators)
+        self.bc_bot.add_bot(var, mat, operators)
         mat.add_term(Bulk(var), operators.lapl, var)
         adv_tcond = operators.adv_r @ self.ref_prof.ref_profile(operators.radial_ops)
         mat.add_term(Bulk(var), -np.diag(adv_tcond), operators.adv_vel_var)
@@ -185,6 +194,8 @@ class PhysicalProblem:
 
     geometry: Geometry
     temperature: Optional[AdvDiffEq] = AdvDiffEq(
+        bc_top=Zero(),
+        bc_bot=Zero(),
         ref_prof=DiffusiveField(bcs_top=Dirichlet(0.0), bcs_bot=Dirichlet(1.0)),
     )
     phi_top: Optional[float] = None
@@ -240,8 +251,8 @@ class PhysicalProblem:
             common.append(
                 Field(
                     var="T",
-                    include_top=self.temperature.ref_prof.top_in_pert_eq(),
-                    include_bot=self.temperature.ref_prof.bot_in_pert_eq(),
+                    include_top=self.temperature.bc_top.include(),
+                    include_bot=self.temperature.bc_bot.include(),
                 )
             )
         if self.composition is not None or self.lewis is not None:
