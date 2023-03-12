@@ -70,7 +70,7 @@ class Robin(BoundaryCondition):
 
 class ReferenceProfile(ABC):
     @abstractmethod
-    def ref_profile(self, operators: RadialOperators) -> NDArray:
+    def eval_with(self, operators: RadialOperators) -> NDArray:
         ...
 
 
@@ -80,7 +80,7 @@ class DiffusiveField(ReferenceProfile):
     bcs_bot: BoundaryCondition
     source: float = 0.0
 
-    def ref_profile(self, operators: RadialOperators) -> NDArray:
+    def eval_with(self, operators: RadialOperators) -> NDArray:
         mat = Matrix(
             slices=Slices(
                 var_specs=(Field(var="f", include_top=True, include_bot=True),),
@@ -98,7 +98,7 @@ class DiffusiveField(ReferenceProfile):
 class ArbitraryField(ReferenceProfile):
     ref_prof_from_coord: Callable[[NDArray], NDArray]
 
-    def ref_profile(self, operators: RadialOperators) -> NDArray:
+    def eval_with(self, operators: RadialOperators) -> NDArray:
         return self.ref_prof_from_coord(operators.phys_coord)
 
 
@@ -171,7 +171,7 @@ class AdvDiffEq:
         self.bc_top.add_top(var, mat, operators)
         self.bc_bot.add_bot(var, mat, operators)
         mat.add_term(Bulk(var), operators.lapl, var)
-        adv_tcond = operators.adv_r @ self.ref_prof.ref_profile(operators.radial_ops)
+        adv_tcond = operators.adv_r @ self.ref_prof.eval_with(operators.radial_ops)
         mat.add_term(Bulk(var), -np.diag(adv_tcond), operators.adv_vel_var)
 
 

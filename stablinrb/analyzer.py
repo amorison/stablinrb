@@ -115,7 +115,7 @@ def cartesian_matrices(
     # C equations
     # 1/Le lapl(C) - u.grad(C_reference) = sigma C
     if self.phys.composition is not None:
-        grad_c_ref = ops.grad_r @ self.phys.composition.ref_profile(ops.radial_ops)
+        grad_c_ref = ops.grad_r @ self.phys.composition.eval_with(ops.radial_ops)
         lmat.add_term(Bulk("c"), -np.diag(grad_c_ref), "w")
         if self.phys.lewis is not None:
             lmat.add_term(Bulk("c"), ops.lapl / self.phys.lewis, "c")
@@ -269,7 +269,7 @@ def spherical_matrices(
 
         if not self.phys.frozen_time and self.phys.cooling_smo is not None:
             # FIXME: define proper operators for the moving-front approach
-            grad_tcond = ops.grad_r @ self.phys.temperature.ref_prof.ref_profile(
+            grad_tcond = ops.grad_r @ self.phys.temperature.ref_prof.eval_with(
                 ops.radial_ops
             )
             grad_ref_temp_top = grad_tcond[0]
@@ -287,7 +287,7 @@ def spherical_matrices(
     # C equations
     # 1/Le lapl(C) - u.grad(C_reference) = sigma C
     if self.phys.composition is not None:
-        grad_comp = ops.grad_r @ self.phys.composition.ref_profile(ops.radial_ops)
+        grad_comp = ops.grad_r @ self.phys.composition.eval_with(ops.radial_ops)
         lmat.add_term(Bulk("c"), -lh2 * np.diag(orl1 @ grad_comp), "p")
         if self.phys.lewis is not None:
             lmat.add_term(Bulk("c"), ops.lapl / self.phys.lewis, "c")
