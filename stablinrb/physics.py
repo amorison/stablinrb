@@ -75,7 +75,7 @@ class ReferenceProfile(ABC):
 
 
 @dataclass(frozen=True)
-class DiffusiveField(ReferenceProfile):
+class DiffusiveProf(ReferenceProfile):
     bcs_top: BoundaryCondition
     bcs_bot: BoundaryCondition
     source: float = 0.0
@@ -95,7 +95,7 @@ class DiffusiveField(ReferenceProfile):
 
 
 @dataclass(frozen=True)
-class ArbitraryField(ReferenceProfile):
+class ArbitraryProf(ReferenceProfile):
     ref_prof_from_coord: Callable[[NDArray], NDArray]
 
     def eval_with(self, operators: RadialOperators) -> NDArray:
@@ -196,7 +196,7 @@ class PhysicalProblem:
     temperature: Optional[AdvDiffEq] = AdvDiffEq(
         bc_top=Zero(),
         bc_bot=Zero(),
-        ref_prof=DiffusiveField(bcs_top=Dirichlet(0.0), bcs_bot=Dirichlet(1.0)),
+        ref_prof=DiffusiveProf(bcs_top=Dirichlet(0.0), bcs_bot=Dirichlet(1.0)),
     )
     phi_top: Optional[float] = None
     phi_bot: Optional[float] = None
