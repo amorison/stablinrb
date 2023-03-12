@@ -112,13 +112,10 @@ def cartesian_matrices(
         # finite Prandtl number case
         rmat.add_term(Bulk("u"), one / prandtl, "u")
         rmat.add_term(Bulk("w"), one / prandtl, "w")
+
     # C equations
-    # 1/Le lapl(C) - u.grad(C_reference) = sigma C
     if self.phys.composition is not None:
-        grad_c_ref = ops.grad_r @ self.phys.composition.eval_with(ops.radial_ops)
-        lmat.add_term(Bulk("c"), -np.diag(grad_c_ref), "w")
-        if self.phys.lewis is not None:
-            lmat.add_term(Bulk("c"), ops.lapl / self.phys.lewis, "c")
+        self.phys.composition.add_pert_eq("c", lmat, ops)
         rmat.add_term(Bulk("c"), one, "c")
     return lmat, rmat
 
@@ -285,13 +282,8 @@ def spherical_matrices(
             rmat.add_term(Bulk("T"), one, "T")
 
     # C equations
-    # 1/Le lapl(C) - u.grad(C_reference) = sigma C
     if self.phys.composition is not None:
-        grad_comp = ops.grad_r @ self.phys.composition.eval_with(ops.radial_ops)
-        lmat.add_term(Bulk("c"), -lh2 * np.diag(orl1 @ grad_comp), "p")
-        if self.phys.lewis is not None:
-            lmat.add_term(Bulk("c"), ops.lapl / self.phys.lewis, "c")
-
+        self.phys.composition.add_pert_eq("c", lmat, ops)
         if not self.phys.frozen_time and self.phys.cooling_smo is not None:
             lmat.add_term(Bulk("c"), w_smo * np.dot(rad - one, dr1), "c")
             rmat.add_term(Bulk("c"), one * gam2_smo, "c")

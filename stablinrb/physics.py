@@ -165,12 +165,13 @@ class AdvDiffEq:
     bc_top: BCPerturbation
     bc_bot: BCPerturbation
     ref_prof: ReferenceProfile
+    diff_coef: float = 1.0
 
     # FIXME: also handle lhs here
     def add_pert_eq(self, var: str, mat: Matrix, operators: Operators) -> None:
         self.bc_top.add_top(var, mat, operators)
         self.bc_bot.add_bot(var, mat, operators)
-        mat.add_term(Bulk(var), operators.lapl, var)
+        mat.add_term(Bulk(var), self.diff_coef * operators.lapl, var)
         adv_tcond = operators.adv_r @ self.ref_prof.eval_with(operators.radial_ops)
         mat.add_term(Bulk(var), -np.diag(adv_tcond), operators.adv_vel_var)
 
@@ -178,9 +179,6 @@ class AdvDiffEq:
 @dataclass(frozen=True)
 class PhysicalProblem:
     """Description of the physical problem.
-
-    lewis: Lewis number if finite
-    composition: reference compositional profile if Le->infinity
 
     Boundary conditions:
     phi_*: phase change number, no phase change if None
@@ -198,14 +196,13 @@ class PhysicalProblem:
         bc_bot=Zero(),
         ref_prof=DiffusiveProf(bcs_top=Dirichlet(0.0), bcs_bot=Dirichlet(1.0)),
     )
+    composition: Optional[AdvDiffEq] = None
     phi_top: Optional[float] = None
     phi_bot: Optional[float] = None
     C_top: Optional[float] = None
     C_bot: Optional[float] = None
     freeslip_top: bool = True
     freeslip_bot: bool = True
-    lewis: Optional[float] = None
-    composition: Optional[ReferenceProfile] = None
     prandtl: Optional[float] = None
     eta_r: Optional[Callable[[NDArray], NDArray]] = None
     cooling_smo: Optional[tuple[Callable, Callable]] = None
@@ -255,8 +252,14 @@ class PhysicalProblem:
                     include_bot=self.temperature.bc_bot.include(),
                 )
             )
-        if self.composition is not None or self.lewis is not None:
-            common.append(Field(var="c", include_top=False, include_bot=False))
+        if self.composition is not None:
+            common.append(
+                Field(
+                    var="c",
+                    include_top=self.composition.bc_top.include(),
+                    include_bot=self.composition.bc_bot.include(),
+                )
+            )
         if self.spherical:
             return [
                 # poloidal potential
