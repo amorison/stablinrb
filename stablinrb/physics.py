@@ -10,7 +10,7 @@ from scipy.optimize import brentq
 from .matrix import Bot, Bulk, Field, Matrix, Slices, Top
 
 if typing.TYPE_CHECKING:
-    from typing import Callable, Optional, Sequence
+    from typing import Callable, Mapping, Optional, Sequence
 
     from numpy.typing import NDArray
 
@@ -176,14 +176,172 @@ class AdvDiffEq:
         mat.add_term(Bulk(var), -np.diag(adv_tcond), operators.adv_vel_var)
 
 
+class BCMomentum(ABC):
+    @property
+    @abstractmethod
+    def name(self) -> str:
+        ...
+
+    @property
+    @abstractmethod
+    def flow_through(self) -> bool:
+        ...
+
+    @abstractmethod
+    def include(self, geometry: Geometry) -> Mapping[str, bool]:
+        ...
+
+    @abstractmethod
+    def add_top(self, mat: Matrix, ops: Operators) -> None:
+        ...
+
+    @abstractmethod
+    def add_bot(self, mat: Matrix, ops: Operators) -> None:
+        ...
+
+
+@dataclass(frozen=True)
+class Rigid(BCMomentum):
+    """Rigid boundary condition v=0."""
+
+    @property
+    def name(self) -> str:
+        return "rigid"
+
+    @property
+    def flow_through(self) -> bool:
+        return False
+
+    def include(self, geometry: Geometry) -> Mapping[str, bool]:
+        if geometry.is_spherical():
+            return {"p": True, "q": True}
+        return {"u": False, "w": False, "p": True}
+
+    def add_top(self, mat: Matrix, ops: Operators) -> None:
+        if ops.spherical:
+            mat.add_term(Top("p"), ops.identity, "p")
+            mat.add_term(Top("q"), ops.grad_r, "p")
+
+    def add_bot(self, mat: Matrix, ops: Operators) -> None:
+        if ops.spherical:
+            mat.add_term(Bot("p"), ops.identity, "p")
+            mat.add_term(Bot("q"), ops.grad_r, "p")
+
+
+@dataclass(frozen=True)
+class FreeSlip(BCMomentum):
+    """Free-slip boundary: no tangential constraint."""
+
+    @property
+    def name(self) -> str:
+        return "free"
+
+    @property
+    def flow_through(self) -> bool:
+        return False
+
+    def include(self, geometry: Geometry) -> Mapping[str, bool]:
+        if geometry.is_spherical():
+            return {"p": True, "q": True}
+        return {"u": True, "w": False, "p": True}
+
+    def add_top(self, mat: Matrix, ops: Operators) -> None:
+        if ops.spherical:
+            mat.add_term(Top("p"), ops.identity, "p")
+            mat.add_term(Top("q"), ops.diff_r(2), "p")
+        else:
+            mat.add_term(Top("u"), ops.grad_r, "u")
+
+    def add_bot(self, mat: Matrix, ops: Operators) -> None:
+        if ops.spherical:
+            mat.add_term(Bot("p"), ops.identity, "p")
+            mat.add_term(Bot("q"), ops.diff_r(2), "p")
+        else:
+            mat.add_term(Bot("u"), ops.grad_r, "u")
+
+
+@dataclass(frozen=True)
+class PhaseChange(BCMomentum):
+    """Phase change boundary condition."""
+
+    phase_number: float
+    stress_jump: float = 0.0  # FIXME: stress_jump in cartesian
+
+    @property
+    def name(self) -> str:
+        cbit = f"_C_{self.stress_jump}" if self.stress_jump != 0.0 else ""
+        return f"phi_{self.phase_number}{cbit}"
+
+    @property
+    def flow_through(self) -> bool:
+        return True
+
+    def include(self, geometry: Geometry) -> Mapping[str, bool]:
+        if geometry.is_spherical():
+            return {"p": True, "q": True}
+        return {"u": True, "w": True, "p": True}
+
+    def add_top(self, mat: Matrix, ops: Operators) -> None:
+        # FIXME: rheology
+        eta = ops.viscosity[0, 0]
+        if ops.spherical:
+            rbnd = ops.phys_coord[0]
+            mat.add_term(
+                Top("p"),
+                ops.diff_r(2)
+                - ((1 + self.stress_jump) * ops.lapl_h + 2 / rbnd**2 * ops.identity),
+                "p",
+            )
+            mat.add_term(
+                Top("q"),
+                (self.phase_number * rbnd - 2 * self.stress_jump) * (-ops.lapl_h)
+                + 2 * eta * ops.lapl_h @ (ops.identity - rbnd * ops.grad_r),
+                "p",
+            )
+            mat.add_term(Top("q"), -eta * (ops.identity + rbnd * ops.grad_r), "q")
+        else:
+            mat.add_term(Top("u"), ops.grad_r, "u")
+            mat.add_term(Top("u"), ops.diff_h, "w")
+            mat.add_term(Top("w"), -ops.identity, "p")
+            mat.add_term(
+                Top("w"),
+                self.phase_number * ops.identity + 2 * eta * ops.grad_r,
+                "w",
+            )
+
+    def add_bot(self, mat: Matrix, ops: Operators) -> None:
+        # FIXME: rheology
+        eta = ops.viscosity[-1, -1]
+        if ops.spherical:
+            rbnd = ops.phys_coord[-1]
+            mat.add_term(
+                Bot("p"),
+                ops.diff_r(2)
+                - ((1 - self.stress_jump) * ops.lapl_h + 2 / rbnd**2 * ops.identity),
+                "p",
+            )
+            mat.add_term(
+                Bot("q"),
+                (self.phase_number * rbnd - 2 * self.stress_jump) * ops.lapl_h
+                + 2 * eta * ops.lapl_h @ (ops.identity - rbnd * ops.grad_r),
+                "p",
+            )
+            mat.add_term(Bot("q"), -eta * (ops.identity + rbnd * ops.grad_r), "q")
+        else:
+            mat.add_term(Bot("u"), ops.grad_r, "u")
+            mat.add_term(Bot("u"), ops.diff_h, "w")
+            mat.add_term(Bot("w"), -ops.identity, "p")
+            mat.add_term(
+                Bot("w"),
+                -self.phase_number * ops.identity + 2 * eta * ops.grad_r,
+                "w",
+            )
+
+
 @dataclass(frozen=True)
 class PhysicalProblem:
     """Description of the physical problem.
 
-    Boundary conditions:
-    phi_*: phase change number, no phase change if None
-    C_*: Chambat's parameter for phase change. Set to 0 if None
-    freeslip_*: whether free-slip of rigid if no phase change
     prandtl: None if infinite
     water: to study convection in a layer of water cooled from below, around 4C.
     thetar: (T0-T1)/Delta T -1/2 with T0 the temperature of maximum density (4C),
@@ -197,12 +355,8 @@ class PhysicalProblem:
         ref_prof=DiffusiveProf(bcs_top=Dirichlet(0.0), bcs_bot=Dirichlet(1.0)),
     )
     composition: Optional[AdvDiffEq] = None
-    phi_top: Optional[float] = None
-    phi_bot: Optional[float] = None
-    C_top: Optional[float] = None
-    C_bot: Optional[float] = None
-    freeslip_top: bool = True
-    freeslip_bot: bool = True
+    bc_mom_top: BCMomentum = FreeSlip()
+    bc_mom_bot: BCMomentum = FreeSlip()
     prandtl: Optional[float] = None
     eta_r: Optional[Callable[[NDArray], NDArray]] = None
     cooling_smo: Optional[tuple[Callable, Callable]] = None
@@ -222,25 +376,14 @@ class PhysicalProblem:
 
     def name(self) -> str:
         """Construct a name for the current case"""
-        name = []
-        name.append(self.geometry.name_stem())
-        if self.phi_top is not None:
-            name.append("phiT")
-            name.append(str(self.phi_top).replace(".", "-"))
-            if self.C_top is not None:
-                name.append("CT")
-                name.append(str(self.C_top).replace(".", "-"))
-        else:
-            name.append("freeT" if self.freeslip_top else "rigidT")
-        if self.phi_bot is not None:
-            name.append("phiB")
-            name.append(str(self.phi_bot).replace(".", "-"))
-            if self.C_bot is not None:
-                name.append("CB")
-                name.append(str(self.C_bot).replace(".", "-"))
-        else:
-            name.append("freeB" if self.freeslip_bot else "rigidB")
-        return "_".join(name)
+        name = [
+            self.geometry.name_stem(),
+            "TOP",
+            self.bc_mom_top.name,
+            "BOT",
+            self.bc_mom_bot.name,
+        ]
+        return "_".join(name).replace(".", "-")
 
     def var_specs(self) -> Sequence[VarSpec]:
         common = []
@@ -261,28 +404,24 @@ class PhysicalProblem:
                 )
             )
         if self.spherical:
+            inc_top = self.bc_mom_top.include(self.geometry)
+            inc_bot = self.bc_mom_bot.include(self.geometry)
             return [
                 # poloidal potential
-                Field(var="p", include_top=True, include_bot=True),
+                Field(var="p", include_top=inc_top["p"], include_bot=inc_bot["p"]),
                 # lapl(poloidal)
-                Field(var="q", include_top=True, include_bot=True),
+                Field(var="q", include_top=inc_top["q"], include_bot=inc_bot["q"]),
                 *common,
             ]
         # cartesian
+        inc_top = self.bc_mom_top.include(self.geometry)
+        inc_bot = self.bc_mom_bot.include(self.geometry)
         return [
             # pressure
-            Field(var="p", include_top=True, include_bot=True),
+            Field(var="p", include_top=inc_top["p"], include_bot=inc_bot["p"]),
             # velocities
-            Field(
-                var="u",
-                include_top=self.phi_top is not None or self.freeslip_top,
-                include_bot=self.phi_bot is not None or self.freeslip_bot,
-            ),
-            Field(
-                var="w",
-                include_top=self.phi_top is not None,
-                include_bot=self.phi_bot is not None,
-            ),
+            Field(var="u", include_top=inc_top["u"], include_bot=inc_bot["u"]),
+            Field(var="w", include_top=inc_top["w"], include_bot=inc_bot["w"]),
             *common,
         ]
 

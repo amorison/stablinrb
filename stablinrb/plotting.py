@@ -293,8 +293,12 @@ def plot_mode_profiles(
     """Plot all mode profiles"""
     if name is None:
         name = analyzer.phys.name()
-    phitop = analyzer.phys.phi_top
-    phibot = analyzer.phys.phi_bot
+    phitop = None
+    phibot = None
+    if analyzer.phys.bc_mom_top.flow_through:
+        phitop = analyzer.phys.bc_mom_top.phase_number  # type: ignore
+    if analyzer.phys.bc_mom_bot.flow_through:
+        phibot = analyzer.phys.bc_mom_bot.phase_number  # type: ignore
 
     rad_cheb = analyzer.nodes
     harm = analyzer.harm_c
@@ -601,6 +605,12 @@ def plot_fastest_mode(
         axis.set_axis_off()
         fig.set_size_inches(9, 9)
         if plot_text:
+            phitop = None
+            phibot = None
+            if analyzer.phys.bc_mom_top.flow_through:
+                phitop = analyzer.phys.bc_mom_top.phase_number  # type: ignore
+            if analyzer.phys.bc_mom_bot.flow_through:
+                phibot = analyzer.phys.bc_mom_bot.phase_number  # type: ignore
             axis.text(
                 0.5,
                 0.58,
@@ -613,7 +623,7 @@ def plot_fastest_mode(
             axis.text(
                 0.5,
                 0.5,
-                r"$\Phi^+={}$".format(fmt(analyzer.phys.phi_top)),
+                r"$\Phi^+={}$".format(fmt(phitop)),
                 fontsize=25,
                 transform=axis.transAxes,
                 verticalalignment="center",
@@ -622,7 +632,7 @@ def plot_fastest_mode(
             axis.text(
                 0.5,
                 0.42,
-                r"$\Phi^-={}$".format(fmt(analyzer.phys.phi_bot)),
+                r"$\Phi^-={}$".format(fmt(phibot)),
                 fontsize=25,
                 transform=axis.transAxes,
                 verticalalignment="center",

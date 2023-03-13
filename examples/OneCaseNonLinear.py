@@ -24,7 +24,7 @@ import numpy as np
 import stablinrb.plotting as stabplt
 from stablinrb.geometry import Cartesian
 from stablinrb.nonlin import NonLinearAnalyzer
-from stablinrb.physics import PhysicalProblem
+from stablinrb.physics import FreeSlip, PhysicalProblem
 
 # include tex fonts in pdf
 mpl.rc("font", **{"family": "sans-serif", "sans-serif": ["Helvetica"]})
@@ -36,8 +36,8 @@ FTSZ = 11
 
 pblm = PhysicalProblem(
     geometry=Cartesian(),
-    freeslip_top=True,
-    freeslip_bot=True,
+    bc_mom_top=FreeSlip(),
+    bc_mom_bot=FreeSlip(),
 )
 
 ana = NonLinearAnalyzer(pblm, ncheb=30, nnonlin=2)

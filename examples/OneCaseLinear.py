@@ -10,15 +10,12 @@ minimal value and the fastest growing mode.
 import stablinrb.plotting as plotting
 from stablinrb.analyzer import LinearAnalyzer
 from stablinrb.geometry import Cartesian
-from stablinrb.physics import PhysicalProblem
+from stablinrb.physics import FreeSlip, PhysicalProblem
 
-# Define the physical problem.
-# Adjust the parameters and conditions here.
-# See physics.py for all the options
 pblm = PhysicalProblem(
     geometry=Cartesian(),
-    freeslip_top=True,  # mechanical BC at top. True is default.
-    freeslip_bot=True,  # mechanical BC at bottom. True is default.
+    bc_mom_top=FreeSlip(),
+    bc_mom_bot=FreeSlip(),
 )
 
 ana = LinearAnalyzer(pblm, chebyshev_degree=10)

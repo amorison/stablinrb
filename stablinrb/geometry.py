@@ -156,6 +156,11 @@ class SphRadOps(RadialOperators):
 class Operators(ABC):
     @property
     @abstractmethod
+    def spherical(self) -> bool:
+        """Whether geometry is spherical."""
+
+    @property
+    @abstractmethod
     def radial_ops(self) -> RadialOperators:
         """Radial operators."""
 
@@ -174,6 +179,20 @@ class Operators(ABC):
     def grad_r(self) -> NDArray:
         """Radial gradient."""
 
+    @abstractmethod
+    def diff_r(self, order: int) -> NDArray:
+        """Radial derivative."""
+
+    @property
+    @abstractmethod
+    def diff_h(self) -> NDArray:
+        """Horizontal derivative."""
+
+    @property
+    @abstractmethod
+    def lapl_h(self) -> NDArray:
+        """Horizontal laplacian."""
+
     @property
     @abstractmethod
     def lapl(self) -> NDArray:
@@ -189,11 +208,22 @@ class Operators(ABC):
     def adv_vel_var(self) -> str:
         """Name of velocity variable to combine with `adv_r`."""
 
+    @property
+    @abstractmethod
+    def viscosity(self) -> NDArray:
+        """viscosity."""
+        # FIXME: proper rheology handling
+
 
 @dataclass(frozen=True)
 class CartOps(Operators):
     rad_ops: CartRadOps
     wavenumber: float
+    eta_r: NDArray
+
+    @property
+    def spherical(self) -> bool:
+        return False
 
     @property
     def radial_ops(self) -> CartRadOps:
@@ -211,9 +241,20 @@ class CartOps(Operators):
     def grad_r(self) -> NDArray:
         return self.rad_ops.grad_r
 
+    def diff_r(self, order: int) -> NDArray:
+        return self.rad_ops.diff_mat.at_order(order)
+
+    @cached_property
+    def diff_h(self) -> NDArray:
+        return 1j * self.wavenumber * self.identity
+
+    @cached_property
+    def lapl_h(self) -> NDArray:
+        return -self.wavenumber**2 * self.identity
+
     @property
     def lapl(self) -> NDArray:
-        return self.rad_ops.lapl_r - self.wavenumber**2 * self.identity
+        return self.rad_ops.lapl_r + self.lapl_h
 
     @property
     def adv_r(self) -> NDArray:
@@ -223,11 +264,20 @@ class CartOps(Operators):
     def adv_vel_var(self) -> str:
         return "w"
 
+    @property
+    def viscosity(self) -> NDArray:
+        return self.eta_r
+
 
 @dataclass(frozen=True)
 class SphOps(Operators):
     rad_ops: SphRadOps
     harm_degree: int
+    eta_r: NDArray
+
+    @property
+    def spherical(self) -> bool:
+        return True
 
     @property
     def radial_ops(self) -> SphRadOps:
@@ -249,9 +299,20 @@ class SphOps(Operators):
     def grad_r(self) -> NDArray:
         return self.rad_ops.grad_r
 
+    def diff_r(self, order: int) -> NDArray:
+        return self.rad_ops.diff_mat.at_order(order)
+
+    @property
+    def diff_h(self) -> NDArray:
+        raise RuntimeError("Horizontal derivative not defined in spherical.")
+
+    @cached_property
+    def lapl_h(self) -> NDArray:
+        return -np.diag(self.ell2 / self.phys_coord**2)
+
     @property
     def lapl(self) -> NDArray:
-        return self.rad_ops.lapl_r - np.diag(self.ell2 / self.phys_coord**2)
+        return self.rad_ops.lapl_r + self.lapl_h
 
     @property
     def adv_r(self) -> NDArray:
@@ -262,3 +323,7 @@ class SphOps(Operators):
     @property
     def adv_vel_var(self) -> str:
         return "p"
+
+    @property
+    def viscosity(self) -> NDArray:
+        return self.eta_r

@@ -129,7 +129,9 @@ class NonLinearAnalyzer:
         one = np.identity(nnodes)  # identity
 
         # only in that case a translating vertical velocity is possible
-        solve_for_w = self.phys.phi_top is not None and self.phys.phi_bot is not None
+        solve_for_w = (
+            self.phys.bc_mom_top.flow_through and self.phys.bc_mom_bot.flow_through
+        )
 
         assert self.phys.temperature is not None
         var_specs: list[VarSpec] = [
@@ -154,20 +156,20 @@ class NonLinearAnalyzer:
         # FIXME: missing boundary conditions on T (non-dirichlet)
         # the case for a translating vertical velocity (mode 0)
         if solve_for_w:
-            assert self.phys.phi_top is not None and self.phys.phi_bot is not None
+            # FIXME: more general handling of boundary condition
+            phi_top = self.phys.bc_mom_top.phase_number  # type: ignore
+            phi_bot = self.phys.bc_mom_bot.phase_number  # type: ignore
             # Uniform vertical velocity in the temperature equation
             # FIXME: depends on grad T
             one_row = np.diag(one)[:, np.newaxis]
             lmat.add_term(Bulk("T"), one_row, "w0")
             # Vertical velocity in momentum boundary conditions
             lmat.add_term(Top("p"), -one, "p")
-            lmat.add_term(Top("p"), self.phys.phi_top * one_row, "w0")
+            lmat.add_term(Top("p"), phi_top * one_row, "w0")
             lmat.add_term(Bot("p"), one, "p")
-            lmat.add_term(Bot("p"), self.phys.phi_bot * one_row, "w0")
+            lmat.add_term(Bot("p"), phi_bot * one_row, "w0")
             # equation for the uniform vertical velocity
-            lmat.add_term(
-                Single("w0"), np.asarray(self.phys.phi_top + self.phys.phi_bot), "w0"
-            )
+            lmat.add_term(Single("w0"), np.asarray(phi_top + phi_bot), "w0")
             lmat.add_term(Single("w0"), one[:1], "p")
             lmat.add_term(Single("w0"), -one[-1:], "p")
 
@@ -392,7 +394,10 @@ class NonLinearAnalyzer:
                     meant[ii] = self.z_integ.apply(prot)
                     dprot = ana.diff_mat(1) @ prot
                     qtop[ii] = -dprot[0]
-                    if self.phys.phi_top is not None and self.phys.phi_bot is not None:
+                    if (
+                        self.phys.bc_mom_top.flow_through
+                        and self.phys.bc_mom_bot.flow_through
+                    ):
                         # translation velocity possible
                         full_w0[ind] = np.real(sol.extract("w0").item())
                     else:

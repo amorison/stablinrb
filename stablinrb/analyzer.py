@@ -10,7 +10,7 @@ from dmsuite.poly_diff import Chebyshev, DiffMatOnDomain
 from scipy import linalg
 
 from .geometry import CartOps, Spherical, SphOps
-from .matrix import All, Bot, Bulk, Matrix, Slices, Top, Vector
+from .matrix import All, Bulk, Matrix, Slices, Vector
 from .physics import wtran
 
 if typing.TYPE_CHECKING:
@@ -26,52 +26,37 @@ def cartesian_matrices(
     self: LinearAnalyzer, wnk: float, ra_num: float, ra_comp: Optional[float] = None
 ) -> tuple[Matrix, Matrix]:
     """Build left- and right-hand-side matrices in cartesian geometry case"""
-    # parameters
-    phi_top = self.phys.phi_top
-    phi_bot = self.phys.phi_bot
-    freeslip_top = self.phys.freeslip_top
-    freeslip_bot = self.phys.freeslip_bot
     prandtl = self.phys.prandtl
     translation = self.phys.ref_state_translation
     assert self.phys.temperature is not None
 
-    ops = CartOps(rad_ops=self.operators, wavenumber=wnk)  # type: ignore
+    # FIXME: viscosity in cartesian
+    ops = CartOps(
+        rad_ops=self.operators,  # type: ignore
+        wavenumber=wnk,
+        eta_r=self.operators.identity,
+    )
     dz1 = ops.grad_r
     one = ops.identity
-    # horizontal derivative
-    dh1 = 1j * wnk * one
 
     lmat = Matrix(self.slices, dtype=np.complex128)
     rmat = Matrix(self.slices)
 
     # Pressure equations
     # mass conservation
-    lmat.add_term(All("p"), dh1, "u")
+    lmat.add_term(All("p"), ops.diff_h, "u")
     lmat.add_term(All("p"), dz1, "w")
 
-    # U equations
-    # free-slip at top
-    if phi_top is not None or freeslip_top:
-        lmat.add_term(Top("u"), dz1, "u")
-    if phi_top is not None:
-        lmat.add_term(Top("u"), dh1, "w")
+    # Momentum equation
+    self.phys.bc_mom_top.add_top(lmat, ops)
+    self.phys.bc_mom_bot.add_bot(lmat, ops)
     # horizontal momentum conservation
-    lmat.add_term(Bulk("u"), -dh1, "p")
+    lmat.add_term(Bulk("u"), -ops.diff_h, "p")
     lmat.add_term(Bulk("u"), ops.lapl, "u")
-    # free-slip at bot
-    if phi_bot is not None or freeslip_bot:
-        lmat.add_term(Bot("u"), dz1, "u")
-    if phi_bot is not None:
-        lmat.add_term(Bot("u"), dh1, "w")
-
-    # W equations
-    if phi_top is not None:
-        # phase change at top
-        lmat.add_term(Top("w"), -one, "p")
-        lmat.add_term(Top("w"), phi_top * one + 2 * dz1, "w")
     # vertical momentum conservation
     lmat.add_term(Bulk("w"), -dz1, "p")
     lmat.add_term(Bulk("w"), ops.lapl, "w")
+    # buoyancy
     if self.phys.water:
         # FIXME: abstract this away, this would also deserve its own
         # ScalarField implementation for temperature (cooled from below)
@@ -82,15 +67,12 @@ def cartesian_matrices(
     if self.phys.composition is not None:
         assert ra_comp is not None
         lmat.add_term(Bulk("w"), ra_comp * one, "c")
-    if phi_bot is not None:
-        # phase change at bot
-        lmat.add_term(Bot("w"), -one, "p")
-        lmat.add_term(Bot("w"), -phi_bot * one + 2 * dz1, "w")
 
     if translation:
         # only written for Dirichlet BCs on T and without internal heating
         # FIXME: abstract away translation case with AdvDiffEq formalism
-        assert phi_bot is not None and phi_top is not None
+        phi_top = self.phys.bc_mom_top.phase_number  # type: ignore
+        phi_bot = self.phys.bc_mom_bot.phase_number  # type: ignore
         rtr = 12 * (phi_top + phi_bot)
         wtrans = wtran((ra_num - rtr) / rtr)[0]
         self.phys.temperature.bc_top.add_top("T", lmat, ops)
@@ -130,7 +112,17 @@ def spherical_matrices(
     # FIXME: delegate to a geometry-aware object
     assert isinstance(self.phys.geometry, Spherical)
     gamma = self.phys.geometry.gamma
-    ops = SphOps(rad_ops=self.operators, harm_degree=l_harm)  # type: ignore
+
+    if self.phys.eta_r is not None:
+        eta_r = np.diag(self.phys.eta_r(self.operators.phys_coord))
+    else:
+        eta_r = self.operators.identity
+
+    ops = SphOps(
+        rad_ops=self.operators,  # type: ignore
+        harm_degree=l_harm,
+        eta_r=eta_r,
+    )
     rad = self.nodes
     dr1, dr2 = self.diff_mat(1), self.diff_mat(2)
 
@@ -149,25 +141,7 @@ def spherical_matrices(
     orl3 = np.diag(orl3)
 
     lh2 = l_harm * (l_harm + 1)  # horizontal laplacian
-    phi_top = self.phys.phi_top
-    phi_bot = self.phys.phi_bot
-    if self.phys.C_top is not None:
-        C_top = self.phys.C_top
-    else:
-        C_top = 0
-    if self.phys.C_bot is not None:
-        C_bot = self.phys.C_bot
-    else:
-        C_bot = 0
-    freeslip_top = self.phys.freeslip_top
-    freeslip_bot = self.phys.freeslip_bot
-
     temp_terms = self.phys.temperature is not None
-
-    if self.phys.eta_r is not None:
-        eta_r = np.diag(np.vectorize(self.phys.eta_r)(np.diag(ral)))
-    else:
-        eta_r = one
 
     if temp_terms and ra_num is None:
         raise ValueError("Temperature effect requires ra_num")
@@ -177,43 +151,15 @@ def spherical_matrices(
     lmat = Matrix(self.slices)
     rmat = Matrix(self.slices)
 
+    # Momentum equations
+    self.phys.bc_mom_top.add_top(lmat, ops)
+    self.phys.bc_mom_bot.add_bot(lmat, ops)
     # Poloidal potential equations
-    if phi_top is not None:
-        # free-slip at top
-        lmat.add_term(Top("p"), dr2 + (lh2 * (1 + C_top) - 2) * orl2, "p")
-    else:
-        # no radial velocity, Dirichlet condition but
-        # need to keep boundary point to ensure free-slip
-        # or rigid boundary
-        lmat.add_term(Top("p"), one, "p")
     # laplacian(P) - Q = 0
     lmat.add_term(Bulk("p"), ops.lapl, "p")
     lmat.add_term(Bulk("p"), -one, "q")
-    if phi_bot is not None:
-        # free-slip at bot
-        lmat.add_term(Bot("p"), dr2 + (lh2 * (1 - C_bot) - 2) * orl2, "p")
-    else:
-        lmat.add_term(Bot("p"), one, "p")
 
     # Q equations
-    # normal stress continuity at top
-    if phi_top is not None:
-        lmat.add_term(
-            Top("q"),
-            lh2
-            * (
-                (phi_top - 2 * C_top * (1 - gamma)) * orl1
-                - 2 * np.dot(eta_r, orl2)
-                + 2 * np.dot(eta_r, np.dot(orl1, dr1))
-            ),
-            "p",
-        )
-        lmat.add_term(Top("q"), -eta_r - np.dot(eta_r, np.dot(ral, dr1)), "q")
-    elif freeslip_top:
-        lmat.add_term(Top("q"), dr2, "p")
-    else:
-        # rigid
-        lmat.add_term(Top("q"), dr1, "p")
     if self.phys.eta_r is not None:
         deta_dr = np.diag(np.dot(dr1, np.diag(eta_r)))
         d2eta_dr2 = np.diag(np.dot(dr2, np.diag(eta_r)))
@@ -235,24 +181,6 @@ def spherical_matrices(
     if self.phys.composition is not None:
         assert ra_comp is not None
         lmat.add_term(Bulk("q"), -ra_comp * orl1, "c")
-    # normal stress continuity at bot
-    if phi_bot is not None:
-        lmat.add_term(
-            Bot("q"),
-            lh2
-            * (
-                -(phi_bot - 2 * C_bot * (1 - gamma) / gamma) * orl1
-                - 2 * np.dot(eta_r, orl2)
-                + 2 * np.dot(eta_r, np.dot(orl1, dr1))
-            ),
-            "p",
-        )
-        lmat.add_term(Bot("q"), -eta_r - np.dot(eta_r, np.dot(ral, dr1)), "q")
-    elif freeslip_bot:
-        lmat.add_term(Bot("q"), dr2, "p")
-    else:
-        # rigid
-        lmat.add_term(Bot("q"), dr1, "p")
 
     if self.phys.cooling_smo is not None:
         gamt_f, w_f = self.phys.cooling_smo
@@ -591,8 +519,9 @@ class LinearAnalyzer:
         eps: precision of the zero finding
         """
         # minimum value: the critcal one for translation
-        assert self.phys.phi_top is not None and self.phys.phi_bot is not None
-        ramin = 12 * (self.phys.phi_top + self.phys.phi_bot)
+        phi_top = self.phys.bc_mom_top.phase_number  # type: ignore
+        phi_bot = self.phys.bc_mom_bot.phase_number  # type: ignore
+        ramin = 12 * (phi_top + phi_bot)
         ramax = 2 * ramin
         smin, hmin = self.fastest_mode(ramin, harm=hguess)
         smax, hmax = self.fastest_mode(ramax, harm=hmin)

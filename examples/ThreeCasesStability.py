@@ -6,7 +6,7 @@ import numpy as np
 
 from stablinrb.analyzer import LinearAnalyzer
 from stablinrb.geometry import Cartesian
-from stablinrb.physics import PhysicalProblem
+from stablinrb.physics import FreeSlip, PhysicalProblem, Rigid
 
 mpl.rc("font", **{"family": "sans-serif", "sans-serif": ["Helvetica"]})
 mpl.rc("text", usetex=True)
@@ -14,7 +14,11 @@ mpl.rcParams["pdf.fonttype"] = 42
 
 # rigid--rigid case
 ana = LinearAnalyzer(
-    phys=PhysicalProblem(geometry=Cartesian(), freeslip_top=False, freeslip_bot=False),
+    phys=PhysicalProblem(
+        geometry=Cartesian(),
+        bc_mom_top=Rigid(),
+        bc_mom_bot=Rigid(),
+    ),
     chebyshev_degree=10,
 )
 
@@ -45,7 +49,11 @@ plt.plot(
 
 # Free--rigid case
 ana = LinearAnalyzer(
-    phys=PhysicalProblem(geometry=Cartesian(), freeslip_top=True, freeslip_bot=False),
+    phys=PhysicalProblem(
+        geometry=Cartesian(),
+        bc_mom_top=FreeSlip(),
+        bc_mom_bot=Rigid(),
+    ),
     chebyshev_degree=10,
 )
 hmin = 0.7
@@ -73,7 +81,11 @@ plt.plot(
 
 # Free--free case
 ana = LinearAnalyzer(
-    phys=PhysicalProblem(geometry=Cartesian(), freeslip_top=True, freeslip_bot=True),
+    phys=PhysicalProblem(
+        geometry=Cartesian(),
+        bc_mom_top=FreeSlip(),
+        bc_mom_bot=FreeSlip(),
+    ),
     chebyshev_degree=10,
 )
 hmin = 0.5
