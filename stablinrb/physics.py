@@ -7,6 +7,7 @@ from dataclasses import dataclass
 import numpy as np
 from scipy.optimize import brentq
 
+from .geometry import CartRadOps
 from .matrix import Bot, Bulk, Field, Matrix, Slices, Top
 
 if typing.TYPE_CHECKING:
@@ -100,6 +101,36 @@ class ArbitraryProf(ReferenceProfile):
 
     def eval_with(self, operators: RadialOperators) -> NDArray:
         return self.ref_prof_from_coord(operators.phys_coord)
+
+
+@dataclass(frozen=True)
+class FractionalCrystProf(ReferenceProfile):
+    """Bottom-up fractional crystallization profile.
+
+    This is useful for the compositional field.
+
+    Attributes:
+        thick_tot: total thickness of the magma ocean.
+        partition_coef: partition coefficient.
+        c_0: composition of first solid if set (otherwise equilibrium is assumed).
+    """
+
+    thick_tot: float
+    partition_coef: float
+    c_0: Optional[float] = None
+
+    def eval_with(self, operators: RadialOperators) -> NDArray:
+        # only written in cartesian
+        assert isinstance(operators, CartRadOps)
+        c_s = (
+            (1 - 1 / self.thick_tot**3) ** (1 - self.partition_coef)
+            if self.c_0 is None
+            else self.c_0
+        )
+        return c_s * (
+            self.thick_tot**3
+            / (self.thick_tot**3 - (operators.phys_coord + 1 / 2) ** 3)
+        ) ** (1 - self.partition_coef)
 
 
 class BCPerturbation(ABC):
@@ -463,20 +494,6 @@ def wtran(eps: float) -> tuple[float, float, float]:
             # Complete solution by bracketing (Brentq).
             wtr = brentq(func, wtrs, wtrl, args=(eps))
     return wtr, wtrs, wtrl
-
-
-def compo_smo(
-    thick_tot: float, partition_coef: float, c_0: Optional[float] = None
-) -> Callable[[NDArray], NDArray]:
-    """Composition profile
-
-    Computed in the case of a rapidly crystalizing smo.
-    """
-    # only written in cartesian
-    c_s = (1 - 1 / thick_tot**3) ** (1 - partition_coef) if c_0 is None else c_0
-    return lambda z: c_s * (thick_tot**3 / (thick_tot**3 - (z + 1 / 2) ** 3)) ** (
-        1 - partition_coef
-    )
 
 
 def visco_Arrhenius(eta_c: float, gamma: float) -> Callable[[NDArray], NDArray]:
