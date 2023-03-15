@@ -26,6 +26,22 @@ def test_classic_rb_cart() -> None:
     assert np.isclose(harm_c, harm_th, rtol=1e-2)
 
 
+@pytest.mark.parametrize(
+    "gamma,ra_th,harm_th", [(0.55, 711.95, 3), (0.99, 657.53, 221)]
+)
+def test_classic_rb_sph(gamma: float, ra_th: float, harm_th: float) -> None:
+    ana = LinearAnalyzer(
+        phys=phy.PhysicalProblem(
+            geometry=geom.Spherical(gamma),
+        ),
+        chebyshev_degree=15,
+    )
+
+    ra_c, harm_c = ana.critical_ra()
+    assert np.isclose(ra_c, ra_th)
+    assert harm_c == harm_th
+
+
 @pytest.mark.parametrize("phi", [1e-3, 3e-2, 1e-2])
 def test_phi_cart(phi: float) -> None:
     ana = LinearAnalyzer(
