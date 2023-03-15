@@ -51,6 +51,7 @@ disallow_untyped_defs = true
 module = [
     "matplotlib.*",
     "mpl_toolkits.*",
+    "pytest.*",
     "scipy.*",
 ]
 ignore_missing_imports = true
