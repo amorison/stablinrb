@@ -152,13 +152,13 @@ class BCPerturbation(ABC):
 @dataclass(frozen=True)
 class Zero(BCPerturbation):
     def include(self) -> bool:
-        return False
+        return True
 
     def add_top(self, var: str, mat: Matrix, operators: Operators) -> None:
-        pass
+        mat.add_term(Top(var), operators.identity, var)
 
     def add_bot(self, var: str, mat: Matrix, operators: Operators) -> None:
-        pass
+        mat.add_term(Bot(var), operators.identity, var)
 
 
 @dataclass(frozen=True)
@@ -179,7 +179,7 @@ class RobinPert(BCPerturbation):
     coef_grad: float
 
     def include(self) -> bool:
-        return False
+        return True
 
     def _opt(self, ops: Operators) -> NDArray:
         return self.coef_var * ops.identity + self.coef_grad * ops.grad_r
@@ -246,17 +246,23 @@ class Rigid(BCMomentum):
     def include(self, geometry: Geometry) -> Mapping[str, bool]:
         if geometry.is_spherical():
             return {"p": True, "q": True}
-        return {"u": False, "w": False, "p": True}
+        return {"u": True, "w": True, "p": True}
 
     def add_top(self, mat: Matrix, ops: Operators) -> None:
         if ops.spherical:
             mat.add_term(Top("p"), ops.identity, "p")
             mat.add_term(Top("q"), ops.grad_r, "p")
+        else:
+            mat.add_term(Top("u"), ops.identity, "u")
+            mat.add_term(Top("w"), ops.identity, "w")
 
     def add_bot(self, mat: Matrix, ops: Operators) -> None:
         if ops.spherical:
             mat.add_term(Bot("p"), ops.identity, "p")
             mat.add_term(Bot("q"), ops.grad_r, "p")
+        else:
+            mat.add_term(Bot("u"), ops.identity, "u")
+            mat.add_term(Bot("w"), ops.identity, "w")
 
 
 @dataclass(frozen=True)
@@ -274,7 +280,7 @@ class FreeSlip(BCMomentum):
     def include(self, geometry: Geometry) -> Mapping[str, bool]:
         if geometry.is_spherical():
             return {"p": True, "q": True}
-        return {"u": True, "w": False, "p": True}
+        return {"u": True, "w": True, "p": True}
 
     def add_top(self, mat: Matrix, ops: Operators) -> None:
         if ops.spherical:
@@ -282,6 +288,7 @@ class FreeSlip(BCMomentum):
             mat.add_term(Top("q"), ops.diff_r(2), "p")
         else:
             mat.add_term(Top("u"), ops.grad_r, "u")
+            mat.add_term(Top("w"), ops.identity, "w")
 
     def add_bot(self, mat: Matrix, ops: Operators) -> None:
         if ops.spherical:
@@ -289,6 +296,7 @@ class FreeSlip(BCMomentum):
             mat.add_term(Bot("q"), ops.diff_r(2), "p")
         else:
             mat.add_term(Bot("u"), ops.grad_r, "u")
+            mat.add_term(Bot("w"), ops.identity, "w")
 
 
 @dataclass(frozen=True)
