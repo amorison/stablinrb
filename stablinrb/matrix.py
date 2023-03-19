@@ -148,10 +148,7 @@ class Slices:
             var = spec.name()
             if Bulk(var) in spans:
                 bslc = spans[Bulk(var)]
-                spans[All(var)] = slice(
-                    bslc.start - (Top(var) in spans),
-                    bslc.stop + (Bot(var) in spans),
-                )
+                spans[All(var)] = slice(bslc.start - 1, bslc.stop + 1)
         return spans
 
     @cached_property
@@ -190,13 +187,9 @@ class Vector:
         assert self.arr.shape == (self.slices.total_size,)
 
     def extract(self, var: str) -> NDArray:
-        """Values of the variable, adding boundaries if needed."""
+        """Values of the variable."""
         pos = self.slices.full_position(var)
-        if pos.collocated:
-            values = np.zeros(self.slices.nnodes, dtype=self.arr.dtype)
-            values[self.slices.collocation(pos)] = self.arr[self.slices.span(pos)]
-            return values
-        return self.arr[self.slices.span(pos)]
+        return np.copy(self.arr[self.slices.span(pos)])
 
     def normalize_by(self, norm: complex) -> Vector:
         """Normalize by given value."""
