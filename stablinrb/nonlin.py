@@ -141,7 +141,7 @@ class NonLinearAnalyzer:
 
         assert self.phys.temperature is not None
         var_specs: list[VarSpec] = [
-            Field(var="p", include_top=solve_for_w, include_bot=solve_for_w),
+            Field(var="p", include_top=True, include_bot=True),
             Field(
                 var="T",
                 include_top=self.phys.temperature.bc_top.include(),
@@ -180,6 +180,9 @@ class NonLinearAnalyzer:
             lmat.add_term(Single("w0"), np.asarray(phi_top + phi_bot), "w0")
             lmat.add_term(Single("w0"), ops.identity[:1], "p")
             lmat.add_term(Single("w0"), -ops.identity[-1:], "p")
+        else:
+            lmat.add_term(Top("p"), ops.identity, "p")
+            lmat.add_term(Bot("p"), ops.identity, "p")
 
         return lmat
 
