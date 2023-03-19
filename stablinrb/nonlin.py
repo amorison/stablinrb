@@ -9,6 +9,7 @@ import numpy as np
 from numpy.linalg import lstsq, solve
 
 from .analyzer import LinearAnalyzer
+from .geometry import CartOps, CartRadOps
 from .matrix import All, Bot, Bulk, Field, Matrix, Scalar, Single, Slices, Top, Vector
 
 if typing.TYPE_CHECKING:
@@ -125,8 +126,13 @@ class NonLinearAnalyzer:
         are solved for
         """
         nnodes = self.linear_analyzer.nodes.size
-        dz1, dz2 = self.linear_analyzer.diff_mat(1), self.linear_analyzer.diff_mat(2)
-        one = np.identity(nnodes)  # identity
+        rad_ops = self.linear_analyzer.operators
+        assert isinstance(rad_ops, CartRadOps)
+        ops = CartOps(
+            rad_ops=rad_ops,
+            wavenumber=0.0,
+            eta_r=rad_ops.identity,
+        )
 
         # only in that case a translating vertical velocity is possible
         solve_for_w = (
@@ -149,29 +155,31 @@ class NonLinearAnalyzer:
         lmat = Matrix(slices=Slices(var_specs=var_specs, nnodes=nnodes))
 
         # pressure equation (z momentum)
-        lmat.add_term(Bulk("p"), -dz1, "p")
-        lmat.add_term(Bulk("p"), ra_num * one, "T")
+        lmat.add_term(Bulk("p"), -rad_ops.grad_r, "p")
+        lmat.add_term(Bulk("p"), ra_num * ops.identity, "T")
         # temperature equation
-        lmat.add_term(Bulk("T"), dz2, "T")
-        # FIXME: missing boundary conditions on T (non-dirichlet)
+        self.phys.temperature.bc_top.add_top("T", lmat, ops)
+        self.phys.temperature.bc_bot.add_bot("T", lmat, ops)
+        lmat.add_term(Bulk("T"), rad_ops.lapl_r, "T")
         # the case for a translating vertical velocity (mode 0)
         if solve_for_w:
             # FIXME: more general handling of boundary condition
             phi_top = self.phys.bc_mom_top.phase_number  # type: ignore
             phi_bot = self.phys.bc_mom_bot.phase_number  # type: ignore
             # Uniform vertical velocity in the temperature equation
-            # FIXME: depends on grad T
-            one_row = np.diag(one)[:, np.newaxis]
-            lmat.add_term(Bulk("T"), one_row, "w0")
+            tref = self.phys.temperature.ref_prof.eval_with(rad_ops)
+            grad_tref = (rad_ops.grad_r @ tref)[:, np.newaxis]
+            lmat.add_term(Bulk("T"), -grad_tref, "w0")
             # Vertical velocity in momentum boundary conditions
-            lmat.add_term(Top("p"), -one, "p")
+            one_row = np.diag(ops.identity)[:, np.newaxis]
+            lmat.add_term(Top("p"), -ops.identity, "p")
             lmat.add_term(Top("p"), phi_top * one_row, "w0")
-            lmat.add_term(Bot("p"), one, "p")
+            lmat.add_term(Bot("p"), ops.identity, "p")
             lmat.add_term(Bot("p"), phi_bot * one_row, "w0")
             # equation for the uniform vertical velocity
             lmat.add_term(Single("w0"), np.asarray(phi_top + phi_bot), "w0")
-            lmat.add_term(Single("w0"), one[:1], "p")
-            lmat.add_term(Single("w0"), -one[-1:], "p")
+            lmat.add_term(Single("w0"), ops.identity[:1], "p")
+            lmat.add_term(Single("w0"), -ops.identity[-1:], "p")
 
         return lmat
 
@@ -218,7 +226,7 @@ class NonLinearAnalyzer:
         ordered by wavenumber
         """
         # get indices
-        tall = self.slices.collocation(All("T"))
+        tbulk = self.slices.collocation(Bulk("T"))
 
         # create local profiles
         uloc = np.zeros(self.slices.nnodes, dtype=np.complex64)
@@ -249,7 +257,7 @@ class NonLinearAnalyzer:
                 wloc = full_sol[indle].extract("w")
                 ntermt = factor * uloc * tloc + wloc * dtr
                 # FIXME: in-place modification of ntermt
-                nterm[iind].arr[self.slices.span(All("T"))] += ntermt[tall]
+                nterm[iind].arr[self.slices.span(Bulk("T"))] += ntermt[tbulk]
 
                 # index for nmo and ll-lr
                 nharmm = 2 * (ll - lr) + yle - yri
@@ -259,7 +267,7 @@ class NonLinearAnalyzer:
                 else:
                     ntermt = factor * np.conj(uloc) * tloc + np.conj(wloc) * dtr
                 # FIXME: in-place modification of ntermt
-                nterm[iind].arr[self.slices.span(All("T"))] += ntermt[tall]
+                nterm[iind].arr[self.slices.span(Bulk("T"))] += ntermt[tbulk]
 
     @cached_property
     def _nonlinana(self) -> tuple[float, NDArray, list[Vector], NDArray, NDArray]:
