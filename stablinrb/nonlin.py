@@ -140,14 +140,7 @@ class NonLinearAnalyzer:
         )
 
         assert self.phys.temperature is not None
-        var_specs: list[VarSpec] = [
-            Field(var="p", include_top=True, include_bot=True),
-            Field(
-                var="T",
-                include_top=self.phys.temperature.bc_top.include(),
-                include_bot=self.phys.temperature.bc_bot.include(),
-            ),
-        ]
+        var_specs: list[VarSpec] = [Field(var="p"), Field(var="T")]
         if solve_for_w:
             # translation velocity
             var_specs.append(Scalar(var="w0"))

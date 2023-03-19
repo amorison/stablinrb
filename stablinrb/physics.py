@@ -11,7 +11,7 @@ from .geometry import CartRadOps
 from .matrix import Bot, Bulk, Field, Matrix, Slices, Top
 
 if typing.TYPE_CHECKING:
-    from typing import Callable, Mapping, Optional, Sequence
+    from typing import Callable, Optional, Sequence
 
     from numpy.typing import NDArray
 
@@ -84,7 +84,7 @@ class DiffusiveProf(ReferenceProfile):
     def eval_with(self, operators: RadialOperators) -> NDArray:
         mat = Matrix(
             slices=Slices(
-                var_specs=(Field(var="f", include_top=True, include_bot=True),),
+                var_specs=(Field(var="f"),),
                 nnodes=operators.phys_coord.size,
             ),
         )
@@ -137,10 +137,6 @@ class BCPerturbation(ABC):
     """Boundary condition for perturbations."""
 
     @abstractmethod
-    def include(self) -> bool:
-        ...
-
-    @abstractmethod
     def add_top(self, var: str, mat: Matrix, operators: Operators) -> None:
         ...
 
@@ -151,9 +147,6 @@ class BCPerturbation(ABC):
 
 @dataclass(frozen=True)
 class Zero(BCPerturbation):
-    def include(self) -> bool:
-        return True
-
     def add_top(self, var: str, mat: Matrix, operators: Operators) -> None:
         mat.add_term(Top(var), operators.identity, var)
 
@@ -163,9 +156,6 @@ class Zero(BCPerturbation):
 
 @dataclass(frozen=True)
 class ZeroFlux(BCPerturbation):
-    def include(self) -> bool:
-        return True
-
     def add_top(self, var: str, mat: Matrix, operators: Operators) -> None:
         mat.add_term(Top(var), operators.grad_r, var)
 
@@ -177,9 +167,6 @@ class ZeroFlux(BCPerturbation):
 class RobinPert(BCPerturbation):
     coef_var: float
     coef_grad: float
-
-    def include(self) -> bool:
-        return True
 
     def _opt(self, ops: Operators) -> NDArray:
         return self.coef_var * ops.identity + self.coef_grad * ops.grad_r
@@ -219,10 +206,6 @@ class BCMomentum(ABC):
         ...
 
     @abstractmethod
-    def include(self, geometry: Geometry) -> Mapping[str, bool]:
-        ...
-
-    @abstractmethod
     def add_top(self, mat: Matrix, ops: Operators) -> None:
         ...
 
@@ -242,11 +225,6 @@ class Rigid(BCMomentum):
     @property
     def flow_through(self) -> bool:
         return False
-
-    def include(self, geometry: Geometry) -> Mapping[str, bool]:
-        if geometry.is_spherical():
-            return {"p": True, "q": True}
-        return {"u": True, "w": True, "p": True}
 
     def add_top(self, mat: Matrix, ops: Operators) -> None:
         if ops.spherical:
@@ -276,11 +254,6 @@ class FreeSlip(BCMomentum):
     @property
     def flow_through(self) -> bool:
         return False
-
-    def include(self, geometry: Geometry) -> Mapping[str, bool]:
-        if geometry.is_spherical():
-            return {"p": True, "q": True}
-        return {"u": True, "w": True, "p": True}
 
     def add_top(self, mat: Matrix, ops: Operators) -> None:
         if ops.spherical:
@@ -314,11 +287,6 @@ class PhaseChange(BCMomentum):
     @property
     def flow_through(self) -> bool:
         return True
-
-    def include(self, geometry: Geometry) -> Mapping[str, bool]:
-        if geometry.is_spherical():
-            return {"p": True, "q": True}
-        return {"u": True, "w": True, "p": True}
 
     def add_top(self, mat: Matrix, ops: Operators) -> None:
         # FIXME: rheology
@@ -427,42 +395,14 @@ class PhysicalProblem:
     def var_specs(self) -> Sequence[VarSpec]:
         common = []
         if self.temperature is not None:
-            common.append(
-                Field(
-                    var="T",
-                    include_top=self.temperature.bc_top.include(),
-                    include_bot=self.temperature.bc_bot.include(),
-                )
-            )
+            common.append(Field(var="T"))
         if self.composition is not None:
-            common.append(
-                Field(
-                    var="c",
-                    include_top=self.composition.bc_top.include(),
-                    include_bot=self.composition.bc_bot.include(),
-                )
-            )
+            common.append(Field(var="c"))
         if self.spherical:
-            inc_top = self.bc_mom_top.include(self.geometry)
-            inc_bot = self.bc_mom_bot.include(self.geometry)
-            return [
-                # poloidal potential
-                Field(var="p", include_top=inc_top["p"], include_bot=inc_bot["p"]),
-                # lapl(poloidal)
-                Field(var="q", include_top=inc_top["q"], include_bot=inc_bot["q"]),
-                *common,
-            ]
-        # cartesian
-        inc_top = self.bc_mom_top.include(self.geometry)
-        inc_bot = self.bc_mom_bot.include(self.geometry)
-        return [
-            # pressure
-            Field(var="p", include_top=inc_top["p"], include_bot=inc_bot["p"]),
-            # velocities
-            Field(var="u", include_top=inc_top["u"], include_bot=inc_bot["u"]),
-            Field(var="w", include_top=inc_top["w"], include_bot=inc_bot["w"]),
-            *common,
-        ]
+            # poloidal potential and laplacian of poloidal
+            return [Field(var="p"), Field(var="q"), *common]
+        # cartesian, pressure and velocities
+        return [Field(var="p"), Field(var="u"), Field(var="w"), *common]
 
 
 def wtran(eps: float) -> tuple[float, float, float]:

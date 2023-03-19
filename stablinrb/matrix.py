@@ -89,26 +89,18 @@ class VarSpec(ABC):
 @dataclass(frozen=True)
 class Field(VarSpec):
     var: str
-    include_top: bool
-    include_bot: bool
 
     def name(self) -> str:
         return self.var
 
     def length(self, nnodes: int) -> int:
-        return nnodes - 2 + self.include_top + self.include_bot
+        return nnodes
 
     def elements(self) -> Sequence[Position]:
-        elts: list[Position] = [Top(self.var)] if self.include_top else []
-        elts.append(Bulk(self.var))
-        if self.include_bot:
-            elts.append(Bot(self.var))
-        return elts
+        return (Top(self.var), Bulk(self.var), Bot(self.var))
 
     def collocation(self, nnodes: int) -> slice:
-        imin = 1 - self.include_top
-        imax = nnodes - 1 + self.include_bot
-        return slice(imin, imax)
+        return slice(0, nnodes)
 
 
 @dataclass(frozen=True)
