@@ -248,7 +248,7 @@ def plot_fastest_mode(
     if name is None:
         name = analyzer.phys.name()
 
-    sigma, modes = analyzer.eigvec(harm, ra_num, ra_comp)
+    _, modes = analyzer.eigen_problem(harm, ra_num, ra_comp).max_eigvec()
     modes = modes.normalize_by_max_of("T")
     # p is pressure in cartesian geometry and
     # poloidal potential in spherical geometry

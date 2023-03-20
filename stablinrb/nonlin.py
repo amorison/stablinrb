@@ -266,9 +266,10 @@ class NonLinearAnalyzer:
         # First compute the linear mode and matrix
         ana = self.linear_analyzer
         ra_c, harm_c = ana.critical_ra()
-        lmat_c, rmat = ana.matrices(harm_c, ra_c)
+        eig_pblm_c = ana.eigen_problem(harm_c, ra_c)
+        lmat_c = eig_pblm_c.lmat
         nnodes = lmat_c.slices.total_size
-        _, mode_c = ana.eigvec(harm_c, ra_c)
+        _, mode_c = eig_pblm_c.max_eigvec()
         mode_c = mode_c.normalize_by_max_of("w")
 
         # setup matrices for the non linear solution
@@ -316,7 +317,7 @@ class NonLinearAnalyzer:
         # loop on the orders
         for ii in range(2, nnonlin + 2):
             # also need the linear problem for wnk up to nnonlin*harm_c
-            lmat[ii - 1] = ana.matrices(ii * harm_c, ra_c)[0].array()
+            lmat[ii - 1] = ana.eigen_problem(ii * harm_c, ra_c).lmat.array()
             (lii, yii) = divmod(ii, 2)
             # compute the N terms
             for ll in range(1, ii):

@@ -5,12 +5,10 @@ from dataclasses import dataclass
 from functools import cached_property
 
 import numpy as np
-import numpy.ma as ma
 from dmsuite.poly_diff import Chebyshev, DiffMatOnDomain
-from scipy import linalg
 
 from .geometry import CartOps, Spherical, SphOps
-from .matrix import All, Bulk, Matrix, Slices, Vector
+from .matrix import All, Bulk, EigenvalueProblem, Matrix, Slices, Vector
 from .physics import wtran
 
 if typing.TYPE_CHECKING:
@@ -24,7 +22,7 @@ if typing.TYPE_CHECKING:
 
 def cartesian_matrices(
     self: LinearAnalyzer, wnk: float, ra_num: float, ra_comp: Optional[float] = None
-) -> tuple[Matrix, Matrix]:
+) -> EigenvalueProblem:
     """Build left- and right-hand-side matrices in cartesian geometry case"""
     prandtl = self.phys.prandtl
     translation = self.phys.ref_state_translation
@@ -95,7 +93,7 @@ def cartesian_matrices(
     if self.phys.composition is not None:
         self.phys.composition.add_pert_eq("c", lmat, ops)
         rmat.add_term(Bulk("c"), one, "c")
-    return lmat, rmat
+    return EigenvalueProblem(lmat, rmat)
 
 
 def spherical_matrices(
@@ -103,7 +101,7 @@ def spherical_matrices(
     l_harm: int,
     ra_num: Optional[float] = None,
     ra_comp: Optional[float] = None,
-) -> tuple[Matrix, Matrix]:
+) -> EigenvalueProblem:
     """Build left and right matrices in spherical case"""
     # FIXME: delegate to a geometry-aware object
     assert isinstance(self.phys.geometry, Spherical)
@@ -204,7 +202,7 @@ def spherical_matrices(
         else:
             rmat.add_term(Bulk("c"), one, "c")
 
-    return lmat, rmat
+    return EigenvalueProblem(lmat, rmat)
 
 
 @dataclass(frozen=True)
@@ -263,41 +261,19 @@ class LinearAnalyzer:
     def slices(self) -> Slices:
         return Slices(var_specs=self.phys.var_specs(), nnodes=self.nodes.size)
 
-    def matrices(
+    def eigen_problem(
         self, harm: float, ra_num: float, ra_comp: Optional[float] = None
-    ) -> tuple[Matrix, Matrix]:
+    ) -> EigenvalueProblem:
         """Build left and right matrices"""
         if self.phys.spherical:
             return spherical_matrices(self, int(harm), ra_num, ra_comp)
         else:
             return cartesian_matrices(self, harm, ra_num, ra_comp)
 
-    def eigval(
+    def growth_rate(
         self, harm: float, ra_num: float, ra_comp: Optional[float] = None
     ) -> np.floating:
-        """Compute the max eigenvalue
-
-        harm: wave number
-        ra_num: thermal Rayleigh number
-        ra_comp: compositional Ra
-        """
-        lmat, rmat = self.matrices(harm, ra_num, ra_comp)
-        eigvals = linalg.eigvals(lmat.array(), rmat.array())
-        return np.max(np.real(ma.masked_invalid(eigvals)))
-
-    def eigvec(
-        self, harm: float, ra_num: float, ra_comp: Optional[float] = None
-    ) -> tuple[np.complexfloating, Vector]:
-        """Compute the max eigenvalue and associated eigenvector
-
-        harm: wave number
-        ra_num: thermal Rayleigh number
-        ra_comp: compositional Ra
-        """
-        lmat, rmat = self.matrices(harm, ra_num, ra_comp)
-        eigvals, eigvecs = linalg.eig(lmat.array(), rmat.array())
-        iegv = np.argmax(np.real(ma.masked_invalid(eigvals)))
-        return eigvals[iegv], Vector(slices=lmat.slices, arr=eigvecs[:, iegv])
+        return np.real(self.eigen_problem(harm, ra_num, ra_comp).max_eigval())
 
     def _split_mode_cartesian(
         self, eigvec: Vector
@@ -348,8 +324,8 @@ class LinearAnalyzer:
         """
         ra_min = ra_guess / 2
         ra_max = ra_guess * 2
-        sigma_min = np.real(self.eigval(harm, ra_min, ra_comp))
-        sigma_max = np.real(self.eigval(harm, ra_max, ra_comp))
+        sigma_min = self.growth_rate(harm, ra_min, ra_comp)
+        sigma_max = self.growth_rate(harm, ra_max, ra_comp)
 
         while sigma_min > 0.0 or sigma_max < 0.0:
             if sigma_min > 0.0:
@@ -358,12 +334,12 @@ class LinearAnalyzer:
             if sigma_max < 0.0:
                 ra_min = ra_max
                 ra_max *= 2
-            sigma_min = np.real(self.eigval(harm, ra_min, ra_comp))
-            sigma_max = np.real(self.eigval(harm, ra_max, ra_comp))
+            sigma_min = self.growth_rate(harm, ra_min, ra_comp)
+            sigma_max = self.growth_rate(harm, ra_max, ra_comp)
 
         while (ra_max - ra_min) / ra_max > eps:
             ra_mean = (ra_min + ra_max) / 2
-            sigma_mean = np.real(self.eigval(harm, ra_mean, ra_comp))
+            sigma_mean = self.growth_rate(harm, ra_mean, ra_comp)
             if sigma_mean < 0.0:
                 sigma_min = sigma_mean
                 ra_min = ra_mean
@@ -371,7 +347,9 @@ class LinearAnalyzer:
                 sigma_max = sigma_mean
                 ra_max = ra_mean
 
-        return (ra_min * sigma_max - ra_max * sigma_min) / (sigma_max - sigma_min)
+        return float(
+            (ra_min * sigma_max - ra_max * sigma_min) / (sigma_max - sigma_min)
+        )
 
     def fastest_mode(
         self, ra_num: float, ra_comp: Optional[float] = None, harm: float = 2
@@ -385,20 +363,24 @@ class LinearAnalyzer:
             eps = [0.1, 0.01]
             harms = np.linspace(harm * (1 - 2 * eps[0]), harm * (1 + eps[0]), 3)
 
-        sigma = [self.eigval(harm, ra_num, ra_comp) for harm in harms]
+        sigma = [self.growth_rate(harm, ra_num, ra_comp) for harm in harms]
         if self.phys.spherical:
             max_found = False
             while not max_found:
                 max_found = True
                 if harms[0] != 1 and sigma[0] > sigma[1]:
                     hs_smaller = range(max(1, harms[0] - 10), harms[0])
-                    s_smaller = [self.eigval(h, ra_num, ra_comp) for h in hs_smaller]
+                    s_smaller = [
+                        self.growth_rate(h, ra_num, ra_comp) for h in hs_smaller
+                    ]
                     harms = np.array(range(hs_smaller[0], harms[-1] + 1))
                     sigma = s_smaller + sigma
                     max_found = False
                 if sigma[-1] > sigma[-2]:
                     hs_greater = range(harms[-1] + 1, harms[-1] + 10)
-                    s_greater = [self.eigval(h, ra_num, ra_comp) for h in hs_greater]
+                    s_greater = [
+                        self.growth_rate(h, ra_num, ra_comp) for h in hs_greater
+                    ]
                     harms = np.array(range(harms[0], hs_greater[-1] + 1))
                     sigma = sigma + s_greater
                     max_found = False
@@ -409,11 +391,11 @@ class LinearAnalyzer:
             pol = np.polyfit(harms, sigma, 2)
             # maximum value
             hmax = -0.5 * pol[1] / pol[0]
-            smax = self.eigval(hmax, ra_num, ra_comp)
+            smax = self.growth_rate(hmax, ra_num, ra_comp)
             for i, err in enumerate([0.03, 1.0e-3]):
                 while np.abs(hmax - harms[1]) > err * hmax:
                     harms = np.linspace(hmax * (1 - eps[i]), hmax * (1 + eps[i]), 3)
-                    sigma = [self.eigval(h, ra_num, ra_comp) for h in harms]
+                    sigma = [self.growth_rate(h, ra_num, ra_comp) for h in harms]
                     pol = np.polyfit(harms, sigma, 2)
                     hmax = -0.5 * pol[1] / pol[0]
                     smax = sigma[1]
@@ -460,28 +442,28 @@ class LinearAnalyzer:
         """
         # First find the maximum growth rate
         sigmax, hmax = self.fastest_mode(ranum, harm=hguess)
-        if np.real(sigmax) < 0:
+        if sigmax < 0:
             # no need point in looking for zeros
             return sigmax, hmax, hmax, hmax
 
         # search zero on the plus side
         kmin = hmax
         kmax = 2 * hmax
-        smin = self.eigval(kmin, ranum)
-        smax = self.eigval(kmax, ranum)
-        while np.real(smax) > 0 or np.real(smin) < 0:
-            if np.real(smax) > 0:
+        smin = self.growth_rate(kmin, ranum)
+        smax = self.growth_rate(kmax, ranum)
+        while smax > 0 or smin < 0:
+            if smax > 0:
                 kmin = kmax
                 kmax *= 2
-            if np.real(smin) < 0:
+            if smin < 0:
                 kmax = kmin
                 kmin /= 2
-            smin = self.eigval(kmin, ranum)
-            smax = self.eigval(kmax, ranum)
+            smin = self.growth_rate(kmin, ranum)
+            smax = self.growth_rate(kmax, ranum)
 
         while (kmax - kmin) / kmax > eps:
             kplus = (kmin + kmax) / 2
-            splus = self.eigval(kplus, ranum)
+            splus = self.growth_rate(kplus, ranum)
             if np.real(splus) < 0:
                 kmax = kplus
                 smax = splus
@@ -493,22 +475,22 @@ class LinearAnalyzer:
         # search zero on the minus side
         kmin = hmax / 2
         kmax = hmax
-        smin = self.eigval(kmin, ranum)
-        smax = self.eigval(kmax, ranum)
-        while np.real(smax) < 0 or np.real(smin) > 0:
-            if np.real(smax) < 0:
+        smin = self.growth_rate(kmin, ranum)
+        smax = self.growth_rate(kmax, ranum)
+        while smax < 0 or smin > 0:
+            if smax < 0:
                 kmin = kmax
                 kmax *= 2
-            if np.real(smin) > 0:
+            if smin > 0:
                 kmax = kmin
                 kmin /= 2
-            smin = self.eigval(kmin, ranum)
-            smax = self.eigval(kmax, ranum)
+            smin = self.growth_rate(kmin, ranum)
+            smax = self.growth_rate(kmax, ranum)
 
         while (kmax - kmin) / kmax > eps:
             kminus = (kmin + kmax) / 2
-            sminus = self.eigval(kminus, ranum)
-            if np.real(sminus) < 0:
+            sminus = self.growth_rate(kminus, ranum)
+            if sminus < 0:
                 kmin = kminus
                 smin = sminus
             else:

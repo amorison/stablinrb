@@ -8,6 +8,8 @@ from itertools import chain
 from typing import ClassVar
 
 import numpy as np
+from numpy import ma
+from scipy import linalg
 
 if typing.TYPE_CHECKING:
     from typing import Mapping, Optional, Sequence
@@ -228,3 +230,21 @@ class Matrix:
 
     def array(self) -> NDArray:
         return np.copy(self._mat)
+
+
+@dataclass(frozen=True)
+class EigenvalueProblem:
+    lmat: Matrix
+    rmat: Matrix
+
+    def max_eigval(self) -> np.complexfloating:
+        """Eigenvalue with maximum real part."""
+        eigvals = linalg.eigvals(self.lmat.array(), self.rmat.array())
+        iegv = np.argmax(np.real(ma.masked_invalid(eigvals)))
+        return eigvals[iegv]
+
+    def max_eigvec(self) -> tuple[np.complexfloating, Vector]:
+        """Eigenvector associated with eigenvalue with maximum real part."""
+        eigvals, eigvecs = linalg.eig(self.lmat.array(), self.rmat.array())
+        iegv = np.argmax(np.real(ma.masked_invalid(eigvals)))
+        return eigvals[iegv], Vector(slices=self.lmat.slices, arr=eigvecs[:, iegv])

@@ -18,7 +18,7 @@ def test_classic_rb_cart() -> None:
     ra_th = 27 * np.pi**4 / 4
     harm_th = np.pi / np.sqrt(2)
 
-    sigma, _ = ana.eigvec(harm_th, ra_th)
+    sigma = ana.growth_rate(harm_th, ra_th)
     assert np.isclose(sigma, 0.0)
 
     ra_c, harm_c = ana.critical_ra()
