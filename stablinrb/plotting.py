@@ -12,7 +12,6 @@ from mpl_toolkits.axes_grid1 import make_axes_locatable
 from scipy.special import sph_harm
 
 from .geometry import Spherical
-from .misc import normalize
 
 if typing.TYPE_CHECKING:
     from typing import Optional
@@ -35,6 +34,12 @@ mypal = "inferno"
 # Font and markers size
 FTSZ = 13
 MSIZE = 5
+
+
+def normalize(arr: NDArray) -> tuple[NDArray, np.complexfloating]:
+    """Normalize complex array with element of higher modulus."""
+    amax = arr[np.argmax(np.abs(arr))]
+    return arr / amax, amax
 
 
 # scientific format for text
