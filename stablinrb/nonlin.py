@@ -9,7 +9,6 @@ import numpy as np
 from numpy.linalg import lstsq, solve
 
 from .analyzer import LinearAnalyzer
-from .geometry import CartOps, CartRadOps
 from .matrix import All, Bot, Bulk, Field, Matrix, Scalar, Single, Slices, Top, Vector
 
 if typing.TYPE_CHECKING:
@@ -126,13 +125,7 @@ class NonLinearAnalyzer:
         are solved for
         """
         nnodes = self.linear_analyzer.nodes.size
-        rad_ops = self.linear_analyzer.operators
-        assert isinstance(rad_ops, CartRadOps)
-        ops = CartOps(
-            rad_ops=rad_ops,
-            wavenumber=0.0,
-            eta_r=rad_ops.identity,
-        )
+        ops = self.linear_analyzer.operators(0.0)
 
         # only in that case a translating vertical velocity is possible
         solve_for_w = (
@@ -148,20 +141,20 @@ class NonLinearAnalyzer:
         lmat = Matrix(slices=Slices(var_specs=var_specs, nnodes=nnodes))
 
         # pressure equation (z momentum)
-        lmat.add_term(Bulk("p"), -rad_ops.grad_r, "p")
+        lmat.add_term(Bulk("p"), -ops.grad_r, "p")
         lmat.add_term(Bulk("p"), ra_num * ops.identity, "T")
         # temperature equation
         self.phys.temperature.bc_top.add_top("T", lmat, ops)
         self.phys.temperature.bc_bot.add_bot("T", lmat, ops)
-        lmat.add_term(Bulk("T"), rad_ops.lapl_r, "T")
+        lmat.add_term(Bulk("T"), ops.lapl_r, "T")
         # the case for a translating vertical velocity (mode 0)
         if solve_for_w:
             # FIXME: more general handling of boundary condition
             phi_top = self.phys.bc_mom_top.phase_number  # type: ignore
             phi_bot = self.phys.bc_mom_bot.phase_number  # type: ignore
             # Uniform vertical velocity in the temperature equation
-            tref = self.phys.temperature.ref_prof.eval_with(rad_ops)
-            grad_tref = (rad_ops.grad_r @ tref)[:, np.newaxis]
+            tref = self.phys.temperature.ref_prof.eval_with(ops)
+            grad_tref = (ops.grad_r @ tref)[:, np.newaxis]
             lmat.add_term(Bulk("T"), -grad_tref, "w0")
             # Vertical velocity in momentum boundary conditions
             one_row = np.diag(ops.identity)[:, np.newaxis]

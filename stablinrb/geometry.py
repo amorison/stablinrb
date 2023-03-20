@@ -25,10 +25,6 @@ class Geometry(ABC):
     def is_spherical(self) -> bool:
         ...
 
-    @abstractmethod
-    def with_dmat(self, diff_mat: DiffMatrices) -> RadialOperators:
-        ...
-
 
 @dataclass(frozen=True)
 class Cartesian(Geometry):
@@ -42,9 +38,6 @@ class Cartesian(Geometry):
 
     def is_spherical(self) -> bool:
         return False
-
-    def with_dmat(self, diff_mat: DiffMatrices) -> CartRadOps:
-        return CartRadOps(diff_mat=diff_mat)
 
 
 @dataclass(frozen=True)
@@ -70,88 +63,6 @@ class Spherical(Geometry):
     def is_spherical(self) -> bool:
         return True
 
-    def with_dmat(self, diff_mat: DiffMatrices) -> SphRadOps:
-        return SphRadOps(geom=self, diff_mat=diff_mat)
-
-
-class RadialOperators(ABC):
-    @property
-    @abstractmethod
-    def phys_coord(self) -> NDArray:
-        """Physical radial coordinate."""
-
-    @property
-    @abstractmethod
-    def identity(self) -> NDArray:
-        """Identity operator."""
-
-    @property
-    @abstractmethod
-    def grad_r(self) -> NDArray:
-        """Radial gradient."""
-
-    @property
-    @abstractmethod
-    def lapl_r(self) -> NDArray:
-        """Radial contribution to laplacian."""
-
-
-@dataclass(frozen=True)
-class CartRadOps(RadialOperators):
-    diff_mat: DiffMatrices
-
-    @property
-    def nodes(self) -> NDArray:
-        return self.diff_mat.nodes
-
-    @property
-    def phys_coord(self) -> NDArray:
-        return self.nodes
-
-    @cached_property
-    def identity(self) -> NDArray:
-        return np.identity(self.nodes.size)
-
-    @property
-    def grad_r(self) -> NDArray:
-        return self.diff_mat.at_order(1)
-
-    @property
-    def lapl_r(self) -> NDArray:
-        return self.diff_mat.at_order(2)
-
-
-@dataclass(frozen=True)
-class SphRadOps(RadialOperators):
-    geom: Spherical
-    diff_mat: DiffMatrices
-
-    @property
-    def nodes(self) -> NDArray:
-        return self.diff_mat.nodes
-
-    @cached_property
-    def phys_coord(self) -> NDArray:
-        return self.nodes + self.lambda_
-
-    @cached_property
-    def lambda_(self) -> float:
-        return (2 * self.geom.gamma - 1) / (1 - self.geom.gamma)
-
-    @cached_property
-    def identity(self) -> NDArray:
-        return np.identity(self.nodes.size)
-
-    @property
-    def grad_r(self) -> NDArray:
-        return self.diff_mat.at_order(1)
-
-    @cached_property
-    def lapl_r(self) -> NDArray:
-        two_o_rad = np.diag(2 / self.phys_coord)
-        dr1 = self.diff_mat.at_order(1)
-        return self.diff_mat.at_order(2) + two_o_rad @ dr1
-
 
 class Operators(ABC):
     @property
@@ -161,8 +72,8 @@ class Operators(ABC):
 
     @property
     @abstractmethod
-    def radial_ops(self) -> RadialOperators:
-        """Radial operators."""
+    def nodes(self) -> NDArray:
+        """Position of nodes."""
 
     @property
     @abstractmethod
@@ -195,6 +106,11 @@ class Operators(ABC):
 
     @property
     @abstractmethod
+    def lapl_r(self) -> NDArray:
+        """Radial Laplacian."""
+
+    @property
+    @abstractmethod
     def lapl(self) -> NDArray:
         """Laplacian."""
 
@@ -217,7 +133,7 @@ class Operators(ABC):
 
 @dataclass(frozen=True)
 class CartOps(Operators):
-    rad_ops: CartRadOps
+    diff_mat: DiffMatrices
     wavenumber: float
     eta_r: NDArray
 
@@ -226,23 +142,23 @@ class CartOps(Operators):
         return False
 
     @property
-    def radial_ops(self) -> CartRadOps:
-        return self.rad_ops
+    def nodes(self) -> NDArray:
+        return self.diff_mat.nodes
 
     @property
     def phys_coord(self) -> NDArray:
-        return self.rad_ops.phys_coord
+        return self.diff_mat.nodes
 
     @property
     def identity(self) -> NDArray:
-        return self.rad_ops.identity
+        return np.identity(self.nodes.size)
 
     @property
     def grad_r(self) -> NDArray:
-        return self.rad_ops.grad_r
+        return self.diff_mat.at_order(1)
 
     def diff_r(self, order: int) -> NDArray:
-        return self.rad_ops.diff_mat.at_order(order)
+        return self.diff_mat.at_order(order)
 
     @cached_property
     def diff_h(self) -> NDArray:
@@ -253,12 +169,16 @@ class CartOps(Operators):
         return -self.wavenumber**2 * self.identity
 
     @property
+    def lapl_r(self) -> NDArray:
+        return self.diff_mat.at_order(2)
+
+    @property
     def lapl(self) -> NDArray:
-        return self.rad_ops.lapl_r + self.lapl_h
+        return self.lapl_r + self.lapl_h
 
     @property
     def adv_r(self) -> NDArray:
-        return self.rad_ops.grad_r
+        return self.grad_r
 
     @property
     def adv_vel_var(self) -> str:
@@ -271,7 +191,8 @@ class CartOps(Operators):
 
 @dataclass(frozen=True)
 class SphOps(Operators):
-    rad_ops: SphRadOps
+    geom: Spherical
+    diff_mat: DiffMatrices
     harm_degree: int
     eta_r: NDArray
 
@@ -280,27 +201,31 @@ class SphOps(Operators):
         return True
 
     @property
-    def radial_ops(self) -> SphRadOps:
-        return self.rad_ops
+    def nodes(self) -> NDArray:
+        return self.diff_mat.nodes
 
     @property
     def ell2(self) -> int:
         return self.harm_degree * (self.harm_degree + 1)
 
-    @property
+    @cached_property
+    def lambda_(self) -> float:
+        return (2 * self.geom.gamma - 1) / (1 - self.geom.gamma)
+
+    @cached_property
     def phys_coord(self) -> NDArray:
-        return self.rad_ops.phys_coord
+        return self.nodes + self.lambda_
 
     @property
     def identity(self) -> NDArray:
-        return self.rad_ops.identity
+        return np.identity(self.nodes.size)
 
     @property
     def grad_r(self) -> NDArray:
-        return self.rad_ops.grad_r
+        return self.diff_mat.at_order(1)
 
     def diff_r(self, order: int) -> NDArray:
-        return self.rad_ops.diff_mat.at_order(order)
+        return self.diff_mat.at_order(order)
 
     @property
     def diff_h(self) -> NDArray:
@@ -310,15 +235,21 @@ class SphOps(Operators):
     def lapl_h(self) -> NDArray:
         return -np.diag(self.ell2 / self.phys_coord**2)
 
+    @cached_property
+    def lapl_r(self) -> NDArray:
+        two_o_rad = np.diag(2 / self.phys_coord)
+        dr1 = self.diff_mat.at_order(1)
+        return self.diff_mat.at_order(2) + two_o_rad @ dr1
+
     @property
     def lapl(self) -> NDArray:
-        return self.rad_ops.lapl_r + self.lapl_h
+        return self.lapl_r + self.lapl_h
 
     @property
     def adv_r(self) -> NDArray:
         # u_r = l(l+1)/r P
         ur_o_pol = np.diag(self.ell2 / self.phys_coord)
-        return ur_o_pol @ self.rad_ops.grad_r
+        return ur_o_pol @ self.grad_r
 
     @property
     def adv_vel_var(self) -> str:

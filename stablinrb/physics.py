@@ -7,7 +7,7 @@ from dataclasses import dataclass
 import numpy as np
 from scipy.optimize import brentq
 
-from .geometry import CartRadOps
+from .geometry import CartOps
 from .matrix import Bot, Bulk, Field, Matrix, Slices, Top
 
 if typing.TYPE_CHECKING:
@@ -15,17 +15,17 @@ if typing.TYPE_CHECKING:
 
     from numpy.typing import NDArray
 
-    from .geometry import Geometry, Operators, RadialOperators
+    from .geometry import Geometry, Operators
     from .matrix import VarSpec
 
 
 class BoundaryCondition(ABC):
     @abstractmethod
-    def add_top(self, var: str, mat: Matrix, operators: RadialOperators) -> float:
+    def add_top(self, var: str, mat: Matrix, ops: Operators) -> float:
         ...
 
     @abstractmethod
-    def add_bot(self, var: str, mat: Matrix, operators: RadialOperators) -> float:
+    def add_bot(self, var: str, mat: Matrix, ops: Operators) -> float:
         ...
 
 
@@ -33,12 +33,12 @@ class BoundaryCondition(ABC):
 class Dirichlet(BoundaryCondition):
     value: float
 
-    def add_top(self, var: str, mat: Matrix, operators: RadialOperators) -> float:
-        mat.add_term(Top(var), operators.identity, var)
+    def add_top(self, var: str, mat: Matrix, ops: Operators) -> float:
+        mat.add_term(Top(var), ops.identity, var)
         return self.value
 
-    def add_bot(self, var: str, mat: Matrix, operators: RadialOperators) -> float:
-        mat.add_term(Bot(var), operators.identity, var)
+    def add_bot(self, var: str, mat: Matrix, ops: Operators) -> float:
+        mat.add_term(Bot(var), ops.identity, var)
         return self.value
 
 
@@ -46,12 +46,12 @@ class Dirichlet(BoundaryCondition):
 class Neumann(BoundaryCondition):
     value: float
 
-    def add_top(self, var: str, mat: Matrix, operators: RadialOperators) -> float:
-        mat.add_term(Top(var), operators.grad_r, var)
+    def add_top(self, var: str, mat: Matrix, ops: Operators) -> float:
+        mat.add_term(Top(var), ops.grad_r, var)
         return self.value
 
-    def add_bot(self, var: str, mat: Matrix, operators: RadialOperators) -> float:
-        mat.add_term(Bot(var), operators.grad_r, var)
+    def add_bot(self, var: str, mat: Matrix, ops: Operators) -> float:
+        mat.add_term(Bot(var), ops.grad_r, var)
         return self.value
 
 
@@ -60,18 +60,18 @@ class Robin(BoundaryCondition):
     value: float
     biot: float
 
-    def add_top(self, var: str, mat: Matrix, operators: RadialOperators) -> float:
-        mat.add_term(Top(var), self.biot * operators.identity + operators.grad_r, var)
+    def add_top(self, var: str, mat: Matrix, ops: Operators) -> float:
+        mat.add_term(Top(var), self.biot * ops.identity + ops.grad_r, var)
         return self.value
 
-    def add_bot(self, var: str, mat: Matrix, operators: RadialOperators) -> float:
-        mat.add_term(Bot(var), self.biot * operators.identity + operators.grad_r, var)
+    def add_bot(self, var: str, mat: Matrix, ops: Operators) -> float:
+        mat.add_term(Bot(var), self.biot * ops.identity + ops.grad_r, var)
         return self.value
 
 
 class ReferenceProfile(ABC):
     @abstractmethod
-    def eval_with(self, operators: RadialOperators) -> NDArray:
+    def eval_with(self, ops: Operators) -> NDArray:
         ...
 
 
@@ -81,17 +81,17 @@ class DiffusiveProf(ReferenceProfile):
     bcs_bot: BoundaryCondition
     source: float = 0.0
 
-    def eval_with(self, operators: RadialOperators) -> NDArray:
+    def eval_with(self, ops: Operators) -> NDArray:
         mat = Matrix(
             slices=Slices(
                 var_specs=(Field(var="f"),),
-                nnodes=operators.phys_coord.size,
+                nnodes=ops.phys_coord.size,
             ),
         )
-        mat.add_term(Bulk("f"), operators.lapl_r, "f")
-        rhs = np.full_like(operators.phys_coord, -self.source)
-        rhs[0] = self.bcs_top.add_top("f", mat, operators)
-        rhs[-1] = self.bcs_bot.add_bot("f", mat, operators)
+        mat.add_term(Bulk("f"), ops.lapl_r, "f")
+        rhs = np.full_like(ops.phys_coord, -self.source)
+        rhs[0] = self.bcs_top.add_top("f", mat, ops)
+        rhs[-1] = self.bcs_bot.add_bot("f", mat, ops)
         return np.linalg.solve(mat.array(), rhs)
 
 
@@ -99,8 +99,8 @@ class DiffusiveProf(ReferenceProfile):
 class ArbitraryProf(ReferenceProfile):
     ref_prof_from_coord: Callable[[NDArray], NDArray]
 
-    def eval_with(self, operators: RadialOperators) -> NDArray:
-        return self.ref_prof_from_coord(operators.phys_coord)
+    def eval_with(self, ops: Operators) -> NDArray:
+        return self.ref_prof_from_coord(ops.phys_coord)
 
 
 @dataclass(frozen=True)
@@ -119,17 +119,16 @@ class FractionalCrystProf(ReferenceProfile):
     partition_coef: float
     c_0: Optional[float] = None
 
-    def eval_with(self, operators: RadialOperators) -> NDArray:
+    def eval_with(self, ops: Operators) -> NDArray:
         # only written in cartesian
-        assert isinstance(operators, CartRadOps)
+        assert isinstance(ops, CartOps)
         c_s = (
             (1 - 1 / self.thick_tot**3) ** (1 - self.partition_coef)
             if self.c_0 is None
             else self.c_0
         )
         return c_s * (
-            self.thick_tot**3
-            / (self.thick_tot**3 - (operators.phys_coord + 1 / 2) ** 3)
+            self.thick_tot**3 / (self.thick_tot**3 - (ops.phys_coord + 1 / 2) ** 3)
         ) ** (1 - self.partition_coef)
 
 
@@ -137,30 +136,30 @@ class BCPerturbation(ABC):
     """Boundary condition for perturbations."""
 
     @abstractmethod
-    def add_top(self, var: str, mat: Matrix, operators: Operators) -> None:
+    def add_top(self, var: str, mat: Matrix, ops: Operators) -> None:
         ...
 
     @abstractmethod
-    def add_bot(self, var: str, mat: Matrix, operators: Operators) -> None:
+    def add_bot(self, var: str, mat: Matrix, ops: Operators) -> None:
         ...
 
 
 @dataclass(frozen=True)
 class Zero(BCPerturbation):
-    def add_top(self, var: str, mat: Matrix, operators: Operators) -> None:
-        mat.add_term(Top(var), operators.identity, var)
+    def add_top(self, var: str, mat: Matrix, ops: Operators) -> None:
+        mat.add_term(Top(var), ops.identity, var)
 
-    def add_bot(self, var: str, mat: Matrix, operators: Operators) -> None:
-        mat.add_term(Bot(var), operators.identity, var)
+    def add_bot(self, var: str, mat: Matrix, ops: Operators) -> None:
+        mat.add_term(Bot(var), ops.identity, var)
 
 
 @dataclass(frozen=True)
 class ZeroFlux(BCPerturbation):
-    def add_top(self, var: str, mat: Matrix, operators: Operators) -> None:
-        mat.add_term(Top(var), operators.grad_r, var)
+    def add_top(self, var: str, mat: Matrix, ops: Operators) -> None:
+        mat.add_term(Top(var), ops.grad_r, var)
 
-    def add_bot(self, var: str, mat: Matrix, operators: Operators) -> None:
-        mat.add_term(Bot(var), operators.grad_r, var)
+    def add_bot(self, var: str, mat: Matrix, ops: Operators) -> None:
+        mat.add_term(Bot(var), ops.grad_r, var)
 
 
 @dataclass(frozen=True)
@@ -171,11 +170,11 @@ class RobinPert(BCPerturbation):
     def _opt(self, ops: Operators) -> NDArray:
         return self.coef_var * ops.identity + self.coef_grad * ops.grad_r
 
-    def add_top(self, var: str, mat: Matrix, operators: Operators) -> None:
-        mat.add_term(Top(var), self._opt(operators), var)
+    def add_top(self, var: str, mat: Matrix, ops: Operators) -> None:
+        mat.add_term(Top(var), self._opt(ops), var)
 
-    def add_bot(self, var: str, mat: Matrix, operators: Operators) -> None:
-        mat.add_term(Bot(var), self._opt(operators), var)
+    def add_bot(self, var: str, mat: Matrix, ops: Operators) -> None:
+        mat.add_term(Bot(var), self._opt(ops), var)
 
 
 @dataclass(frozen=True)
@@ -186,12 +185,12 @@ class AdvDiffEq:
     diff_coef: float = 1.0
 
     # FIXME: also handle lhs here
-    def add_pert_eq(self, var: str, mat: Matrix, operators: Operators) -> None:
-        self.bc_top.add_top(var, mat, operators)
-        self.bc_bot.add_bot(var, mat, operators)
-        mat.add_term(Bulk(var), self.diff_coef * operators.lapl, var)
-        adv_tcond = operators.adv_r @ self.ref_prof.eval_with(operators.radial_ops)
-        mat.add_term(Bulk(var), -np.diag(adv_tcond), operators.adv_vel_var)
+    def add_pert_eq(self, var: str, mat: Matrix, ops: Operators) -> None:
+        self.bc_top.add_top(var, mat, ops)
+        self.bc_bot.add_bot(var, mat, ops)
+        mat.add_term(Bulk(var), self.diff_coef * ops.lapl, var)
+        adv_tcond = ops.adv_r @ self.ref_prof.eval_with(ops)
+        mat.add_term(Bulk(var), -np.diag(adv_tcond), ops.adv_vel_var)
 
 
 class BCMomentum(ABC):

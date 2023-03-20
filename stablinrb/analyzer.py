@@ -14,12 +14,12 @@ from .matrix import All, Bulk, Matrix, Slices, Vector
 from .physics import wtran
 
 if typing.TYPE_CHECKING:
-    from typing import Optional
+    from typing import Optional, Union
 
     from dmsuite.poly_diff import DiffMatrices
     from numpy.typing import NDArray
 
-    from .physics import PhysicalProblem, RadialOperators
+    from .physics import Operators, PhysicalProblem
 
 
 def cartesian_matrices(
@@ -31,11 +31,7 @@ def cartesian_matrices(
     assert self.phys.temperature is not None
 
     # FIXME: viscosity in cartesian
-    ops = CartOps(
-        rad_ops=self.operators,  # type: ignore
-        wavenumber=wnk,
-        eta_r=self.operators.identity,
-    )
+    ops = self.operators(wnk)
     dz1 = ops.grad_r
     one = ops.identity
 
@@ -113,18 +109,10 @@ def spherical_matrices(
     assert isinstance(self.phys.geometry, Spherical)
     gamma = self.phys.geometry.gamma
 
-    if self.phys.eta_r is not None:
-        eta_r = np.diag(self.phys.eta_r(self.operators.phys_coord))
-    else:
-        eta_r = self.operators.identity
-
-    ops = SphOps(
-        rad_ops=self.operators,  # type: ignore
-        harm_degree=l_harm,
-        eta_r=eta_r,
-    )
+    ops = self.operators(l_harm)
     rad = self.nodes
     dr1, dr2 = self.diff_mat(1), self.diff_mat(2)
+    eta_r = ops.viscosity
 
     # r + lambda
     ral = ops.phys_coord
@@ -194,9 +182,7 @@ def spherical_matrices(
 
         if not self.phys.frozen_time and self.phys.cooling_smo is not None:
             # FIXME: define proper operators for the moving-front approach
-            grad_tcond = ops.grad_r @ self.phys.temperature.ref_prof.eval_with(
-                ops.radial_ops
-            )
+            grad_tcond = ops.grad_r @ self.phys.temperature.ref_prof.eval_with(ops)
             grad_ref_temp_top = grad_tcond[0]
             lmat.add_term(
                 Bulk("T"),
@@ -245,7 +231,29 @@ class LinearAnalyzer:
         return self._diff_mat.nodes
 
     @cached_property
-    def operators(self) -> RadialOperators:
+    def _visco_as_mat(self) -> NDArray:
+        if self.phys.eta_r is not None:
+            return np.diag(self.phys.eta_r(self.nodes))
+        return np.identity(self.nodes.size)
+
+    def operators(self, harmonic: Union[float, int]) -> Operators:
+        # FIXME: separate spherical and cartesian problems
+        if self.phys.spherical:
+            assert isinstance(harmonic, int)
+            assert isinstance(self.phys.geometry, Spherical)
+            return SphOps(
+                geom=self.phys.geometry,
+                diff_mat=self._diff_mat,
+                harm_degree=harmonic,
+                eta_r=self._visco_as_mat,
+            )
+        else:
+            assert isinstance(harmonic, float)
+            return CartOps(
+                diff_mat=self._diff_mat,
+                wavenumber=harmonic,
+                eta_r=self._visco_as_mat,
+            )
         return self.phys.geometry.with_dmat(self._diff_mat)
 
     def diff_mat(self, order: int) -> NDArray:
