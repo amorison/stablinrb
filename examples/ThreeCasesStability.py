@@ -4,22 +4,18 @@ import matplotlib as mpl
 import matplotlib.pyplot as plt
 import numpy as np
 
-from stablinrb.analyzer import LinearAnalyzer
-from stablinrb.geometry import Cartesian
-from stablinrb.physics import FreeSlip, PhysicalProblem, Rigid
+from stablinrb.cartesian import CartStability
+from stablinrb.physics import FreeSlip, Rigid
 
 mpl.rc("font", **{"family": "sans-serif", "sans-serif": ["Helvetica"]})
 mpl.rc("text", usetex=True)
 mpl.rcParams["pdf.fonttype"] = 42
 
 # rigid--rigid case
-ana = LinearAnalyzer(
-    phys=PhysicalProblem(
-        geometry=Cartesian(),
-        bc_mom_top=Rigid(),
-        bc_mom_bot=Rigid(),
-    ),
+ana = CartStability(
     chebyshev_degree=10,
+    bc_mom_top=Rigid(),
+    bc_mom_bot=Rigid(),
 )
 
 hmax = 7.0
@@ -48,13 +44,10 @@ plt.plot(
 )
 
 # Free--rigid case
-ana = LinearAnalyzer(
-    phys=PhysicalProblem(
-        geometry=Cartesian(),
-        bc_mom_top=FreeSlip(),
-        bc_mom_bot=Rigid(),
-    ),
+ana = CartStability(
     chebyshev_degree=10,
+    bc_mom_top=FreeSlip(),
+    bc_mom_bot=Rigid(),
 )
 hmin = 0.7
 wnum = np.linspace(hmin, hmax, nharm)
@@ -80,13 +73,10 @@ plt.plot(
 )
 
 # Free--free case
-ana = LinearAnalyzer(
-    phys=PhysicalProblem(
-        geometry=Cartesian(),
-        bc_mom_top=FreeSlip(),
-        bc_mom_bot=FreeSlip(),
-    ),
+ana = CartStability(
     chebyshev_degree=10,
+    bc_mom_top=FreeSlip(),
+    bc_mom_bot=FreeSlip(),
 )
 hmin = 0.5
 wnum = np.linspace(hmin, hmax, nharm)

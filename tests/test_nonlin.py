@@ -1,17 +1,14 @@
 import numpy as np
 from numpy.typing import NDArray
 
-import stablinrb.geometry as geom
 import stablinrb.physics as phy
+from stablinrb.cartesian import CartStability
 from stablinrb.nonlin import NonLinearAnalyzer
 
 
 def test_nonlin_rb() -> None:
     ana = NonLinearAnalyzer(
-        phys=phy.PhysicalProblem(
-            geometry=geom.Cartesian(),
-        ),
-        ncheb=10,
+        linear_pblm=CartStability(chebyshev_degree=10),
         nnonlin=2,
     )
     harm_c = ana.harm_c
@@ -163,12 +160,11 @@ def _u22(z: NDArray, phi: float) -> NDArray:
 def test_nonlin_phase() -> None:
     phi = 1e-2
     ana = NonLinearAnalyzer(
-        phys=phy.PhysicalProblem(
-            geometry=geom.Cartesian(),
+        linear_pblm=CartStability(
+            chebyshev_degree=20,
             bc_mom_top=phy.PhaseChange(phase_number=phi),
             bc_mom_bot=phy.PhaseChange(phase_number=phi),
         ),
-        ncheb=20,
         nnonlin=2,
     )
     z = ana.nodes

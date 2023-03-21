@@ -12,58 +12,6 @@ if typing.TYPE_CHECKING:
     from numpy.typing import NDArray
 
 
-class Geometry(ABC):
-    @abstractmethod
-    def name_stem(self) -> str:
-        ...
-
-    @abstractmethod
-    def bounds(self) -> tuple[float, float]:
-        ...
-
-    @abstractmethod
-    def is_spherical(self) -> bool:
-        ...
-
-
-@dataclass(frozen=True)
-class Cartesian(Geometry):
-    """Cartesian geometry."""
-
-    def name_stem(self) -> str:
-        return "cart"
-
-    def bounds(self) -> tuple[float, float]:
-        return (-0.5, 0.5)
-
-    def is_spherical(self) -> bool:
-        return False
-
-
-@dataclass(frozen=True)
-class Spherical(Geometry):
-    """Spherical geometry.
-
-    Attributes:
-        gamme: rbot / rtop
-    """
-
-    gamma: float
-
-    def __post_init__(self) -> None:
-        assert 0 < self.gamma < 1
-
-    def name_stem(self) -> str:
-        gam = str(self.gamma).replace(".", "-")
-        return f"sph_{gam}"
-
-    def bounds(self) -> tuple[float, float]:
-        return (1.0, 2.0)
-
-    def is_spherical(self) -> bool:
-        return True
-
-
 class Operators(ABC):
     @property
     @abstractmethod
@@ -191,7 +139,7 @@ class CartOps(Operators):
 
 @dataclass(frozen=True)
 class SphOps(Operators):
-    geom: Spherical
+    gamma: float
     diff_mat: DiffMatrices
     harm_degree: int
     eta_r: NDArray
@@ -210,7 +158,7 @@ class SphOps(Operators):
 
     @cached_property
     def lambda_(self) -> float:
-        return (2 * self.geom.gamma - 1) / (1 - self.geom.gamma)
+        return (2 * self.gamma - 1) / (1 - self.gamma)
 
     @cached_property
     def phys_coord(self) -> NDArray:

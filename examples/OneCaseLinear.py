@@ -8,20 +8,18 @@ minimal value and the fastest growing mode.
 """
 
 import stablinrb.plotting as plotting
-from stablinrb.analyzer import LinearAnalyzer
-from stablinrb.geometry import Cartesian
-from stablinrb.physics import FreeSlip, PhysicalProblem
+from stablinrb.cartesian import CartStability
+from stablinrb.physics import FreeSlip
 
-pblm = PhysicalProblem(
-    geometry=Cartesian(),
+ana = CartStability(
+    chebyshev_degree=10,
     bc_mom_top=FreeSlip(),
     bc_mom_bot=FreeSlip(),
 )
 
-ana = LinearAnalyzer(pblm, chebyshev_degree=10)
 # Find the critical Ra and wavenumber and print.
 ra_c, harm_c = ana.critical_ra()
 print("Rac, kc = ", ra_c, harm_c)
 
-plotting.plot_fastest_mode(ana, harm_c, ra_c)
-plotting.plot_ran_harm(ana, harm_c)
+plotting.plot_fastest_mode_cart(ana, harm_c, ra_c)
+plotting.plot_ran_harm_cart(ana, harm_c)

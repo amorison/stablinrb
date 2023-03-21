@@ -11,16 +11,14 @@ from matplotlib.projections import PolarAxes
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 from scipy.special import sph_harm
 
-from .geometry import Spherical
-
 if typing.TYPE_CHECKING:
     from typing import Optional
 
     from numpy.typing import NDArray
 
-    from .analyzer import LinearAnalyzer
+    from .cartesian import CartStability
     from .nonlin import NonLinearAnalyzer
-    from .physics import PhysicalProblem
+    from .spherical import SphStability
 
 mpl.rc("font", **{"family": "sans-serif", "sans-serif": ["Helvetica"]})
 mpl.rc("text", usetex=True)
@@ -122,10 +120,8 @@ def plot_mode_image(
     eps: epsilon value for the non-linear mode
     plot_ords: if True, plots individual modes on separate figures, in addition to the full solution
     """
-    if analyzer.phys.spherical:
-        raise ValueError("plot_mode_image not yet implemented in spherical")
     if name is None:
-        name = analyzer.phys.name()
+        name = analyzer.linear_pblm.name()
 
     # Define plot space
     n_rad = 100
@@ -151,15 +147,13 @@ def plot_mode_image(
     tcond = 0.5 - zgr
 
     cheb_sampling = ChebyshevSampling(
-        degree=analyzer.ncheb,
+        degree=analyzer.linear_pblm.chebyshev_degree,
         positions=np.linspace(-1, 1, n_rad),
     )
     for i, mode in enumerate(analyzer.all_modes):
         nord, nharm = analyzer.mode_index.ord_harm(i)
 
-        (p_mode, u_mode, w_mode, t_mode) = analyzer.linear_analyzer.split_mode(
-            mode, harm
-        )
+        (p_mode, u_mode, w_mode, t_mode) = analyzer.linear_pblm.split_mode(mode)
 
         # interpolate and normalize according to vertical velocity
         u_interp = cheb_sampling.apply_on(u_mode)
@@ -203,16 +197,13 @@ def plot_mode_profiles(
 ) -> None:
     """Plot all mode profiles"""
     if name is None:
-        name = analyzer.phys.name()
+        name = analyzer.linear_pblm.name()
 
     rad_cheb = analyzer.nodes
-    harm = analyzer.harm_c
 
     for i, mode in enumerate(analyzer.all_modes):
         nord, nharm = analyzer.mode_index.ord_harm(i)
-        (p_mode, u_mode, w_mode, t_mode) = analyzer.linear_analyzer.split_mode(
-            mode, harm
-        )
+        (p_mode, u_mode, w_mode, t_mode) = analyzer.linear_pblm.split_mode(mode)
 
         fig, axe = plt.subplots(1, 4, sharey=True)
         axe[0].plot(np.real(w_mode), rad_cheb, "o")
@@ -229,35 +220,27 @@ def plot_mode_profiles(
         plt.close(fig)
 
 
-def plot_fastest_mode(
-    analyzer: LinearAnalyzer,
+def plot_fastest_mode_cart(
+    pblm: CartStability,
     harm: float,
     ra_num: float,
     ra_comp: Optional[float] = None,
     name: Optional[str] = None,
     plot_theory: bool = False,
     notbare: bool = True,
-    plot_text: bool = True,
 ) -> None:
     """Plot fastest growing mode for a given harmonic and Ra
 
     plot_theory: theory in case of transition, cartesian geometry
     """
-    spherical = analyzer.phys.spherical
-
     if name is None:
-        name = analyzer.phys.name()
+        name = pblm.name()
 
-    _, modes = analyzer.eigen_problem(harm, ra_num, ra_comp).max_eigvec()
+    _, modes = pblm.eigen_problem(harm, ra_num, ra_comp).max_eigvec()
     modes = modes.normalize_by_max_of("T")
-    # p is pressure in cartesian geometry and
-    # poloidal potential in spherical geometry
-    (p_mode, u_mode, w_mode, t_mode) = analyzer.split_mode(modes, harm)
+    (p_mode, u_mode, w_mode, t_mode) = pblm.split_mode(modes)
 
-    rad_cheb = analyzer.nodes
-    if spherical:
-        # stream function
-        psi_mode = 1.0j * harm * p_mode
+    rad_cheb = pblm.nodes
 
     # interpolation
     n_rad = 100
@@ -266,11 +249,7 @@ def plot_fastest_mode(
         degree=rad_cheb.size - 1,
         positions=np.linspace(-1, 1, n_rad),
     )
-    if spherical:
-        rad = np.linspace(1, 2, n_rad)
-        psi_interp = cheb_sampling.apply_on(psi_mode)
-    else:
-        rad = np.linspace(-1 / 2, 1 / 2, n_rad)
+    rad = np.linspace(-1 / 2, 1 / 2, n_rad)
     p_interp = cheb_sampling.apply_on(p_mode)
     u_interp = cheb_sampling.apply_on(u_mode)
     w_interp = cheb_sampling.apply_on(w_mode)
@@ -282,12 +261,9 @@ def plot_fastest_mode(
 
     # profiles
     fig, axis = plt.subplots(1, 4, sharey=True)
-    if spherical:
-        plt.setp(axis, xlim=[-1.1, 1.1], ylim=[1, 2], xticks=[-1, -0.5, 0.0, 0.5, 1])
-    else:
-        plt.setp(
-            axis, xlim=[-1.1, 1.1], ylim=[-1 / 2, 1 / 2], xticks=[-1, -0.5, 0.0, 0.5, 1]
-        )
+    plt.setp(
+        axis, xlim=[-1.1, 1.1], ylim=[-1 / 2, 1 / 2], xticks=[-1, -0.5, 0.0, 0.5, 1]
+    )
     # pressure
     if plot_theory:
         axis[0].plot(-rad * 4 / (13 * np.sqrt(13)) * (39 - 64 * rad**2), rad)
@@ -320,106 +296,166 @@ def plot_fastest_mode(
     plt.savefig(filename, format="PDF")
     plt.close(fig)
 
-    if spherical:
-        # 2D plot on annulus
-        # mesh construction
-        # FIXME: delegate to geometry-aware object
-        assert isinstance(analyzer.phys.geometry, Spherical)
-        gamma = analyzer.phys.geometry.gamma
-        theta = np.pi / 2
-        phi = np.linspace(0, 2 * np.pi, n_phi)
-        rad = np.linspace(gamma, 1, n_rad)
-        rad_mesh, phi_mesh = np.meshgrid(rad, phi)
+    # make a version with the total temperature
+    xvar = np.linspace(0, 2 * np.pi / harm, n_phi)
+    xgr, zgr = np.meshgrid(xvar, rad)
+    # temperature
+    modx = np.exp(1j * harm * xvar)
+    t2d1, t2d2 = np.meshgrid(modx, t_interp)
+    t2d = np.real(t2d1 * t2d2)
+    # stream function
+    u2d1, u2d2 = np.meshgrid(modx, u_interp)
+    u2d = np.real(u2d1 * u2d2)
+    w2d1, w2d2 = np.meshgrid(modx, w_interp)
+    w2d = np.real(w2d1 * w2d2)
+    filename = "_".join((name, "mode.pdf"))
+    image_mode(xgr, zgr, t2d, u2d, w2d, harm, filename, notbare)
 
-        # spherical harmonic
-        s_harm = sph_harm(harm, harm, phi_mesh, theta)
-        t_field = (t_interp * s_harm).real
-        psi_field = (psi_interp * s_harm).real
 
-        # normalization
-        t_min, t_max = t_field.min(), t_field.max()
-        t_field = 2 * (t_field - t_min) / (t_max - t_min) - 1
+def plot_fastest_mode_sph(
+    pblm: SphStability,
+    harm: int,
+    ra_num: float,
+    ra_comp: Optional[float] = None,
+    name: Optional[str] = None,
+    plot_text: bool = True,
+) -> None:
+    """Plot fastest growing mode for a given harmonic and Ra
 
-        # create annulus frame
-        dpi = 300
-        fig = plt.figure(dpi=dpi)
-        tr = PolarAxes.PolarTransform()
+    plot_theory: theory in case of transition, cartesian geometry
+    """
+    if name is None:
+        name = pblm.name()
 
-        grid_helper = floating_axes.GridHelperCurveLinear(
-            tr,
-            extremes=(2.0 * np.pi, 0, gamma, 1),
+    _, modes = pblm.eigen_problem(harm, ra_num, ra_comp).max_eigvec()
+    modes = modes.normalize_by_max_of("T")
+    (p_mode, u_mode, w_mode, t_mode) = pblm.split_mode(modes, harm)
+
+    rad_cheb = pblm.nodes
+    # stream function
+    psi_mode = 1.0j * harm * p_mode
+
+    # interpolation
+    n_rad = 100
+    n_phi = 400  # could depends on wavelength
+    cheb_sampling = ChebyshevSampling(
+        degree=rad_cheb.size - 1,
+        positions=np.linspace(-1, 1, n_rad),
+    )
+    rad = np.linspace(1, 2, n_rad)
+    psi_interp = cheb_sampling.apply_on(psi_mode)
+    p_interp = cheb_sampling.apply_on(p_mode)
+    u_interp = cheb_sampling.apply_on(u_mode)
+    w_interp = cheb_sampling.apply_on(w_mode)
+    t_interp = cheb_sampling.apply_on(t_mode)
+
+    p_mode, p_max = normalize(p_mode)
+    u_mode, u_max = normalize(u_mode)
+    w_mode, w_max = normalize(w_mode)
+
+    # profiles
+    fig, axis = plt.subplots(1, 4, sharey=True)
+    plt.setp(axis, xlim=[-1.1, 1.1], ylim=[1, 2], xticks=[-1, -0.5, 0.0, 0.5, 1])
+    # pressure
+    axis[0].plot(np.real(p_interp / p_max), rad)
+    axis[0].plot(np.real(p_mode), rad_cheb, "o")
+    axis[0].set_xlabel(r"$P/(%.3f)$" % (np.real(p_max)), fontsize=FTSZ)
+    # horizontal velocity
+    axis[1].plot(np.real(u_interp / u_max), rad)
+    axis[1].plot(np.real(u_mode), rad_cheb, "o")
+    axis[1].set_xlabel(r"$U/(%.3fi)$" % (np.imag(u_max)), fontsize=FTSZ)
+    # vertical velocity
+    axis[2].plot(np.real(w_interp / w_max), rad)
+    axis[2].plot(np.real(w_mode), rad_cheb, "o")
+    axis[2].set_xlabel(r"$W/(%.3f)$" % (np.real(w_max)), fontsize=FTSZ)
+    # temperature
+    axis[3].plot(np.real(t_interp), rad)
+    axis[3].plot(np.real(t_mode), rad_cheb, "o")
+    axis[3].set_xlabel(r"$T$", fontsize=FTSZ)
+    filename = "_".join((name, "mode_prof.pdf"))
+    plt.savefig(filename, format="PDF")
+    plt.close(fig)
+
+    # 2D plot on annulus
+    # mesh construction
+    gamma = pblm.gamma
+    theta = np.pi / 2
+    phi = np.linspace(0, 2 * np.pi, n_phi)
+    rad = np.linspace(gamma, 1, n_rad)
+    rad_mesh, phi_mesh = np.meshgrid(rad, phi)
+
+    # spherical harmonic
+    s_harm = sph_harm(harm, harm, phi_mesh, theta)
+    t_field = (t_interp * s_harm).real
+    psi_field = (psi_interp * s_harm).real
+
+    # normalization
+    t_min, t_max = t_field.min(), t_field.max()
+    t_field = 2 * (t_field - t_min) / (t_max - t_min) - 1
+
+    # create annulus frame
+    dpi = 300
+    fig = plt.figure(dpi=dpi)
+    tr = PolarAxes.PolarTransform()
+
+    grid_helper = floating_axes.GridHelperCurveLinear(
+        tr,
+        extremes=(2.0 * np.pi, 0, gamma, 1),
+    )
+
+    ax1 = floating_axes.FloatingSubplot(fig, 111, grid_helper=grid_helper)
+    fig.add_subplot(ax1)
+    axis = ax1.get_aux_axes(tr)
+
+    # plot Temperature
+    axis.pcolormesh(
+        phi_mesh, rad_mesh, t_field, cmap=mypal, rasterized=True, shading="gouraud"
+    )
+    # plot stream lines
+    axis.contour(phi_mesh, rad_mesh, psi_field)
+    axis.set_axis_off()
+    fig.set_size_inches(9, 9)
+    if plot_text:
+        phitop = None
+        phibot = None
+        if pblm.bc_mom_top.flow_through:
+            phitop = pblm.bc_mom_top.phase_number  # type: ignore
+        if pblm.bc_mom_bot.flow_through:
+            phibot = pblm.bc_mom_bot.phase_number  # type: ignore
+        axis.text(
+            0.5,
+            0.58,
+            r"$Ra={}$".format(fmt(ra_num)),
+            fontsize=25,
+            transform=axis.transAxes,
+            verticalalignment="center",
+            horizontalalignment="center",
         )
-
-        ax1 = floating_axes.FloatingSubplot(fig, 111, grid_helper=grid_helper)
-        fig.add_subplot(ax1)
-        axis = ax1.get_aux_axes(tr)
-
-        # plot Temperature
-        axis.pcolormesh(
-            phi_mesh, rad_mesh, t_field, cmap=mypal, rasterized=True, shading="gouraud"
+        axis.text(
+            0.5,
+            0.5,
+            r"$\Phi^+={}$".format(fmt(phitop)),
+            fontsize=25,
+            transform=axis.transAxes,
+            verticalalignment="center",
+            horizontalalignment="center",
         )
-        # plot stream lines
-        axis.contour(phi_mesh, rad_mesh, psi_field)
-        axis.set_axis_off()
-        fig.set_size_inches(9, 9)
-        if plot_text:
-            phitop = None
-            phibot = None
-            if analyzer.phys.bc_mom_top.flow_through:
-                phitop = analyzer.phys.bc_mom_top.phase_number  # type: ignore
-            if analyzer.phys.bc_mom_bot.flow_through:
-                phibot = analyzer.phys.bc_mom_bot.phase_number  # type: ignore
-            axis.text(
-                0.5,
-                0.58,
-                r"$Ra={}$".format(fmt(ra_num)),
-                fontsize=25,
-                transform=axis.transAxes,
-                verticalalignment="center",
-                horizontalalignment="center",
-            )
-            axis.text(
-                0.5,
-                0.5,
-                r"$\Phi^+={}$".format(fmt(phitop)),
-                fontsize=25,
-                transform=axis.transAxes,
-                verticalalignment="center",
-                horizontalalignment="center",
-            )
-            axis.text(
-                0.5,
-                0.42,
-                r"$\Phi^-={}$".format(fmt(phibot)),
-                fontsize=25,
-                transform=axis.transAxes,
-                verticalalignment="center",
-                horizontalalignment="center",
-            )
-        filename = "_".join((name, "mode.pdf"))
-        plt.savefig(filename, bbox_inches="tight", format="PDF", transparent=True)
-        plt.close(fig)
-
-    else:
-        # 2D cartesian box
-        # make a version with the total temperature
-        xvar = np.linspace(0, 2 * np.pi / harm, n_phi)
-        xgr, zgr = np.meshgrid(xvar, rad)
-        # temperature
-        modx = np.exp(1j * harm * xvar)
-        t2d1, t2d2 = np.meshgrid(modx, t_interp)
-        t2d = np.real(t2d1 * t2d2)
-        # stream function
-        u2d1, u2d2 = np.meshgrid(modx, u_interp)
-        u2d = np.real(u2d1 * u2d2)
-        w2d1, w2d2 = np.meshgrid(modx, w_interp)
-        w2d = np.real(w2d1 * w2d2)
-        filename = "_".join((name, "mode.pdf"))
-        image_mode(xgr, zgr, t2d, u2d, w2d, harm, filename, notbare)
+        axis.text(
+            0.5,
+            0.42,
+            r"$\Phi^-={}$".format(fmt(phibot)),
+            fontsize=25,
+            transform=axis.transAxes,
+            verticalalignment="center",
+            horizontalalignment="center",
+        )
+    filename = "_".join((name, "mode.pdf"))
+    plt.savefig(filename, bbox_inches="tight", format="PDF", transparent=True)
+    plt.close(fig)
 
 
-def plot_ran_harm(
-    analyzer: LinearAnalyzer,
+def plot_ran_harm_cart(
+    pblm: CartStability,
     harm: float,
     ra_comp: Optional[float] = None,
     name: Optional[str] = None,
@@ -428,65 +464,27 @@ def plot_ran_harm(
 ) -> None:
     """Plot neutral Ra vs harmonic around given harm"""
     if name is None:
-        name = analyzer.phys.name()
+        name = pblm.name()
     fig, axis = plt.subplots(1, 1)
-    if analyzer.phys.spherical:
-        rac_l: list[float] = []
-        harm = int(harm)
-        if harm < 25:
-            lmin = 1
-            lmax = max(15, harm + 5)
-        else:
-            lmin = harm - 7
-            lmax = lmin + 14
-        harms = range(lmin, lmax + 1)
-        for idx, l_harm in enumerate(harms):
-            rac_l.append(
-                analyzer.neutral_ra(
-                    l_harm, ra_guess=(rac_l[idx - 1] if idx else 600), ra_comp=ra_comp
-                )
-            )
+    kxmin = harm
+    ramin = pblm.neutral_ra(kxmin, ra_comp=ra_comp)
+    hhmin = kxmin / 2 if hmin is None else hmin
+    hhmax = 1.5 * kxmin if hmax is None else hmax
+    wnum = np.linspace(hhmin, hhmax, 50)
+    rayl = [pblm.neutral_ra(wnum[0], ramin, ra_comp)]
+    for i, kk in enumerate(wnum[1:]):
+        ra2 = pblm.neutral_ra(kk, rayl[i], ra_comp)
+        rayl.append(ra2)
 
-        l_c, ra_c = min(enumerate(rac_l), key=lambda tpl: tpl[1])
-        l_c += lmin
-
-        plt.setp(axis, xlim=[lmin - 0.3, lmax + 0.3])
-        plt.plot(harms, rac_l, "o", markersize=MSIZE)
-        plt.plot(
-            l_c,
-            ra_c,
-            "o",
-            label=rf"$Ra_{{min}}={ra_c:.2f} ; l={l_c}$",
-            markersize=MSIZE * 1.5,
-        )
-        plt.xlabel(r"Spherical harmonic $l$", fontsize=FTSZ)
-        plt.ylabel(r"Critical Rayleigh number $Ra_c$", fontsize=FTSZ)
-        plt.legend(loc="upper right", fontsize=FTSZ)
-        filename = "_".join((name, "Ra_l.pdf"))
+    plt.plot(wnum, rayl, linewidth=2)
+    if ramin < 1:
+        plt.plot(kxmin, ramin, "o", label=r"$Ra_{min}=%.2e ; k=%.2e$" % (ramin, kxmin))
     else:
-        kxmin = harm
-        ramin = analyzer.neutral_ra(kxmin, ra_comp=ra_comp)
-        hhmin = kxmin / 2 if hmin is None else hmin
-        hhmax = 1.5 * kxmin if hmax is None else hmax
-        wnum = np.linspace(hhmin, hhmax, 50)
-        rayl = [analyzer.neutral_ra(wnum[0], ramin, ra_comp)]
-        for i, kk in enumerate(wnum[1:]):
-            ra2 = analyzer.neutral_ra(kk, rayl[i], ra_comp)
-            rayl.append(ra2)
-
-        plt.plot(wnum, rayl, linewidth=2)
-        if ramin < 1:
-            plt.plot(
-                kxmin, ramin, "o", label=r"$Ra_{min}=%.2e ; k=%.2e$" % (ramin, kxmin)
-            )
-        else:
-            plt.plot(
-                kxmin, ramin, "o", label=r"$Ra_{min}=%.2f ; k=%.2f$" % (ramin, kxmin)
-            )
-        plt.xlabel("Wavenumber", fontsize=FTSZ)
-        plt.ylabel("Rayleigh number", fontsize=FTSZ)
-        plt.legend(loc="upper right", fontsize=FTSZ)
-        filename = "_".join((name, "Ra_kx.pdf"))
+        plt.plot(kxmin, ramin, "o", label=r"$Ra_{min}=%.2f ; k=%.2f$" % (ramin, kxmin))
+    plt.xlabel("Wavenumber", fontsize=FTSZ)
+    plt.ylabel("Rayleigh number", fontsize=FTSZ)
+    plt.legend(loc="upper right", fontsize=FTSZ)
+    filename = "_".join((name, "Ra_kx.pdf"))
     plt.xticks(fontsize=FTSZ)
     plt.yticks(fontsize=FTSZ)
     plt.tight_layout()
@@ -494,29 +492,52 @@ def plot_ran_harm(
     plt.close(fig)
 
 
-def plot_viscosity(pblm: PhysicalProblem) -> None:
-    """Plot viscosity profile of a give physical problem"""
-    if pblm.eta_r is None:
-        return
-    nrad = 100
-    if pblm.spherical:
-        # FIXME: delegate to geometry-aware object
-        assert isinstance(pblm.geometry, Spherical)
-        gamma = pblm.geometry.gamma
-        rad = np.linspace(gamma / (1 - gamma), 1 / (1 - gamma), nrad)
+def plot_ran_harm_sph(
+    pblm: SphStability,
+    harm: float,
+    ra_comp: Optional[float] = None,
+    name: Optional[str] = None,
+    hmin: Optional[float] = None,
+    hmax: Optional[float] = None,
+) -> None:
+    """Plot neutral Ra vs harmonic around given harm"""
+    if name is None:
+        name = pblm.name()
+    fig, axis = plt.subplots(1, 1)
+    rac_l: list[float] = []
+    harm = int(harm)
+    if harm < 25:
+        lmin = 1
+        lmax = max(15, harm + 5)
     else:
-        rad = np.linspace(-1 / 2, 1 / 2, nrad)
-    eta_r = np.vectorize(pblm.eta_r)(rad)
-    fig, axis = plt.subplots(1, 2, sharey=True)
-    axis[0].plot(eta_r, rad)
-    axis[1].semilogx(eta_r, rad)
-    if pblm.spherical:
-        plt.setp(axis, ylim=[gamma / (1 - gamma), 1 / (1 - gamma)])
-    else:
-        plt.setp(axis, ylim=[-1 / 2, 1 / 2])
-    filename = "_".join((pblm.name(), "visco.pdf"))
-    axis[0].set_xlabel(r"$\eta$", fontsize=FTSZ)
-    axis[1].set_xlabel(r"$\eta$", fontsize=FTSZ)
-    axis[0].set_ylabel(r"$r$", fontsize=FTSZ)
+        lmin = harm - 7
+        lmax = lmin + 14
+    harms = range(lmin, lmax + 1)
+    for idx, l_harm in enumerate(harms):
+        rac_l.append(
+            pblm.neutral_ra(
+                l_harm, ra_guess=(rac_l[idx - 1] if idx else 600), ra_comp=ra_comp
+            )
+        )
+
+    l_c, ra_c = min(enumerate(rac_l), key=lambda tpl: tpl[1])
+    l_c += lmin
+
+    plt.setp(axis, xlim=[lmin - 0.3, lmax + 0.3])
+    plt.plot(harms, rac_l, "o", markersize=MSIZE)
+    plt.plot(
+        l_c,
+        ra_c,
+        "o",
+        label=rf"$Ra_{{min}}={ra_c:.2f} ; l={l_c}$",
+        markersize=MSIZE * 1.5,
+    )
+    plt.xlabel(r"Spherical harmonic $l$", fontsize=FTSZ)
+    plt.ylabel(r"Critical Rayleigh number $Ra_c$", fontsize=FTSZ)
+    plt.legend(loc="upper right", fontsize=FTSZ)
+    filename = "_".join((name, "Ra_l.pdf"))
+    plt.xticks(fontsize=FTSZ)
+    plt.yticks(fontsize=FTSZ)
     plt.tight_layout()
     plt.savefig(filename, format="PDF")
+    plt.close(fig)

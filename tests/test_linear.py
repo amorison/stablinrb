@@ -1,19 +1,16 @@
 import numpy as np
 import pytest
 
-import stablinrb.geometry as geom
 import stablinrb.physics as phy
-from stablinrb.analyzer import LinearAnalyzer
+from stablinrb.cartesian import CartStability
+from stablinrb.spherical import SphStability
 
 
 def test_classic_rb_cart() -> None:
-    ana = LinearAnalyzer(
-        phys=phy.PhysicalProblem(
-            geometry=geom.Cartesian(),
-            bc_mom_top=phy.FreeSlip(),
-            bc_mom_bot=phy.FreeSlip(),
-        ),
+    ana = CartStability(
         chebyshev_degree=20,
+        bc_mom_top=phy.FreeSlip(),
+        bc_mom_bot=phy.FreeSlip(),
     )
     ra_th = 27 * np.pi**4 / 4
     harm_th = np.pi / np.sqrt(2)
@@ -30,11 +27,9 @@ def test_classic_rb_cart() -> None:
     "gamma,ra_th,harm_th", [(0.55, 711.95, 3), (0.99, 657.53, 221)]
 )
 def test_classic_rb_sph(gamma: float, ra_th: float, harm_th: float) -> None:
-    ana = LinearAnalyzer(
-        phys=phy.PhysicalProblem(
-            geometry=geom.Spherical(gamma),
-        ),
+    ana = SphStability(
         chebyshev_degree=15,
+        gamma=gamma,
     )
 
     ra_c, harm_c = ana.critical_ra()
@@ -44,13 +39,10 @@ def test_classic_rb_sph(gamma: float, ra_th: float, harm_th: float) -> None:
 
 @pytest.mark.parametrize("phi", [1e-3, 3e-2, 1e-2])
 def test_phi_cart(phi: float) -> None:
-    ana = LinearAnalyzer(
-        phys=phy.PhysicalProblem(
-            geometry=geom.Cartesian(),
-            bc_mom_top=phy.PhaseChange(phi),
-            bc_mom_bot=phy.PhaseChange(phi),
-        ),
+    ana = CartStability(
         chebyshev_degree=10,
+        bc_mom_top=phy.PhaseChange(phi),
+        bc_mom_bot=phy.PhaseChange(phi),
     )
 
     # these are only to leading order
@@ -65,13 +57,11 @@ def test_phi_cart(phi: float) -> None:
 @pytest.mark.parametrize("gamma", [0.2, 0.4, 0.6, 0.8])
 @pytest.mark.parametrize("phi", [1e-3, 3e-2, 1e-2])
 def test_phi_sph(gamma: float, phi: float) -> None:
-    ana = LinearAnalyzer(
-        phys=phy.PhysicalProblem(
-            geometry=geom.Spherical(gamma),
-            bc_mom_top=phy.PhaseChange(phi),
-            bc_mom_bot=phy.PhaseChange(phi),
-        ),
+    ana = SphStability(
         chebyshev_degree=10,
+        gamma=gamma,
+        bc_mom_top=phy.PhaseChange(phi),
+        bc_mom_bot=phy.PhaseChange(phi),
     )
 
     ra_th = (

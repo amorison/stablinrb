@@ -8,7 +8,7 @@ from itertools import repeat
 import numpy as np
 from numpy.linalg import lstsq, solve
 
-from .analyzer import LinearAnalyzer
+from .cartesian import CartStability
 from .matrix import All, Bot, Bulk, Field, Matrix, Scalar, Single, Slices, Top, Vector
 
 if typing.TYPE_CHECKING:
@@ -17,7 +17,6 @@ if typing.TYPE_CHECKING:
     from numpy.typing import NDArray
 
     from .matrix import VarSpec
-    from .physics import PhysicalProblem
 
 
 @dataclass(frozen=True)
@@ -92,13 +91,8 @@ class NonLinearAnalyzer:
         nnonlin: maximum order of non-linear analysis
     """
 
-    phys: PhysicalProblem
-    ncheb: int
+    linear_pblm: CartStability
     nnonlin: int
-
-    @cached_property
-    def linear_analyzer(self) -> LinearAnalyzer:
-        return LinearAnalyzer(self.phys, self.ncheb)
 
     @cached_property
     def mode_index(self) -> ModeIndex:
@@ -106,15 +100,15 @@ class NonLinearAnalyzer:
 
     @cached_property
     def z_integ(self) -> IntegralCheb:
-        return IntegralCheb(max_degree=self.ncheb)
+        return IntegralCheb(max_degree=self.linear_pblm.chebyshev_degree)
 
     @property
     def slices(self) -> Slices:
-        return self.linear_analyzer.slices
+        return self.linear_pblm.slices
 
     @property
     def nodes(self) -> NDArray:
-        return self.linear_analyzer.nodes
+        return self.linear_pblm.nodes
 
     def _cartesian_lmat_0(self, ra_num: float) -> Matrix:
         """LHS matrix for x-independent forcing
@@ -124,15 +118,15 @@ class NonLinearAnalyzer:
         Only the pressure, temperature and uniform vertical velocity
         are solved for
         """
-        nnodes = self.linear_analyzer.nodes.size
-        ops = self.linear_analyzer.operators(0.0)
+        nnodes = self.linear_pblm.nodes.size
+        ops = self.linear_pblm.operators(0.0)
 
         # only in that case a translating vertical velocity is possible
         solve_for_w = (
-            self.phys.bc_mom_top.flow_through and self.phys.bc_mom_bot.flow_through
+            self.linear_pblm.bc_mom_top.flow_through
+            and self.linear_pblm.bc_mom_bot.flow_through
         )
 
-        assert self.phys.temperature is not None
         var_specs: list[VarSpec] = [Field(var="p"), Field(var="T")]
         if solve_for_w:
             # translation velocity
@@ -144,16 +138,16 @@ class NonLinearAnalyzer:
         lmat.add_term(Bulk("p"), -ops.grad_r, "p")
         lmat.add_term(Bulk("p"), ra_num * ops.identity, "T")
         # temperature equation
-        self.phys.temperature.bc_top.add_top("T", lmat, ops)
-        self.phys.temperature.bc_bot.add_bot("T", lmat, ops)
+        self.linear_pblm.temperature.bc_top.add_top("T", lmat, ops)
+        self.linear_pblm.temperature.bc_bot.add_bot("T", lmat, ops)
         lmat.add_term(Bulk("T"), ops.lapl_r, "T")
         # the case for a translating vertical velocity (mode 0)
         if solve_for_w:
             # FIXME: more general handling of boundary condition
-            phi_top = self.phys.bc_mom_top.phase_number  # type: ignore
-            phi_bot = self.phys.bc_mom_bot.phase_number  # type: ignore
+            phi_top = self.linear_pblm.bc_mom_top.phase_number  # type: ignore
+            phi_bot = self.linear_pblm.bc_mom_bot.phase_number  # type: ignore
             # Uniform vertical velocity in the temperature equation
-            tref = self.phys.temperature.ref_prof.eval_with(ops)
+            tref = self.linear_pblm.temperature.ref_prof.eval_with(ops)
             grad_tref = (ops.grad_r @ tref)[:, np.newaxis]
             lmat.add_term(Bulk("T"), -grad_tref, "w0")
             # Vertical velocity in momentum boundary conditions
@@ -233,7 +227,7 @@ class NonLinearAnalyzer:
             # index for the right mode in matrix
             indri = self.mode_index.index(mri, 2 * lr + yri)
             tloc = full_sol[indri].extract("T")
-            dtr = self.linear_analyzer.diff_mat(1) @ tloc
+            dtr = self.linear_pblm.diff_mat(1) @ tloc
             for ll in range(lle + 1):
                 factor = 1j * harm * (2 * lr + yri)
                 # index for the left mode in matrix
@@ -264,7 +258,7 @@ class NonLinearAnalyzer:
         nnonlin = self.nnonlin
 
         # First compute the linear mode and matrix
-        ana = self.linear_analyzer
+        ana = self.linear_pblm
         ra_c, harm_c = ana.critical_ra()
         eig_pblm_c = ana.eigen_problem(harm_c, ra_c)
         lmat_c = eig_pblm_c.lmat
@@ -393,8 +387,8 @@ class NonLinearAnalyzer:
                     dprot = ana.diff_mat(1) @ prot
                     qtop[ii] = -dprot[0]
                     if (
-                        self.phys.bc_mom_top.flow_through
-                        and self.phys.bc_mom_bot.flow_through
+                        self.linear_pblm.bc_mom_top.flow_through
+                        and self.linear_pblm.bc_mom_bot.flow_through
                     ):
                         # translation velocity possible
                         full_w0[ind] = np.real(sol.extract("w0").item())

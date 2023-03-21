@@ -22,9 +22,9 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 import stablinrb.plotting as stabplt
-from stablinrb.geometry import Cartesian
+from stablinrb.cartesian import CartStability
 from stablinrb.nonlin import NonLinearAnalyzer
-from stablinrb.physics import FreeSlip, PhysicalProblem
+from stablinrb.physics import FreeSlip
 
 # include tex fonts in pdf
 mpl.rc("font", **{"family": "sans-serif", "sans-serif": ["Helvetica"]})
@@ -34,13 +34,14 @@ mpl.rcParams["pdf.fonttype"] = 42
 # Font and markers size
 FTSZ = 11
 
-pblm = PhysicalProblem(
-    geometry=Cartesian(),
-    bc_mom_top=FreeSlip(),
-    bc_mom_bot=FreeSlip(),
+ana = NonLinearAnalyzer(
+    linear_pblm=CartStability(
+        chebyshev_degree=30,
+        bc_mom_top=FreeSlip(),
+        bc_mom_bot=FreeSlip(),
+    ),
+    nnonlin=2,
 )
-
-ana = NonLinearAnalyzer(pblm, ncheb=30, nnonlin=2)
 ray = ana.ratot
 qtop = ana.qtop
 moyt = ana.meant

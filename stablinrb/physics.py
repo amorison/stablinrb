@@ -7,16 +7,14 @@ from dataclasses import dataclass
 import numpy as np
 from scipy.optimize import brentq
 
-from .matrix import Bot, Bulk, Field, Matrix, Top
-from .ref_prof import DiffusiveProf, Dirichlet
+from .matrix import Bot, Bulk, Matrix, Top
 
 if typing.TYPE_CHECKING:
-    from typing import Callable, Optional, Sequence
+    from typing import Callable
 
     from numpy.typing import NDArray
 
-    from .geometry import Geometry, Operators
-    from .matrix import VarSpec
+    from .geometry import Operators
     from .ref_prof import ReferenceProfile
 
 
@@ -230,66 +228,6 @@ class PhaseChange(BCMomentum):
                 -self.phase_number * ops.identity + 2 * eta * ops.grad_r,
                 "w",
             )
-
-
-@dataclass(frozen=True)
-class PhysicalProblem:
-    """Description of the physical problem.
-
-    prandtl: None if infinite
-    water: to study convection in a layer of water cooled from below, around 4C.
-    thetar: (T0-T1)/Delta T -1/2 with T0 the temperature of maximum density (4C),
-       Delta T the total temperature difference across the layer and T1 the bottom T.
-    """
-
-    geometry: Geometry
-    temperature: Optional[AdvDiffEq] = AdvDiffEq(
-        bc_top=Zero(),
-        bc_bot=Zero(),
-        ref_prof=DiffusiveProf(bcs_top=Dirichlet(0.0), bcs_bot=Dirichlet(1.0)),
-    )
-    composition: Optional[AdvDiffEq] = None
-    bc_mom_top: BCMomentum = FreeSlip()
-    bc_mom_bot: BCMomentum = FreeSlip()
-    prandtl: Optional[float] = None
-    eta_r: Optional[Callable[[NDArray], NDArray]] = None
-    cooling_smo: Optional[tuple[Callable, Callable]] = None
-    frozen_time: bool = False
-    ref_state_translation: bool = False
-    water: bool = False
-    thetar: float = 0.0
-
-    @property
-    def spherical(self) -> bool:
-        return self.geometry.is_spherical()
-
-    @property
-    def domain_bounds(self) -> tuple[float, float]:
-        """Boundaries of physical domain."""
-        return (1.0, 2.0) if self.spherical else (-0.5, 0.5)
-
-    def name(self) -> str:
-        """Construct a name for the current case"""
-        name = [
-            self.geometry.name_stem(),
-            "TOP",
-            self.bc_mom_top.name,
-            "BOT",
-            self.bc_mom_bot.name,
-        ]
-        return "_".join(name).replace(".", "-")
-
-    def var_specs(self) -> Sequence[VarSpec]:
-        common = []
-        if self.temperature is not None:
-            common.append(Field(var="T"))
-        if self.composition is not None:
-            common.append(Field(var="c"))
-        if self.spherical:
-            # poloidal potential and laplacian of poloidal
-            return [Field(var="p"), Field(var="q"), *common]
-        # cartesian, pressure and velocities
-        return [Field(var="p"), Field(var="u"), Field(var="w"), *common]
 
 
 def wtran(eps: float) -> tuple[float, float, float]:
