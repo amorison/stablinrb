@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """Find critical Rayleigh number and associated mode.
 
 Minimal example which computes the minimum critical Rayleigh number and the

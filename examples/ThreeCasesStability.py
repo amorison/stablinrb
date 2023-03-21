@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """Find critical Rayleigh number for three cases with different BCs."""
 import matplotlib as mpl
 import matplotlib.pyplot as plt

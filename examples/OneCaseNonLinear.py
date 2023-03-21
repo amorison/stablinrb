@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """Weakly non-linear development for Rayleigh-Bénard problem
 
 The Rayleigh number Ra and the solution vectore are developed as
