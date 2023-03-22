@@ -9,11 +9,11 @@ from dmsuite.poly_diff import Chebyshev, DiffMatOnDomain, DiffMatrices
 
 from . import physics as phy
 from .geometry import CartOps
-from .matrix import All, Bulk, EigenvalueProblem, Field, Matrix, Slices, VarSpec
+from .matrix import All, Bulk, EigenvalueProblem, Field, Matrix, Slices
 from .ref_prof import DiffusiveProf, Dirichlet
 
 if typing.TYPE_CHECKING:
-    from typing import Optional, Sequence
+    from typing import Optional
 
     from numpy.typing import NDArray
 
@@ -50,14 +50,6 @@ class CartStability:
         ]
         return "_".join(name).replace(".", "-")
 
-    def var_specs(self) -> Sequence[VarSpec]:
-        common = [Field(var="p"), Field(var="u"), Field(var="w")]
-        if self.temperature is not None:
-            common.append(Field(var="T"))
-        if self.composition is not None:
-            common.append(Field(var="c"))
-        return common
-
     @cached_property
     def _diff_mat(self) -> DiffMatrices:
         # flip xmin and xmax because Chebyshev nodes are in
@@ -82,7 +74,12 @@ class CartStability:
 
     @cached_property
     def slices(self) -> Slices:
-        return Slices(var_specs=self.var_specs(), nnodes=self.nodes.size)
+        var_specs = [Field(var="p"), Field(var="u"), Field(var="w")]
+        if self.temperature is not None:
+            var_specs.append(Field(var="T"))
+        if self.composition is not None:
+            var_specs.append(Field(var="c"))
+        return Slices(var_specs=var_specs, nnodes=self.nodes.size)
 
     def eigen_problem(
         self, harm: float, ra_num: float, ra_comp: Optional[float] = None
