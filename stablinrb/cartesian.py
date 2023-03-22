@@ -80,9 +80,6 @@ class CartStability:
             eta_r=np.identity(self.nodes.size),
         )
 
-    def diff_mat(self, order: int) -> NDArray:
-        return self._diff_mat.at_order(order)
-
     @cached_property
     def slices(self) -> Slices:
         return Slices(var_specs=self.var_specs(), nnodes=self.nodes.size)

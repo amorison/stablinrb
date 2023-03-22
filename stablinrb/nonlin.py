@@ -215,6 +215,8 @@ class NonLinearAnalyzer:
         uloc = np.zeros(self.slices.nnodes, dtype=np.complex64)
         wloc = np.zeros_like(uloc)
 
+        grad_r = self.linear_pblm.operators(0.0).grad_r
+
         # order of the produced mode
         nmo = mle + mri
         # decompose mxx = 2 lxx + yxx
@@ -227,7 +229,7 @@ class NonLinearAnalyzer:
             # index for the right mode in matrix
             indri = self.mode_index.index(mri, 2 * lr + yri)
             tloc = full_sol[indri].extract("T")
-            dtr = self.linear_pblm.diff_mat(1) @ tloc
+            dtr = grad_r @ tloc
             for ll in range(lle + 1):
                 factor = 1j * harm * (2 * lr + yri)
                 # index for the left mode in matrix
@@ -265,6 +267,8 @@ class NonLinearAnalyzer:
         nnodes = lmat_c.slices.total_size
         _, mode_c = eig_pblm_c.max_eigvec()
         mode_c = mode_c.normalize_by_max_of("w")
+
+        grad_r = ana.operators(0.0).grad_r
 
         # setup matrices for the non linear solution
         nmodes = self.mode_index.n_harmonics
@@ -384,7 +388,7 @@ class NonLinearAnalyzer:
                     # factor to account for the complex conjugate
                     prot = 2 * np.real(sol.extract("T"))
                     meant[ii] = self.z_integ.apply(prot)
-                    dprot = ana.diff_mat(1) @ prot
+                    dprot = grad_r @ prot
                     qtop[ii] = -dprot[0]
                     if (
                         self.linear_pblm.bc_mom_top.flow_through

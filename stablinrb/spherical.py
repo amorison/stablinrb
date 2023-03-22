@@ -88,9 +88,6 @@ class SphStability:
             eta_r=self._visco_as_mat,
         )
 
-    def diff_mat(self, order: int) -> NDArray:
-        return self._diff_mat.at_order(order)
-
     @cached_property
     def slices(self) -> Slices:
         return Slices(var_specs=self.var_specs(), nnodes=self.nodes.size)
@@ -102,7 +99,7 @@ class SphStability:
 
         ops = self.operators(l_harm)
         rad = self.nodes
-        dr1, dr2 = self.diff_mat(1), self.diff_mat(2)
+        dr1, dr2 = ops.diff_r(1), ops.diff_r(2)
         eta_r = ops.viscosity
 
         # r + lambda
@@ -208,9 +205,11 @@ class SphStability:
         p_mode = eigvec.extract("p")
         t_mode = eigvec.extract("T")
 
-        orl1 = (1 - self.gamma) / ((1 - self.gamma) * self.nodes + 2 * self.gamma - 1)
+        ops = self.operators(l_harm)
+
+        orl1 = 1 / ops.phys_coord
         ur_mode = l_harm * (l_harm + 1) * p_mode * orl1
-        up_mode = 1j * l_harm * (self.diff_mat(1) @ p_mode + p_mode * orl1)
+        up_mode = 1j * l_harm * (ops.diff_r(1) @ p_mode + p_mode * orl1)
 
         return (p_mode, up_mode, ur_mode, t_mode)
 
