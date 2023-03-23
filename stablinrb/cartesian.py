@@ -89,8 +89,6 @@ class CartStability:
 
         # FIXME: viscosity in cartesian
         ops = self.operators(harm)
-        dz1 = ops.grad_r
-        one = ops.identity
 
         lmat = Matrix(self.slices, dtype=np.complex128)
         rmat = Matrix(self.slices)
@@ -98,7 +96,7 @@ class CartStability:
         # Pressure equations
         # mass conservation
         lmat.add_term(All("p"), ops.diff_h, "u")
-        lmat.add_term(All("p"), dz1, "w")
+        lmat.add_term(All("p"), ops.diff_r(1), "w")
 
         # Momentum equation
         self.bc_mom_top.add_top(lmat, ops)
@@ -107,7 +105,7 @@ class CartStability:
         lmat.add_term(Bulk("u"), -ops.diff_h, "p")
         lmat.add_term(Bulk("u"), ops.lapl, "u")
         # vertical momentum conservation
-        lmat.add_term(Bulk("w"), -dz1, "p")
+        lmat.add_term(Bulk("w"), -ops.grad_r, "p")
         lmat.add_term(Bulk("w"), ops.lapl, "w")
         # buoyancy
         if self.water:
@@ -116,10 +114,10 @@ class CartStability:
             theta0 = self.thetar - ops.phys_coord
             lmat.add_term(Bulk("w"), -ra_num * np.diag(theta0), "T")
         else:
-            lmat.add_term(Bulk("w"), ra_num * one, "T")
+            lmat.add_term(Bulk("w"), ra_num * ops.identity, "T")
         if self.composition is not None:
             assert ra_comp is not None
-            lmat.add_term(Bulk("w"), ra_comp * one, "c")
+            lmat.add_term(Bulk("w"), ra_comp * ops.identity, "c")
 
         if translation:
             # only written for Dirichlet BCs on T and without internal heating
@@ -131,7 +129,7 @@ class CartStability:
             self.temperature.bc_top.add_top("T", lmat, ops)
             self.temperature.bc_bot.add_bot("T", lmat, ops)
             lmat.add_term(Bulk("T"), ops.lapl, "T")
-            lmat.add_term(Bulk("T"), -wtrans * dz1, "T")
+            lmat.add_term(Bulk("T"), -wtrans * ops.grad_r, "T")
             w_temp = np.diag(np.exp(wtrans * self.nodes))
             if np.abs(wtrans) > 1.0e-3:
                 w_temp *= wtrans / (2 * np.sinh(wtrans / 2))
@@ -142,16 +140,16 @@ class CartStability:
         else:
             self.temperature.add_pert_eq("T", lmat, ops)
 
-        rmat.add_term(Bulk("T"), one, "T")
+        rmat.add_term(Bulk("T"), ops.identity, "T")
         if prandtl is not None:
             # finite Prandtl number case
-            rmat.add_term(Bulk("u"), one / prandtl, "u")
-            rmat.add_term(Bulk("w"), one / prandtl, "w")
+            rmat.add_term(Bulk("u"), ops.identity / prandtl, "u")
+            rmat.add_term(Bulk("w"), ops.identity / prandtl, "w")
 
         # C equations
         if self.composition is not None:
             self.composition.add_pert_eq("c", lmat, ops)
-            rmat.add_term(Bulk("c"), one, "c")
+            rmat.add_term(Bulk("c"), ops.identity, "c")
         return EigenvalueProblem(lmat, rmat)
 
     def growth_rate(
