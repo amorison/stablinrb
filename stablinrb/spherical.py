@@ -93,7 +93,6 @@ class SphStability:
         self, l_harm: int, ra_num: Optional[float], ra_comp: Optional[float] = None
     ) -> EigenvalueProblem:
         ops = self.operators(l_harm)
-        rad = self.nodes
         dr1, dr2 = ops.diff_r(1), ops.diff_r(2)
         eta_r = ops.viscosity
 
@@ -103,7 +102,6 @@ class SphStability:
         orl3 = orl1**3
         one = ops.identity
 
-        rad = np.diag(rad)
         orl1 = np.diag(orl1)
         orl2 = np.diag(orl2)
         orl3 = np.diag(orl3)
@@ -166,7 +164,7 @@ class SphStability:
                 grad_ref_temp_top = grad_tcond[0]
                 lmat.add_term(
                     Bulk("T"),
-                    w_smo * (np.dot(rad - one, dr1) + grad_ref_temp_top * one),
+                    w_smo * (np.diag(self.nodes - 1) @ dr1 + grad_ref_temp_top * one),
                     "T",
                 )
 
@@ -179,7 +177,7 @@ class SphStability:
         if self.composition is not None:
             self.composition.add_pert_eq("c", lmat, ops)
             if not self.frozen_time and self.cooling_smo is not None:
-                lmat.add_term(Bulk("c"), w_smo * np.dot(rad - one, dr1), "c")
+                lmat.add_term(Bulk("c"), w_smo * np.diag(self.nodes - 1) @ dr1, "c")
                 rmat.add_term(Bulk("c"), one * gam2_smo, "c")
             else:
                 rmat.add_term(Bulk("c"), one, "c")
