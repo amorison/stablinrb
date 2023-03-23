@@ -67,17 +67,17 @@ class SphStability:
         return self._diff_mat.nodes
 
     @cached_property
-    def _visco_as_mat(self) -> NDArray:
+    def _visco_prof(self) -> NDArray:
         if self.eta_r is not None:
-            return np.diag(self.eta_r(self.nodes))
-        return np.identity(self.nodes.size)
+            return self.eta_r(self.nodes)
+        return np.ones_like(self.nodes)
 
     def operators(self, harmonic: int) -> Operators:
         return SphOps(
             gamma=self.gamma,
             diff_mat=self._diff_mat,
             harm_degree=harmonic,
-            eta_r=self._visco_as_mat,
+            eta_r=self._visco_prof,
         )
 
     @cached_property
@@ -94,7 +94,6 @@ class SphStability:
     ) -> EigenvalueProblem:
         ops = self.operators(l_harm)
         dr1, dr2 = ops.diff_r(1), ops.diff_r(2)
-        eta_r = ops.viscosity
 
         # 1 / (r + lambda)
         orl1 = 1 / ops.phys_coord
@@ -127,8 +126,8 @@ class SphStability:
 
         # Q equations
         if self.eta_r is not None:
-            deta_dr = np.diag(np.dot(dr1, np.diag(eta_r)))
-            d2eta_dr2 = np.diag(np.dot(dr2, np.diag(eta_r)))
+            deta_dr = np.diag(dr1 @ ops.viscosity)
+            d2eta_dr2 = np.diag(dr2 @ ops.viscosity)
             lmat.add_term(
                 Bulk("q"),
                 2 * (lh2 - 1) * (np.dot(orl2, d2eta_dr2) - np.dot(orl3, deta_dr))
@@ -136,7 +135,9 @@ class SphStability:
                 "p",
             )
             lmat.add_term(
-                Bulk("q"), (eta_r @ ops.lapl) + d2eta_dr2 + 2 * (deta_dr @ dr1), "q"
+                Bulk("q"),
+                (np.diag(ops.viscosity) @ ops.lapl) + d2eta_dr2 + 2 * (deta_dr @ dr1),
+                "q",
             )
         else:
             # laplacian(Q) - RaT/r = 0
