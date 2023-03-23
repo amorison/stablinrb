@@ -92,23 +92,18 @@ class SphStability:
     def eigen_problem(
         self, l_harm: int, ra_num: Optional[float], ra_comp: Optional[float] = None
     ) -> EigenvalueProblem:
-        gamma = self.gamma
-
         ops = self.operators(l_harm)
         rad = self.nodes
         dr1, dr2 = ops.diff_r(1), ops.diff_r(2)
         eta_r = ops.viscosity
 
-        # r + lambda
-        ral = ops.phys_coord
         # 1 / (r + lambda)
-        orl1 = (1 - gamma) / ((1 - gamma) * rad + 2 * gamma - 1)
+        orl1 = 1 / ops.phys_coord
         orl2 = orl1**2
         orl3 = orl1**3
         one = ops.identity
 
         rad = np.diag(rad)
-        ral = np.diag(ral)
         orl1 = np.diag(orl1)
         orl2 = np.diag(orl2)
         orl3 = np.diag(orl3)
@@ -157,8 +152,8 @@ class SphStability:
 
         if self.cooling_smo is not None:
             gamt_f, w_f = self.cooling_smo
-            gam2_smo = gamt_f(gamma) ** 2
-            w_smo = w_f(gamma)
+            gam2_smo = gamt_f(self.gamma) ** 2
+            w_smo = w_f(self.gamma)
 
         # T equations
         # laplacian(T) - u.grad(T_conductive) = sigma T
