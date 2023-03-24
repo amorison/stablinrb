@@ -130,8 +130,8 @@ class SphStability:
             d2eta_dr2 = np.diag(dr2 @ ops.viscosity)
             lmat.add_term(
                 Bulk("q"),
-                2 * (lh2 - 1) * (np.dot(orl2, d2eta_dr2) - np.dot(orl3, deta_dr))
-                - 2 * np.dot(np.dot(orl1, d2eta_dr2) - np.dot(orl2, deta_dr), dr1),
+                2 * (lh2 - 1) * (orl2 @ d2eta_dr2 - orl3 @ deta_dr)
+                - 2 * (orl1 @ d2eta_dr2 - orl2 @ deta_dr) @ dr1,
                 "p",
             )
             lmat.add_term(
