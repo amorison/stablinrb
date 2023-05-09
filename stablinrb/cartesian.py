@@ -69,7 +69,7 @@ class CartStability:
         return CartOps(
             diff_mat=self._diff_mat,
             wavenumber=harmonic,
-            eta_r=np.identity(self.nodes.size),
+            eta_r=np.ones(self.nodes.size),
         )
 
     @cached_property
