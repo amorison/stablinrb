@@ -11,6 +11,8 @@ if typing.TYPE_CHECKING:
     from dmsuite.poly_diff import DiffMatrices
     from numpy.typing import NDArray
 
+    from .rheology import Rheology
+
 
 class Operators(ABC):
     @property
@@ -76,14 +78,13 @@ class Operators(ABC):
     @abstractmethod
     def viscosity(self) -> NDArray:
         """viscosity."""
-        # FIXME: proper rheology handling
+        # FIXME: break the circular dependency between Rheology and Operators
 
 
 @dataclass(frozen=True)
 class CartOps(Operators):
     diff_mat: DiffMatrices
     wavenumber: float
-    eta_r: NDArray
 
     @property
     def spherical(self) -> bool:
@@ -134,7 +135,8 @@ class CartOps(Operators):
 
     @property
     def viscosity(self) -> NDArray:
-        return self.eta_r
+        # FIXME: variable viscosity in cartesian
+        return np.ones_like(self.nodes)
 
 
 @dataclass(frozen=True)
@@ -142,7 +144,7 @@ class SphOps(Operators):
     gamma: float
     diff_mat: DiffMatrices
     harm_degree: int
-    eta_r: NDArray
+    rheology: Rheology
 
     @property
     def spherical(self) -> bool:
@@ -205,4 +207,4 @@ class SphOps(Operators):
 
     @property
     def viscosity(self) -> NDArray:
-        return self.eta_r
+        return self.rheology.viscosity(self)

@@ -11,6 +11,7 @@ from . import physics as phy
 from .geometry import SphOps
 from .matrix import Bulk, EigenvalueProblem, Field, Matrix, Slices
 from .ref_prof import DiffusiveProf, Dirichlet
+from .rheology import Isoviscous
 
 if typing.TYPE_CHECKING:
     from typing import Callable, Optional
@@ -19,6 +20,7 @@ if typing.TYPE_CHECKING:
 
     from .geometry import Operators
     from .matrix import Vector
+    from .rheology import Rheology
 
 
 @dataclass(frozen=True)
@@ -35,7 +37,7 @@ class SphStability:
     composition: Optional[phy.AdvDiffEq] = None
     bc_mom_top: phy.BCMomentum = phy.FreeSlip()
     bc_mom_bot: phy.BCMomentum = phy.FreeSlip()
-    eta_r: Optional[Callable[[NDArray], NDArray]] = None
+    rheology: Rheology = Isoviscous()
     cooling_smo: Optional[tuple[Callable, Callable]] = None
     frozen_time: bool = False
 
@@ -66,18 +68,12 @@ class SphStability:
     def nodes(self) -> NDArray:
         return self._diff_mat.nodes
 
-    @cached_property
-    def _visco_prof(self) -> NDArray:
-        if self.eta_r is not None:
-            return self.eta_r(self.nodes)
-        return np.ones_like(self.nodes)
-
     def operators(self, harmonic: int) -> Operators:
         return SphOps(
             gamma=self.gamma,
             diff_mat=self._diff_mat,
             harm_degree=harmonic,
-            eta_r=self._visco_prof,
+            rheology=self.rheology,
         )
 
     @cached_property
@@ -125,7 +121,7 @@ class SphStability:
         lmat.add_term(Bulk("p"), -one, "q")
 
         # Q equations
-        if self.eta_r is not None:
+        if not self.rheology.constant():
             deta_dr = np.diag(dr1 @ ops.viscosity)
             d2eta_dr2 = np.diag(dr2 @ ops.viscosity)
             lmat.add_term(

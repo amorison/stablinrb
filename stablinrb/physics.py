@@ -10,8 +10,6 @@ from scipy.optimize import brentq
 from .matrix import Bot, Bulk, Matrix, Top
 
 if typing.TYPE_CHECKING:
-    from typing import Callable
-
     from numpy.typing import NDArray
 
     from .geometry import Operators
@@ -267,11 +265,3 @@ def wtran(eps: float) -> tuple[float, float, float]:
             # Complete solution by bracketing (Brentq).
             wtr = brentq(func, wtrs, wtrl, args=(eps))
     return wtr, wtrs, wtrl
-
-
-def visco_Arrhenius(eta_c: float, gamma: float) -> Callable[[NDArray], NDArray]:
-    """Viscosity profile in a conductive shell"""
-    # to be checked
-    return lambda r: np.exp(
-        np.log(eta_c) * gamma / (1 - gamma) * (1 - 1 / (r * (1 - gamma)))
-    )
