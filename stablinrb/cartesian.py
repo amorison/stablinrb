@@ -11,6 +11,7 @@ from . import physics as phy
 from .geometry import CartOps
 from .matrix import All, Bulk, EigenvalueProblem, Field, Matrix, Slices
 from .ref_prof import DiffusiveProf, Dirichlet
+from .rheology import Isoviscous, Rheology
 
 if typing.TYPE_CHECKING:
     from typing import Optional
@@ -31,6 +32,7 @@ class CartStability:
         bc_bot=phy.Zero(),
         ref_prof=DiffusiveProf(bcs_top=Dirichlet(0.0), bcs_bot=Dirichlet(1.0)),
     )
+    rheology: Rheology = Isoviscous()
     composition: Optional[phy.AdvDiffEq] = None
     bc_mom_top: phy.BCMomentum = phy.FreeSlip()
     bc_mom_bot: phy.BCMomentum = phy.FreeSlip()
@@ -86,7 +88,6 @@ class CartStability:
         prandtl = self.prandtl
         translation = self.ref_state_translation
 
-        # FIXME: viscosity in cartesian
         ops = self.operators(harm)
 
         lmat = Matrix(self.slices, dtype=np.complex128)
@@ -100,12 +101,22 @@ class CartStability:
         # Momentum equation
         self.bc_mom_top.add_top(lmat, ops)
         self.bc_mom_bot.add_bot(lmat, ops)
+
+        visc = np.diag(self.rheology.viscosity(ops))
+
         # horizontal momentum conservation
         lmat.add_term(Bulk("u"), -ops.diff_h, "p")
-        lmat.add_term(Bulk("u"), ops.lapl, "u")
+        lmat.add_term(Bulk("u"), visc @ ops.lapl, "u")
         # vertical momentum conservation
         lmat.add_term(Bulk("w"), -ops.grad_r, "p")
-        lmat.add_term(Bulk("w"), ops.lapl, "w")
+        lmat.add_term(Bulk("w"), visc @ ops.lapl, "w")
+        # additional viscous terms with z-variable rheology
+        if not self.rheology.constant():
+            grad_visc = ops.grad_r @ np.diag(visc)
+            lmat.add_term(Bulk("u"), grad_visc @ ops.diff_h, "w")
+            lmat.add_term(Bulk("u"), grad_visc @ ops.diff_r, "u")
+            lmat.add_term(Bulk("w"), 2 * grad_visc @ ops.diff_r, "w")
+
         # buoyancy
         if self.water:
             # FIXME: abstract this away, this would also deserve its own

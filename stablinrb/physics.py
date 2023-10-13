@@ -172,7 +172,6 @@ class PhaseChange(BCMomentum):
         return True
 
     def add_top(self, mat: Matrix, ops: Operators) -> None:
-        # FIXME: rheology
         eta = ops.viscosity[0]
         if ops.spherical:
             rbnd = ops.phys_coord[0]
@@ -200,7 +199,6 @@ class PhaseChange(BCMomentum):
             )
 
     def add_bot(self, mat: Matrix, ops: Operators) -> None:
-        # FIXME: rheology
         eta = ops.viscosity[-1]
         if ops.spherical:
             rbnd = ops.phys_coord[-1]

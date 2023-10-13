@@ -85,6 +85,7 @@ class Operators(ABC):
 class CartOps(Operators):
     diff_mat: DiffMatrices
     wavenumber: float
+    rheology: Rheology
 
     @property
     def spherical(self) -> bool:
@@ -135,8 +136,7 @@ class CartOps(Operators):
 
     @property
     def viscosity(self) -> NDArray:
-        # FIXME: variable viscosity in cartesian
-        return np.ones_like(self.nodes)
+        return self.rheology.viscosity(self)
 
 
 @dataclass(frozen=True)
