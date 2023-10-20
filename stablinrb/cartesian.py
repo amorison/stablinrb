@@ -71,6 +71,7 @@ class CartStability:
         return CartOps(
             diff_mat=self._diff_mat,
             wavenumber=harmonic,
+            rheology=self.rheology,
         )
 
     @cached_property
