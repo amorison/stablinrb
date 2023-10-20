@@ -113,10 +113,10 @@ class CartStability:
         lmat.add_term(Bulk("w"), visc @ ops.lapl, "w")
         # additional viscous terms with z-variable rheology
         if not self.rheology.constant():
-            grad_visc = ops.grad_r @ np.diag(visc)
+            grad_visc = np.diag(ops.grad_r @ np.diag(visc))
             lmat.add_term(Bulk("u"), grad_visc @ ops.diff_h, "w")
             lmat.add_term(Bulk("u"), grad_visc @ ops.diff_r, "u")
-            lmat.add_term(Bulk("w"), 2 * grad_visc @ ops.diff_r, "w")
+            lmat.add_term(Bulk("w"), 2 * (grad_visc @ ops.diff_r), "w")
 
         # buoyancy
         if self.water:
