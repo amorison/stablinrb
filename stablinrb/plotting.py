@@ -7,7 +7,7 @@ import matplotlib.pyplot as plt
 import mpl_toolkits.axisartist.floating_axes as floating_axes
 import numpy as np
 from dmsuite.interp import ChebyshevSampling
-from matplotlib.projections import PolarAxes
+from matplotlib.projections.polar import PolarAxes
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 from scipy.special import sph_harm
 
@@ -80,7 +80,7 @@ def image_mode(
     surf = plt.pcolormesh(
         xgr, zgr, t2d, cmap=mypal, rasterized=True, linewidth=0, shading="gouraud"
     )
-    plt.axis([xgr.min(), xgr.max(), zgr.min(), zgr.max()])
+    plt.axis((xgr.min(), xgr.max(), zgr.min(), zgr.max()))
     # stream function
     speed = np.sqrt(u2d**2 + w2d**2)
     if speed.max() > 0:
