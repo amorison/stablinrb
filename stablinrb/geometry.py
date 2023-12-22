@@ -116,7 +116,7 @@ class CartOps(Operators):
 
     @cached_property
     def lapl_h(self) -> NDArray:
-        return -self.wavenumber**2 * self.identity
+        return -(self.wavenumber**2) * self.identity
 
     @property
     def lapl_r(self) -> NDArray:
