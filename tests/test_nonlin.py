@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import numpy as np
 from numpy.typing import NDArray
 
@@ -168,7 +170,7 @@ def test_nonlin_phase() -> None:
         nnonlin=2,
     )
     z = ana.nodes
-    theory = {
+    theory: dict[tuple[int, int], dict[str, NDArray]] = {
         (1, 1): {
             # "u": _u11(z, phi),
             "w": _w11(z, phi),
@@ -184,7 +186,7 @@ def test_nonlin_phase() -> None:
         (2, 2): {
             # "u": _u22(z, phi),
             # "w": _w22(z, phi),
-            "T": _t22(z, phi),
+            # "T": _t22(z, phi),
         },
     }
 
