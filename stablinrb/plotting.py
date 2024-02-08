@@ -506,12 +506,20 @@ def plot_ran_harm_sph(
     fig, axis = plt.subplots(1, 1)
     rac_l: list[float] = []
     harm = int(harm)
-    if harm < 25:
-        lmin = 1
-        lmax = max(15, harm + 5)
+    if hmin is not None:
+        lmin = int(hmin)
     else:
-        lmin = harm - 7
-        lmax = lmin + 14
+        if harm < 25:
+            lmin = 1
+        else:
+            lmin = harm - 7
+    if hmax is not None:
+        lmax = int(hmax)
+    else:
+        if harm < 25:
+            lmax = max(15, harm + 5)
+        else:
+            lmax = lmin + 14
     harms = range(lmin, lmax + 1)
     for idx, l_harm in enumerate(harms):
         rac_l.append(
