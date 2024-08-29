@@ -1,4 +1,4 @@
-name: tox CI
+name: CI
 
 on:
   push:
@@ -10,7 +10,7 @@ on:
   workflow_dispatch:
 
 jobs:
-  build:
+  ci:
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
