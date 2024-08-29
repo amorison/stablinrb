@@ -1,10 +1,10 @@
 [build-system]
-requires = ["setuptools>=61", "setuptools_scm>=7.0"]
+requires = ["setuptools>=61"]
 build-backend = "setuptools.build_meta"
 
 [project]
 name = "stablinrb"
-dynamic = ["version"]
+version = "0.1.0"
 description = "Rayleigh-Bénard linear stability analysis"
 readme = "README.md"
 authors = [
@@ -41,9 +41,6 @@ namespaces = false
 
 [tool.setuptools.package-data]
 stablinrb = ["py.typed"]
-
-[tool.setuptools_scm]
-write_to = "stablinrb/_version.py"
 
 [tool.mypy]
 disallow_untyped_defs = true
