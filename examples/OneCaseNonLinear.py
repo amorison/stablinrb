@@ -16,6 +16,7 @@ linear operator non-hermitian.
 
 See Labrosse et al (J. Fluid Mech. 2018) for details.
 """
+
 import matplotlib as mpl
 import matplotlib.pyplot as plt
 import numpy as np

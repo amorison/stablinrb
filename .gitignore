@@ -1,6 +1,6 @@
 /build
 /stablinrb.egg-info
-/.tox
+/uv.lock
 /.coverage
 
 *.pdf

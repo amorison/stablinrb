@@ -20,12 +20,10 @@ class BCPerturbation(ABC):
     """Boundary condition for perturbations."""
 
     @abstractmethod
-    def add_top(self, var: str, mat: Matrix, ops: Operators) -> None:
-        ...
+    def add_top(self, var: str, mat: Matrix, ops: Operators) -> None: ...
 
     @abstractmethod
-    def add_bot(self, var: str, mat: Matrix, ops: Operators) -> None:
-        ...
+    def add_bot(self, var: str, mat: Matrix, ops: Operators) -> None: ...
 
 
 @dataclass(frozen=True)
@@ -80,21 +78,17 @@ class AdvDiffEq:
 class BCMomentum(ABC):
     @property
     @abstractmethod
-    def name(self) -> str:
-        ...
+    def name(self) -> str: ...
 
     @property
     @abstractmethod
-    def flow_through(self) -> bool:
-        ...
+    def flow_through(self) -> bool: ...
 
     @abstractmethod
-    def add_top(self, mat: Matrix, ops: Operators) -> None:
-        ...
+    def add_top(self, mat: Matrix, ops: Operators) -> None: ...
 
     @abstractmethod
-    def add_bot(self, mat: Matrix, ops: Operators) -> None:
-        ...
+    def add_bot(self, mat: Matrix, ops: Operators) -> None: ...
 
 
 @dataclass(frozen=True)

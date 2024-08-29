@@ -15,12 +15,10 @@ if typing.TYPE_CHECKING:
 
 class Rheology(ABC):
     @abstractmethod
-    def constant(self) -> bool:
-        ...
+    def constant(self) -> bool: ...
 
     @abstractmethod
-    def viscosity(self, ops: Operators) -> NDArray:
-        ...
+    def viscosity(self, ops: Operators) -> NDArray: ...
 
 
 @dataclass(frozen=True)

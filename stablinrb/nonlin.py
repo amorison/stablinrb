@@ -82,7 +82,6 @@ class IntegralCheb:
 
 @dataclass(frozen=True)
 class NonLinearAnalyzer:
-
     """Weakly non-linear analysis.
 
     Attributes:

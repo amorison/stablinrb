@@ -19,12 +19,10 @@ if typing.TYPE_CHECKING:
 
 class BoundaryCondition(ABC):
     @abstractmethod
-    def add_top(self, var: str, mat: Matrix, ops: Operators) -> float:
-        ...
+    def add_top(self, var: str, mat: Matrix, ops: Operators) -> float: ...
 
     @abstractmethod
-    def add_bot(self, var: str, mat: Matrix, ops: Operators) -> float:
-        ...
+    def add_bot(self, var: str, mat: Matrix, ops: Operators) -> float: ...
 
 
 @dataclass(frozen=True)
@@ -69,8 +67,7 @@ class Robin(BoundaryCondition):
 
 class ReferenceProfile(ABC):
     @abstractmethod
-    def eval_with(self, ops: Operators) -> NDArray:
-        ...
+    def eval_with(self, ops: Operators) -> NDArray: ...
 
 
 @dataclass(frozen=True)
