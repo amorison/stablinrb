@@ -43,3 +43,18 @@ class Arrhenius(Rheology):
     def viscosity(self, ops: Operators) -> NDArray:
         temp = self.temperature.eval_with(ops)
         return self.visc_scale * np.exp(self.temp_scale / (temp + self.temp_offset))
+
+
+@dataclass(frozen=True)
+class Exponential(Rheology):
+    visc_scale: float
+    temp_scale: float
+    temp_offset: float
+    temperature: ReferenceProfile
+
+    def constant(self) -> bool:
+        return False
+
+    def viscosity(self, ops: Operators) -> NDArray:
+        temp = self.temperature.eval_with(ops)
+        return self.visc_scale * np.exp(-self.temp_scale * (temp - self.temp_offset))
