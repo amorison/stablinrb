@@ -473,7 +473,7 @@ def plot_ran_harm_cart(
     wnum = np.linspace(hhmin, hhmax, 50)
     rayl = [pblm.neutral_ra(wnum[0], ramin, ra_comp)]
     for i, kk in enumerate(wnum[1:]):
-        ra2 = pblm.neutral_ra(kk, rayl[i], ra_comp)
+        ra2 = pblm.neutral_ra(kk.item(), rayl[i], ra_comp)
         rayl.append(ra2)
 
     plt.plot(wnum, rayl, linewidth=2)

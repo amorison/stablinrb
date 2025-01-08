@@ -31,7 +31,7 @@ print("Wavelength = ", 2 * np.pi / harm_crr)
 # compute the k, Ra curve
 raylrr = [ana.neutral_ra(wnum[0], ra_crr)]
 for i, kk in enumerate(wnum[1:]):
-    ra2 = ana.neutral_ra(kk, raylrr[i])
+    ra2 = ana.neutral_ra(kk.item(), raylrr[i])
     raylrr.append(ra2)
 
 # and plot
@@ -60,7 +60,7 @@ print("Wavelength = ", 2 * np.pi / harm_cfr)
 # compute the k, Ra curve
 raylfr = [ana.neutral_ra(wnum[0], ra_cfr)]
 for i, kk in enumerate(wnum[1:]):
-    ra2 = ana.neutral_ra(kk, raylfr[i])
+    ra2 = ana.neutral_ra(kk.item(), raylfr[i])
     raylfr.append(ra2)
 
 # and plot
@@ -87,7 +87,7 @@ print("Wavelength = ", 2 * np.pi / harm_cff)
 
 raylff = [ana.neutral_ra(wnum[0], ra_cff)]
 for i, kk in enumerate(wnum[1:]):
-    ra2 = ana.neutral_ra(kk, raylff[i])
+    ra2 = ana.neutral_ra(kk.item(), raylff[i])
     raylff.append(ra2)
 
 plt.plot(wnum, raylff, label=r"Free--Free BCs")
