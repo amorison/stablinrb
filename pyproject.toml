@@ -54,3 +54,20 @@ dev-dependencies = [
     "pytest>=8.3.2",
     "pytest-cov>=5.0.0",
 ]
+
+[tool.basedpyright]
+venvPath = "."
+venv = ".venv"
+enableTypeIgnoreComments = true
+reportAny = false
+reportIgnoreCommentWithoutRule = false
+reportImplicitOverride = false
+reportImportCycles = false
+reportMissingTypeStubs = false
+reportPrivateUsage = false
+reportUnknownArgumentType = false
+reportUnknownLambdaType = false
+reportUnknownMemberType = false
+reportUnknownParameterType = false
+reportUnknownVariableType = false
+reportUnusedCallResult = false
