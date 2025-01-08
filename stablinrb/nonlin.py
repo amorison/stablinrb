@@ -210,10 +210,6 @@ class NonLinearAnalyzer:
         # get indices
         tbulk = self.slices.collocation(Bulk("T"))
 
-        # create local profiles
-        uloc = np.zeros(self.slices.nnodes, dtype=np.complex64)
-        wloc = np.zeros_like(uloc)
-
         grad_r = self.linear_pblm.operators(0.0).grad_r
 
         # order of the produced mode
