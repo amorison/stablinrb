@@ -57,4 +57,4 @@ class Exponential(Rheology):
 
     def viscosity(self, ops: Operators) -> NDArray:
         temp = self.temperature.eval_with(ops)
-        return self.visc_scale * np.exp(-self.temp_scale * (temp - self.temp_ref))
+        return self.visc_scale * np.exp((self.temp_ref - temp) / self.temp_scale)
