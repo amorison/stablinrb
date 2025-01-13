@@ -14,7 +14,7 @@ from .ref_prof import DiffusiveProf, Dirichlet
 from .rheology import Isoviscous
 
 if typing.TYPE_CHECKING:
-    from typing import Callable, Optional
+    from typing import Callable
 
     from numpy.typing import NDArray
 
@@ -29,16 +29,16 @@ class SphStability:
 
     chebyshev_degree: int
     gamma: float
-    temperature: Optional[phy.AdvDiffEq] = phy.AdvDiffEq(
+    temperature: phy.AdvDiffEq | None = phy.AdvDiffEq(
         bc_top=phy.Zero(),
         bc_bot=phy.Zero(),
         ref_prof=DiffusiveProf(bcs_top=Dirichlet(0.0), bcs_bot=Dirichlet(1.0)),
     )
-    composition: Optional[phy.AdvDiffEq] = None
+    composition: phy.AdvDiffEq | None = None
     bc_mom_top: phy.BCMomentum = phy.FreeSlip()
     bc_mom_bot: phy.BCMomentum = phy.FreeSlip()
     rheology: Rheology = Isoviscous()
-    cooling_smo: Optional[tuple[Callable, Callable]] = None
+    cooling_smo: tuple[Callable, Callable] | None = None
     frozen_time: bool = False
 
     def name(self) -> str:
@@ -86,7 +86,7 @@ class SphStability:
         return Slices(var_specs=var_specs, nnodes=self.nodes.size)
 
     def eigen_problem(
-        self, l_harm: int, ra_num: Optional[float], ra_comp: Optional[float] = None
+        self, l_harm: int, ra_num: float | None, ra_comp: float | None = None
     ) -> EigenvalueProblem:
         ops = self.operators(l_harm)
         dr1, dr2 = ops.diff_r(1), ops.diff_r(2)
@@ -182,7 +182,7 @@ class SphStability:
         return EigenvalueProblem(lmat, rmat)
 
     def growth_rate(
-        self, harm: int, ra_num: Optional[float], ra_comp: Optional[float] = None
+        self, harm: int, ra_num: float | None, ra_comp: float | None = None
     ) -> np.floating:
         return np.real(self.eigen_problem(harm, ra_num, ra_comp).max_eigval())
 
@@ -204,7 +204,7 @@ class SphStability:
         self,
         harm: int,
         ra_guess: float = 600,
-        ra_comp: Optional[float] = None,
+        ra_comp: float | None = None,
         eps: float = 1.0e-8,
     ) -> float:
         """Find Ra which gives neutral stability of a given harmonic
@@ -241,7 +241,7 @@ class SphStability:
         )
 
     def fastest_mode(
-        self, ra_num: float, ra_comp: Optional[float] = None, harm: int = 2
+        self, ra_num: float, ra_comp: float | None = None, harm: int = 2
     ) -> tuple[float, int]:
         """Find the fastest growing mode at a given Ra"""
 
@@ -294,7 +294,7 @@ class SphStability:
         return ((1, ran_mod1), (l_mod2, ran_mod2))
 
     def critical_ra(
-        self, harm: int = 2, ra_guess: float = 600, ra_comp: Optional[float] = None
+        self, harm: int = 2, ra_guess: float = 600, ra_comp: float | None = None
     ) -> tuple[float, int]:
         """Find the harmonic with the lowest neutral Ra
 

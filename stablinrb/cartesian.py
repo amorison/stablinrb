@@ -14,8 +14,6 @@ from .ref_prof import DiffusiveProf, Dirichlet
 from .rheology import Isoviscous, Rheology
 
 if typing.TYPE_CHECKING:
-    from typing import Optional
-
     from numpy.typing import NDArray
 
     from .geometry import Operators
@@ -33,10 +31,10 @@ class CartStability:
         ref_prof=DiffusiveProf(bcs_top=Dirichlet(0.0), bcs_bot=Dirichlet(1.0)),
     )
     rheology: Rheology = Isoviscous()
-    composition: Optional[phy.AdvDiffEq] = None
+    composition: phy.AdvDiffEq | None = None
     bc_mom_top: phy.BCMomentum = phy.FreeSlip()
     bc_mom_bot: phy.BCMomentum = phy.FreeSlip()
-    prandtl: Optional[float] = None
+    prandtl: float | None = None
     ref_state_translation: bool = False
     water: bool = False
     thetar: float = 0.0
@@ -84,7 +82,7 @@ class CartStability:
         return Slices(var_specs=var_specs, nnodes=self.nodes.size)
 
     def eigen_problem(
-        self, harm: float, ra_num: float, ra_comp: Optional[float] = None
+        self, harm: float, ra_num: float, ra_comp: float | None = None
     ) -> EigenvalueProblem:
         prandtl = self.prandtl
         translation = self.ref_state_translation
@@ -164,7 +162,7 @@ class CartStability:
         return EigenvalueProblem(lmat, rmat)
 
     def growth_rate(
-        self, harm: float, ra_num: float, ra_comp: Optional[float] = None
+        self, harm: float, ra_num: float, ra_comp: float | None = None
     ) -> np.floating:
         return np.real(self.eigen_problem(harm, ra_num, ra_comp).max_eigval())
 
@@ -180,7 +178,7 @@ class CartStability:
         self,
         harm: float,
         ra_guess: float = 600,
-        ra_comp: Optional[float] = None,
+        ra_comp: float | None = None,
         eps: float = 1.0e-8,
     ) -> float:
         """Find Ra which gives neutral stability of a given harmonic
@@ -217,7 +215,7 @@ class CartStability:
         )
 
     def fastest_mode(
-        self, ra_num: float, ra_comp: Optional[float] = None, harm: float = 2.0
+        self, ra_num: float, ra_comp: float | None = None, harm: float = 2.0
     ) -> tuple[float, float]:
         """Find the fastest growing mode at a given Ra"""
 
@@ -352,7 +350,7 @@ class CartStability:
         return rastab, hstab, ra0, harm0, sig0
 
     def critical_ra(
-        self, harm: float = 2.0, ra_guess: float = 600, ra_comp: Optional[float] = None
+        self, harm: float = 2.0, ra_guess: float = 600, ra_comp: float | None = None
     ) -> tuple[float, float]:
         """Find the harmonic with the lowest neutral Ra
 

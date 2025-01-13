@@ -10,7 +10,7 @@ from .geometry import CartOps
 from .matrix import Bot, Bulk, Field, Matrix, Slices, Top
 
 if typing.TYPE_CHECKING:
-    from typing import Callable, Optional
+    from typing import Callable
 
     from numpy.typing import NDArray
 
@@ -112,7 +112,7 @@ class FractionalCrystProf(ReferenceProfile):
 
     thick_tot: float
     partition_coef: float
-    c_0: Optional[float] = None
+    c_0: float | None = None
 
     def eval_with(self, ops: Operators) -> NDArray:
         # only written in cartesian

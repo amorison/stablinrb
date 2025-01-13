@@ -12,8 +12,6 @@ from mpl_toolkits.axes_grid1 import make_axes_locatable
 from scipy.special import sph_harm
 
 if typing.TYPE_CHECKING:
-    from typing import Optional
-
     from numpy.typing import NDArray
 
     from .cartesian import CartStability
@@ -41,7 +39,7 @@ def normalize(arr: NDArray) -> tuple[NDArray, np.complexfloating]:
 
 
 # scientific format for text
-def fmt(x: Optional[float]) -> str:
+def fmt(x: float | None) -> str:
     if x is None:
         return r"\infty"
     a, bs = "{:.2e}".format(x).split("e")
@@ -108,7 +106,7 @@ def image_mode(
 def plot_mode_image(
     analyzer: NonLinearAnalyzer,
     eps: float = 1,
-    name: Optional[str] = None,
+    name: str | None = None,
     plot_ords: bool = False,
 ) -> None:
     """Plot velocity and temperature image of a mode given on input
@@ -193,7 +191,7 @@ def plot_mode_image(
 
 def plot_mode_profiles(
     analyzer: NonLinearAnalyzer,
-    name: Optional[str] = None,
+    name: str | None = None,
 ) -> None:
     """Plot all mode profiles"""
     if name is None:
@@ -224,8 +222,8 @@ def plot_fastest_mode_cart(
     pblm: CartStability,
     harm: float,
     ra_num: float,
-    ra_comp: Optional[float] = None,
-    name: Optional[str] = None,
+    ra_comp: float | None = None,
+    name: str | None = None,
     plot_theory: bool = False,
     notbare: bool = True,
 ) -> None:
@@ -316,8 +314,8 @@ def plot_fastest_mode_sph(
     pblm: SphStability,
     harm: int,
     ra_num: float,
-    ra_comp: Optional[float] = None,
-    name: Optional[str] = None,
+    ra_comp: float | None = None,
+    name: str | None = None,
     plot_text: bool = True,
 ) -> None:
     """Plot fastest growing mode for a given harmonic and Ra
@@ -457,10 +455,10 @@ def plot_fastest_mode_sph(
 def plot_ran_harm_cart(
     pblm: CartStability,
     harm: float,
-    ra_comp: Optional[float] = None,
-    name: Optional[str] = None,
-    hmin: Optional[float] = None,
-    hmax: Optional[float] = None,
+    ra_comp: float | None = None,
+    name: str | None = None,
+    hmin: float | None = None,
+    hmax: float | None = None,
 ) -> None:
     """Plot neutral Ra vs harmonic around given harm"""
     if name is None:
@@ -495,10 +493,10 @@ def plot_ran_harm_cart(
 def plot_ran_harm_sph(
     pblm: SphStability,
     harm: float,
-    ra_comp: Optional[float] = None,
-    name: Optional[str] = None,
-    hmin: Optional[float] = None,
-    hmax: Optional[float] = None,
+    ra_comp: float | None = None,
+    name: str | None = None,
+    hmin: float | None = None,
+    hmax: float | None = None,
 ) -> None:
     """Plot neutral Ra vs harmonic around given harm"""
     if name is None:

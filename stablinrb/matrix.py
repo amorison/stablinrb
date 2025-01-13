@@ -12,7 +12,7 @@ from numpy import ma
 from scipy import linalg
 
 if typing.TYPE_CHECKING:
-    from typing import Mapping, Optional, Sequence
+    from typing import Mapping, Sequence
 
     from numpy.typing import NDArray
 
@@ -84,7 +84,7 @@ class VarSpec(ABC):
         """Elements over which the variable spans."""
 
     @abstractmethod
-    def collocation(self, nnodes: int) -> Optional[slice]:
+    def collocation(self, nnodes: int) -> slice | None:
         """Slice of collocation nodes relevant for this variable."""
 
 
