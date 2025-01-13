@@ -65,7 +65,10 @@ def image_mode(
     w2d: NDArray,
     harm: float,
     filename: str,
+    plot_T: bool = True,
+    plot_stream: bool = True,
     notbare: bool = True,
+    realbare: bool = False,
 ) -> None:
     """Create an image for one mode and save it in a file.
 
@@ -78,24 +81,30 @@ def image_mode(
     axis = fig.add_subplot(111)
     ax = plt.gca()
     # plot temperature
-    surf = plt.pcolormesh(
-        xgr, zgr, t2d, cmap=mypal, rasterized=True, linewidth=0, shading="gouraud"
-    )
+    if plot_T:
+        surf = plt.pcolormesh(
+            xgr, zgr, t2d, cmap=mypal, rasterized=True, linewidth=0, shading="gouraud"
+        )
     plt.axis((xgr.min(), xgr.max(), zgr.min(), zgr.max()))
     # stream function
-    speed = np.sqrt(u2d**2 + w2d**2)
-    if speed.max() > 0:
-        lw = 2 * speed / speed.max()
-        plt.streamplot(xgr, zgr, u2d, w2d, linewidth=lw, density=0.7)
+    if plot_stream:
+        speed = np.sqrt(u2d**2 + w2d**2)
+        if speed.max() > 0:
+            lw = 2 * speed / speed.max()
+            plt.streamplot(xgr, zgr, u2d, w2d, linewidth=lw, density=0.7)
     # labels etc.
-    if notbare:
-        axis.tick_params(axis="both", which="major", labelsize=FTSZ)
-        axis.set_xlabel(r"$x$", fontsize=FTSZ + 2)
-        axis.set_ylabel(r"$z$", fontsize=FTSZ + 2)
-        divider = make_axes_locatable(ax)
-        cax = divider.append_axes("right", size="5%", pad=0.2)
-        cbar = plt.colorbar(surf, cax=cax)
-        cbar.set_label(r"$T$")
+    if realbare:
+        plt.xticks([])
+        plt.yticks([])
+    else:
+        if notbare:
+            axis.tick_params(axis="both", which="major", labelsize=FTSZ)
+            axis.set_xlabel(r"$x$", fontsize=FTSZ + 2)
+            axis.set_ylabel(r"$z$", fontsize=FTSZ + 2)
+            divider = make_axes_locatable(ax)
+            cax = divider.append_axes("right", size="5%", pad=0.2)
+            cbar = plt.colorbar(surf, cax=cax)
+            cbar.set_label(r"$T$")
     if harm > 0.6:
         fig.set_figwidth(9)
         axis.set_aspect("equal")
@@ -228,7 +237,10 @@ def plot_fastest_mode_cart(
     ra_comp: float | None = None,
     name: str | None = None,
     plot_theory: bool = False,
+    plot_T: bool = True,
+    plot_stream: bool = True,
     notbare: bool = True,
+    realbare: bool = False,
 ) -> None:
     """Plot fastest growing mode for a given harmonic and Ra
 
@@ -310,7 +322,7 @@ def plot_fastest_mode_cart(
     w2d1, w2d2 = np.meshgrid(modx, w_interp)
     w2d = np.real(w2d1 * w2d2)
     filename = "_".join((name, "mode.pdf"))
-    image_mode(xgr, zgr, t2d, u2d, w2d, harm, filename, notbare)
+    image_mode(xgr, zgr, t2d, u2d, w2d, harm, filename, plot_T, plot_stream, notbare, realbare)
 
 
 def plot_fastest_mode_sph(
