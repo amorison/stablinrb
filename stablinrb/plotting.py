@@ -1,12 +1,16 @@
 from __future__ import annotations
 
 import typing
+from dataclasses import dataclass
+from functools import cached_property
 
 import matplotlib as mpl
 import matplotlib.pyplot as plt
 import mpl_toolkits.axisartist.floating_axes as floating_axes
 import numpy as np
 from dmsuite.interp import ChebyshevSampling
+from lazympl.plot import Plot
+from matplotlib.axes import Axes
 from matplotlib.projections.polar import PolarAxes
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 from scipy.special import sph_harm
@@ -490,6 +494,51 @@ def plot_ran_harm_cart(
     plt.close(fig)
 
 
+@dataclass(frozen=True)
+class RanVsEllSpherical(Plot):
+    problem: SphStability
+    ra_comp: float | None
+    ell_min: int
+    ell_max: int
+
+    @property
+    def _ells(self) -> range:
+        return range(self.ell_min, self.ell_max + 1)
+
+    @cached_property
+    def _ran(self) -> NDArray[np.float64]:
+        rac_l: list[float] = []
+        for l_harm in self._ells:
+            rac_l.append(
+                self.problem.neutral_ra(
+                    l_harm,
+                    ra_guess=(rac_l[-1] if rac_l else 600),
+                    ra_comp=self.ra_comp,
+                )
+            )
+        return np.array(rac_l)
+
+    def draw_on(self, ax: Axes) -> None:
+        ax.plot(self._ells, self._ran, "o")
+        ax.plot()
+
+        i_rac = np.argmin(self._ran)
+        l_c = self._ells[i_rac]
+        ra_c = self._ran[i_rac]
+        ax.plot(
+            l_c,
+            ra_c,
+            "o",
+            label=rf"$Ra_{{min}}={ra_c:.2f} ; l={l_c}$",
+            markersize=mpl.rcParams["lines.markersize"] * 1.5,
+        )
+
+        ax.set_xlabel(r"Spherical harmonic $l$")
+        ax.set_ylabel(r"Critical Rayleigh number $Ra_c$")
+        ax.set_xlim(self.ell_min - 0.3, self.ell_max + 0.3)
+        ax.legend()
+
+
 def plot_ran_harm_sph(
     pblm: SphStability,
     harm: float,
@@ -499,10 +548,6 @@ def plot_ran_harm_sph(
     hmax: float | None = None,
 ) -> None:
     """Plot neutral Ra vs harmonic around given harm"""
-    if name is None:
-        name = pblm.name()
-    fig, axis = plt.subplots(1, 1)
-    rac_l: list[float] = []
     harm = int(harm)
     if hmin is not None:
         lmin = int(hmin)
@@ -518,32 +563,19 @@ def plot_ran_harm_sph(
             lmax = max(15, harm + 5)
         else:
             lmax = lmin + 14
-    harms = range(lmin, lmax + 1)
-    for idx, l_harm in enumerate(harms):
-        rac_l.append(
-            pblm.neutral_ra(
-                l_harm, ra_guess=(rac_l[idx - 1] if idx else 600), ra_comp=ra_comp
-            )
-        )
 
-    l_c, ra_c = min(enumerate(rac_l), key=lambda tpl: tpl[1])
-    l_c += lmin
-
-    plt.setp(axis, xlim=[lmin - 0.3, lmax + 0.3])
-    plt.plot(harms, rac_l, "o", markersize=MSIZE)
-    plt.plot(
-        l_c,
-        ra_c,
-        "o",
-        label=rf"$Ra_{{min}}={ra_c:.2f} ; l={l_c}$",
-        markersize=MSIZE * 1.5,
+    plot = RanVsEllSpherical(
+        problem=pblm,
+        ra_comp=ra_comp,
+        ell_min=lmin,
+        ell_max=lmax,
     )
-    plt.xlabel(r"Spherical harmonic $l$", fontsize=FTSZ)
-    plt.ylabel(r"Critical Rayleigh number $Ra_c$", fontsize=FTSZ)
-    plt.legend(loc="upper right", fontsize=FTSZ)
-    filename = "_".join((name, "Ra_l.pdf"))
-    plt.xticks(fontsize=FTSZ)
-    plt.yticks(fontsize=FTSZ)
-    plt.tight_layout()
-    plt.savefig(filename, format="PDF")
+
+    fig, axis = plt.subplots(1, 1)
+    plot.draw_on(axis)
+
+    if name is None:
+        name = pblm.name()
+    fig.tight_layout()
+    fig.savefig(f"{name}_Ra_l.pdf")
     plt.close(fig)
