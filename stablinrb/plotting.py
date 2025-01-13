@@ -455,6 +455,37 @@ def plot_fastest_mode_sph(
     plt.close(fig)
 
 
+@dataclass(frozen=True)
+class RanVsKxCartesian(Plot):
+    problem: CartStability
+    ra_comp: float | None
+    kx_min: float
+    kx_max: float
+    n_kx: int
+
+    @cached_property
+    def _kxs(self) -> NDArray[np.float64]:
+        return np.linspace(self.kx_min, self.kx_max, self.n_kx, dtype=np.float64)
+
+    @cached_property
+    def _ran(self) -> NDArray[np.float64]:
+        rac_k: list[float] = []
+        for kx in self._kxs:
+            rac_k.append(
+                self.problem.neutral_ra(
+                    harm=kx.item(),
+                    ra_guess=(rac_k[-1] if rac_k else 600),
+                    ra_comp=self.ra_comp,
+                )
+            )
+        return np.array(rac_k)
+
+    def draw_on(self, ax: Axes) -> None:
+        ax.plot(self._kxs, self._ran)
+        ax.set_xlabel("Wavenumber")
+        ax.set_ylabel("Rayleigh number")
+
+
 def plot_ran_harm_cart(
     pblm: CartStability,
     harm: float,
@@ -464,32 +495,34 @@ def plot_ran_harm_cart(
     hmax: float | None = None,
 ) -> None:
     """Plot neutral Ra vs harmonic around given harm"""
-    if name is None:
-        name = pblm.name()
-    fig, axis = plt.subplots(1, 1)
     kxmin = harm
     ramin = pblm.neutral_ra(kxmin, ra_comp=ra_comp)
     hhmin = kxmin / 2 if hmin is None else hmin
     hhmax = 1.5 * kxmin if hmax is None else hmax
-    wnum = np.linspace(hhmin, hhmax, 50)
-    rayl = [pblm.neutral_ra(wnum[0], ramin, ra_comp)]
-    for i, kk in enumerate(wnum[1:]):
-        ra2 = pblm.neutral_ra(kk.item(), rayl[i], ra_comp)
-        rayl.append(ra2)
 
-    plt.plot(wnum, rayl, linewidth=2)
+    plot = RanVsKxCartesian(
+        problem=pblm,
+        ra_comp=ra_comp,
+        kx_min=hhmin,
+        kx_max=hhmax,
+        n_kx=50,
+    )
+
+    fig, axis = plt.subplots(1, 1)
+    plot.draw_on(axis)
+
+    # FIXME: this relies on `harm` being the critical wavenumber
     if ramin < 1:
-        plt.plot(kxmin, ramin, "o", label=r"$Ra_{min}=%.2e ; k=%.2e$" % (ramin, kxmin))
+        lbl = rf"$Ra_{{min}}={ramin:.2e} ; k={kxmin:.2e}$"
     else:
-        plt.plot(kxmin, ramin, "o", label=r"$Ra_{min}=%.2f ; k=%.2f$" % (ramin, kxmin))
-    plt.xlabel("Wavenumber", fontsize=FTSZ)
-    plt.ylabel("Rayleigh number", fontsize=FTSZ)
-    plt.legend(loc="upper right", fontsize=FTSZ)
-    filename = "_".join((name, "Ra_kx.pdf"))
-    plt.xticks(fontsize=FTSZ)
-    plt.yticks(fontsize=FTSZ)
-    plt.tight_layout()
-    plt.savefig(filename, format="PDF")
+        lbl = rf"$Ra_{{min}}={ramin:.2f} ; k={kxmin:.2f}$"
+    axis.plot(kxmin, ramin, "o", label=lbl)
+    axis.legend(loc="upper right")
+
+    if name is None:
+        name = pblm.name()
+    fig.tight_layout()
+    fig.savefig(f"{name}_Ra_kx.pdf")
     plt.close(fig)
 
 
