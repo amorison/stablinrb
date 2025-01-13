@@ -31,9 +31,8 @@ mpl.rcParams["pdf.fonttype"] = 42
 
 mypal = "inferno"
 
-# Font and markers size
+# Font size
 FTSZ = 13
-MSIZE = 5
 
 
 def normalize(arr: NDArray) -> tuple[NDArray, np.complexfloating]:
