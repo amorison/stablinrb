@@ -12,7 +12,7 @@ from numpy import ma
 from scipy import linalg
 
 if typing.TYPE_CHECKING:
-    from typing import Mapping, Sequence
+    from collections.abc import Mapping, Sequence
 
     from numpy.typing import NDArray
 

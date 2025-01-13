@@ -12,7 +12,7 @@ from .cartesian import CartStability
 from .matrix import All, Bot, Bulk, Field, Matrix, Scalar, Single, Slices, Top, Vector
 
 if typing.TYPE_CHECKING:
-    from typing import Mapping, Sequence
+    from collections.abc import Mapping, Sequence
 
     from numpy.typing import NDArray
 
