@@ -22,17 +22,9 @@ if typing.TYPE_CHECKING:
     from .nonlin import NonLinearAnalyzer
     from .spherical import SphStability
 
-mpl.rc("font", **{"family": "sans-serif", "sans-serif": ["Helvetica"]})
-mpl.rc("text", usetex=True)
 plt.rcParams["contour.negative_linestyle"] = "solid"
 
-# mpl.rcParams['font.size'] = 16
-mpl.rcParams["pdf.fonttype"] = 42
-
 mypal = "inferno"
-
-# Font size
-FTSZ = 13
 
 
 def normalize(arr: NDArray) -> tuple[NDArray, np.complexfloating]:
@@ -89,9 +81,9 @@ def image_mode(
         plt.streamplot(xgr, zgr, u2d, w2d, linewidth=lw, density=0.7)
     # labels etc.
     if notbare:
-        axis.tick_params(axis="both", which="major", labelsize=FTSZ)
-        axis.set_xlabel(r"$x$", fontsize=FTSZ + 2)
-        axis.set_ylabel(r"$z$", fontsize=FTSZ + 2)
+        axis.tick_params(axis="both", which="major")
+        axis.set_xlabel(r"$x$")
+        axis.set_ylabel(r"$z$")
         divider = make_axes_locatable(ax)
         cax = divider.append_axes("right", size="5%", pad=0.2)
         cbar = plt.colorbar(surf, cax=cax)
@@ -208,14 +200,14 @@ def plot_mode_profiles(
 
         fig, axe = plt.subplots(1, 4, sharey=True)
         axe[0].plot(np.real(w_mode), rad_cheb, "o")
-        axe[0].set_ylabel(r"$z$", fontsize=FTSZ)
-        axe[0].set_xlabel(r"$W$", fontsize=FTSZ)
+        axe[0].set_ylabel(r"$z$")
+        axe[0].set_xlabel(r"$W$")
         axe[1].plot(np.imag(u_mode), rad_cheb, "o")
-        axe[1].set_xlabel(r"$U$", fontsize=FTSZ)
+        axe[1].set_xlabel(r"$U$")
         axe[2].plot(np.real(t_mode), rad_cheb, "o")
-        axe[2].set_xlabel(r"$\Theta$", fontsize=FTSZ)
+        axe[2].set_xlabel(r"$\Theta$")
         axe[3].plot(np.real(p_mode), rad_cheb, "o")
-        axe[3].set_xlabel(r"$P$", fontsize=FTSZ)
+        axe[3].set_xlabel(r"$P$")
 
         plt.savefig(f"name_n-{nord}_l-{nharm}.pdf")
         plt.close(fig)
@@ -271,28 +263,28 @@ def plot_fastest_mode_cart(
     else:
         axis[0].plot(np.real(p_interp / p_max), rad)
     axis[0].plot(np.real(p_mode), rad_cheb, "o")
-    axis[0].set_xlabel(r"$P/(%.3f)$" % (np.real(p_max)), fontsize=FTSZ)
+    axis[0].set_xlabel(r"$P/(%.3f)$" % (np.real(p_max)))
     # horizontal velocity
     if plot_theory:
         axis[1].plot(-2 * rad, rad)
     else:
         axis[1].plot(np.real(u_interp / u_max), rad)
     axis[1].plot(np.real(u_mode), rad_cheb, "o")
-    axis[1].set_xlabel(r"$U/(%.3fi)$" % (np.imag(u_max)), fontsize=FTSZ)
+    axis[1].set_xlabel(r"$U/(%.3fi)$" % (np.imag(u_max)))
     # vertical velocity
     if plot_theory:
         axis[2].plot(np.ones(rad.shape), rad)
     else:
         axis[2].plot(np.real(w_interp / w_max), rad)
     axis[2].plot(np.real(w_mode), rad_cheb, "o")
-    axis[2].set_xlabel(r"$W/(%.3f)$" % (np.real(w_max)), fontsize=FTSZ)
+    axis[2].set_xlabel(r"$W/(%.3f)$" % (np.real(w_max)))
     # temperature
     if plot_theory:
         axis[3].plot(1 - 4 * rad**2, rad)
     else:
         axis[3].plot(np.real(t_interp), rad)
     axis[3].plot(np.real(t_mode), rad_cheb, "o")
-    axis[3].set_xlabel(r"$T$", fontsize=FTSZ)
+    axis[3].set_xlabel(r"$T$")
     filename = "_".join((name, "mode_prof.pdf"))
     plt.savefig(filename, format="PDF")
     plt.close(fig)
@@ -360,19 +352,19 @@ def plot_fastest_mode_sph(
     # pressure
     axis[0].plot(np.real(p_interp / p_max), rad)
     axis[0].plot(np.real(p_mode), rad_cheb, "o")
-    axis[0].set_xlabel(r"$P/(%.3f)$" % (np.real(p_max)), fontsize=FTSZ)
+    axis[0].set_xlabel(r"$P/(%.3f)$" % (np.real(p_max)))
     # horizontal velocity
     axis[1].plot(np.real(u_interp / u_max), rad)
     axis[1].plot(np.real(u_mode), rad_cheb, "o")
-    axis[1].set_xlabel(r"$U/(%.3fi)$" % (np.imag(u_max)), fontsize=FTSZ)
+    axis[1].set_xlabel(r"$U/(%.3fi)$" % (np.imag(u_max)))
     # vertical velocity
     axis[2].plot(np.real(w_interp / w_max), rad)
     axis[2].plot(np.real(w_mode), rad_cheb, "o")
-    axis[2].set_xlabel(r"$W/(%.3f)$" % (np.real(w_max)), fontsize=FTSZ)
+    axis[2].set_xlabel(r"$W/(%.3f)$" % (np.real(w_max)))
     # temperature
     axis[3].plot(np.real(t_interp), rad)
     axis[3].plot(np.real(t_mode), rad_cheb, "o")
-    axis[3].set_xlabel(r"$T$", fontsize=FTSZ)
+    axis[3].set_xlabel(r"$T$")
     filename = "_".join((name, "mode_prof.pdf"))
     plt.savefig(filename, format="PDF")
     plt.close(fig)
