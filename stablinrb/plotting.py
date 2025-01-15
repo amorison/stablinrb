@@ -24,8 +24,6 @@ if typing.TYPE_CHECKING:
 
 plt.rcParams["contour.negative_linestyle"] = "solid"
 
-mypal = "inferno"
-
 
 def normalize(arr: NDArray) -> tuple[NDArray, np.complexfloating]:
     """Normalize complex array with element of higher modulus."""
@@ -71,7 +69,7 @@ def image_mode(
     ax = plt.gca()
     # plot temperature
     surf = plt.pcolormesh(
-        xgr, zgr, t2d, cmap=mypal, rasterized=True, linewidth=0, shading="gouraud"
+        xgr, zgr, t2d, cmap="inferno", rasterized=True, linewidth=0, shading="gouraud"
     )
     plt.axis((xgr.min(), xgr.max(), zgr.min(), zgr.max()))
     # stream function
@@ -402,7 +400,7 @@ def plot_fastest_mode_sph(
 
     # plot Temperature
     axis.pcolormesh(
-        phi_mesh, rad_mesh, t_field, cmap=mypal, rasterized=True, shading="gouraud"
+        phi_mesh, rad_mesh, t_field, cmap="inferno", rasterized=True, shading="gouraud"
     )
     # plot stream lines
     axis.contour(phi_mesh, rad_mesh, psi_field)
