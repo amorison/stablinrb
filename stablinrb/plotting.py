@@ -22,8 +22,6 @@ if typing.TYPE_CHECKING:
     from .nonlin import NonLinearAnalyzer
     from .spherical import SphStability
 
-plt.rcParams["contour.negative_linestyle"] = "solid"
-
 
 def normalize(arr: NDArray) -> tuple[NDArray, np.complexfloating]:
     """Normalize complex array with element of higher modulus."""
@@ -403,7 +401,7 @@ def plot_fastest_mode_sph(
         phi_mesh, rad_mesh, t_field, cmap="inferno", rasterized=True, shading="gouraud"
     )
     # plot stream lines
-    axis.contour(phi_mesh, rad_mesh, psi_field)
+    axis.contour(phi_mesh, rad_mesh, psi_field, negative_linestyles="solid")
     axis.set_axis_off()
     fig.set_size_inches(9, 9)
     if plot_text:
