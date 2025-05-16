@@ -29,6 +29,7 @@ class SphStability:
 
     chebyshev_degree: int
     gamma: float
+    uniform_gravity: bool
     temperature: phy.AdvDiffEq | None = phy.AdvDiffEq(
         bc_top=phy.Zero(),
         bc_bot=phy.Zero(),
