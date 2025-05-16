@@ -142,7 +142,7 @@ class SphStability:
             lmat.add_term(Bulk("q"), ops.lapl, "q")
         if temp_terms:
             assert ra_num is not None
-            if self.uniform_gravity==True:
+            if self.uniform_gravity:
                 lmat.add_term(Bulk("q"), -ra_num * orl1, "T")
             else: 
                 # NOTE: Modifiaction for a radius dependant gravity g(r) = -g_O r e_r and multiplcation by 1/R+ to keep g(r = R+) = - g_O 
