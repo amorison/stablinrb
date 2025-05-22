@@ -17,7 +17,7 @@ def test_nonlin_rb() -> None:
     pik2 = np.pi**2 + harm_c**2
     pi_z = np.pi * ana.nodes
 
-    theory = {
+    theory: dict[tuple[int, int], dict[str, NDArray[np.number]]] = {
         (1, 1): {
             "u": -0.5 * np.sin(pi_z) * np.pi * 1j / harm_c,
             "w": 0.5 * np.cos(pi_z),
