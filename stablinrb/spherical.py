@@ -9,6 +9,7 @@ from dmsuite.poly_diff import Chebyshev, DiffMatOnDomain, DiffMatrices
 
 from . import physics as phy
 from .geometry import SphOps
+from .gravity import ConstantGravity
 from .matrix import Bulk, EigenvalueProblem, Field, Matrix, Slices
 from .ref_prof import DiffusiveProf, Dirichlet
 from .rheology import Isoviscous
@@ -19,6 +20,7 @@ if typing.TYPE_CHECKING:
     from numpy.typing import NDArray
 
     from .geometry import Operators
+    from .gravity import Gravity
     from .matrix import Vector
     from .rheology import Rheology
 
@@ -29,6 +31,7 @@ class SphStability:
 
     chebyshev_degree: int
     gamma: float
+    gravity: Gravity = ConstantGravity()
     temperature: phy.AdvDiffEq | None = phy.AdvDiffEq(
         bc_top=phy.Zero(),
         bc_bot=phy.Zero(),
@@ -91,7 +94,7 @@ class SphStability:
     def eigen_problem(
         self, l_harm: int, ra_num: float | None, ra_comp: float | None = None
     ) -> EigenvalueProblem:
-        ops = self.operators(l_harm)
+        ops = self._sph_ops(l_harm)
         dr1, dr2 = ops.diff_r(1), ops.diff_r(2)
 
         # 1 / (r + lambda)
@@ -143,10 +146,10 @@ class SphStability:
             lmat.add_term(Bulk("q"), ops.lapl, "q")
         if temp_terms:
             assert ra_num is not None
-            lmat.add_term(Bulk("q"), -ra_num * orl1, "T")
+            lmat.add_term(Bulk("q"), -self.gravity.with_ra(ra_num, ops), "T")
         if self.composition is not None:
             assert ra_comp is not None
-            lmat.add_term(Bulk("q"), -ra_comp * orl1, "c")
+            lmat.add_term(Bulk("q"), -self.gravity.with_ra(ra_comp, ops), "c")
 
         if self.cooling_smo is not None:
             gamt_f, w_f = self.cooling_smo
