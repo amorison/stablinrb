@@ -68,13 +68,16 @@ class SphStability:
     def nodes(self) -> NDArray:
         return self._diff_mat.nodes
 
-    def operators(self, harmonic: int) -> Operators:
+    def _sph_ops(self, harmonic: int) -> SphOps:
         return SphOps(
             gamma=self.gamma,
             diff_mat=self._diff_mat,
             harm_degree=harmonic,
             rheology=self.rheology,
         )
+
+    def operators(self, harmonic: int) -> Operators:
+        return self._sph_ops(harmonic)
 
     @cached_property
     def slices(self) -> Slices:
